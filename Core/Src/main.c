@@ -1,12 +1,21 @@
 #include "main.h"
 #include "uart_printf.h"
 #include "stdio.h" //NULL
+#include "shell.h"
 
 uint32_t SystemCoreClock = 8000000;
+
+void jump_to_app(void);
 
 int main(void)
 {
   uart_printf("bootloader running......................\r\n", NULL, 0);
+
+  shell();
+}
+
+void jump_to_app()
+{
 
 #if 0 // 从异常向量表中，从储存reset_handle的位置开始跳转，需要设置最低位为1，告诉编译器是thumb指令
   // 中断向量表的地址
@@ -41,7 +50,7 @@ int main(void)
   void (*APP)(void) = (void (*)(void))temp;
 
   // 打印出APP的地址
-   uart_printf("APP address is:", &temp, 4);
+  uart_printf("APP address is:", &temp, 4);
 
 #endif
   // 执行Reset_Handler
@@ -51,9 +60,9 @@ int main(void)
   volatile uint32_t *SCB_VTOR = (uint32_t *)0xE000ED08;
 
   // 中断向量表在rom中的地址
-  //*SCB_VTOR = 0x8002800;
-  //uint32_t VTCB_data = *SCB_VTOR;
-  //uart_printf("VTCB_data  is :", &VTCB_data, 4);
+  *SCB_VTOR = 0x8002800;
+  // uint32_t VTCB_data = *SCB_VTOR;
+  // uart_printf("VTCB_data  is :", &VTCB_data, 4);
 
   APP();
 }

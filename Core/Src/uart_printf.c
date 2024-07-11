@@ -35,7 +35,6 @@ static volatile uint32_t *USART1_CR2 = (uint32_t *)(USART1_BASS + 0x10);
 // USART1 CR3寄存器
 static volatile uint32_t *USART1_CR3 = (uint32_t *)(USART1_BASS + 0x14);
 
-
 // 将data写到DR寄存器
 #define UART_SEND_DATA_DR(data) *USART1_DR = (data & 0xFF)
 // 禁用DR寄存器空中断
@@ -53,6 +52,11 @@ static void uart_hardware_init();
 static uint8_t uart_fifo_get(uint8_t *data, const uint16_t dataLen);
 // 格式转换
 static void HEX_TO_STR(uint8_t data, char *str);
+// 从uart读取数据
+void uart_in(uint8_t *data);
+// 仅操作DR寄存器
+void uart_out(uint8_t data);
+
 // 初始化fifo
 static void uart_printf_init()
 {
@@ -271,10 +275,7 @@ uint8_t uart_printf(const void *strData, const uint8_t *data, const uint8_t len)
     uint8_t temp = 0;
     while (uart_fifo_get(&temp, 1) != FIFO_OUT_FAIL)
     {
-        while ((*USART1_SR & (1U << 7)) == 0)
-        {
-        }
-        *USART1_DR = temp & 0xFF;
+        uart_out(temp);
     }
 
 #endif
@@ -288,7 +289,7 @@ uint8_t uart_printf(const void *strData, const uint8_t *data, const uint8_t len)
 }
 
 // 仅操作DR寄存器
-void uart_out()
+void uart_out_IT()
 {
     uint8_t data = 0;
     if (uart_fifo_get(&data, 1) == FIFO_OUT_FAIL)
@@ -301,6 +302,23 @@ void uart_out()
     {
         UART_SEND_DATA_DR(data);
     }
+}
+
+void uart_in(uint8_t *data)
+{
+    while ((*USART1_SR & (1U << 5)) == 0)
+    {
+    }
+    *data = *USART1_DR;
+}
+
+void uart_out(uint8_t data)
+{
+    // *USART1_DR = data & 0xFF;
+    while ((*USART1_SR & (1U << 7)) == 0)
+    {
+    }
+    *USART1_DR = data;
 }
 
 // 输入data 转换成asill

@@ -21,8 +21,6 @@ typedef unsigned int uint32_t;
 #include "stm32f103xb.h"
 #endif
 
-
-
 #define FIFO_LOG_LEN 1024
 
 typedef enum
@@ -72,9 +70,15 @@ typedef struct
 /***********************function***********************/
 
 // 发动到DR寄存器
-void uart_out();
+void uart_out_IT();
 
 // 使用串口打印
 uint8_t uart_printf(const void *strData, const uint8_t *data, const uint8_t len);
+
+// 从dr寄存器读字节
+void uart_in(uint8_t *data);
+
+void uart_out(uint8_t data);
+
 /******************************************************/
 #endif
