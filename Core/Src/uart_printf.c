@@ -345,6 +345,43 @@ static void HEX_TO_STR(uint8_t data, char *str)
     }
 }
 
+// 输入2字节的char 返回成uint8_t
+void STR_TO_HEX(char *str, uint8_t *data)
+{
+
+    *data = 0;
+    uint8_t i = 1;
+    while (*str != '\0')
+    {
+        if (('/' < *str) && (*str < ':'))
+        {
+            *data |= (*str - '0') << (4 * i);
+        }
+        // ascll A-F
+        else if (('@' < *str) && (*str < 'G'))
+        {
+            *data |= (*str - 'A' + 0x0a) << (4 * i);
+        }
+        // ascll a-f
+        else if (('`' < *str) && (*str < 'g'))
+        {
+            *data |= (*str - 'a' + 0x0a) << (4 * i);
+        }
+        str++;
+
+        if (i == 1)
+        {
+            i = 0;
+        }
+        else
+        {
+            i = 1;
+            data++;
+            *data = 0;
+        };
+    }
+}
+
 // 串口硬件初始化
 static void uart_hardware_init()
 {

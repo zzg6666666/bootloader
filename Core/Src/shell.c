@@ -115,17 +115,21 @@ void shell(void)
         // 换行符号 "/r"(13) "/n"(10)
         if (data == '\r' || data == '\n')
         {
-            
+
             uart_printf("\r\n", NULL, 0);
-            // 执行命令
-            exec_command(shell.line,shell.line_position);
-            //执行命令完成
-            uart_printf(shell_prompt, NULL, 0);
+
+            // 放入命令到历史命令
             shell_put_history(&shell);
+
+            // 执行命令 会更改主动替换命令中的空格为'/0',shell_put_history是根据'/0'判断结束没有
+            exec_command(shell.line, shell.line_position);
+            // 执行命令完成
+            uart_printf(shell_prompt, NULL, 0);
+
             shell.line_curpos = 0;
             shell.line_position = 0;
+            // 重置当前line为'\0'
             memset(&shell.line[0], '\0', sizeof(shell.line));
-
             continue;
         }
 
@@ -176,7 +180,9 @@ void shell(void)
         // 普通key：
         if (shell.line_curpos < shell.line_position)
         {
-            memcpy(&shell.line[shell.line_curpos + 1], &shell.line[shell.line_curpos], shell.line_position - shell.line_curpos);
+            char temp[SHELL_CMD_SIZE];
+            memcpy(temp, shell.line, shell.line_position);
+            memcpy(&shell.line[shell.line_curpos + 1], &temp[shell.line_curpos], shell.line_position - shell.line_curpos);
             shell.line[shell.line_curpos] = data;
 
             // 打印字符

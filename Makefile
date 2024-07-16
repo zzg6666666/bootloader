@@ -37,7 +37,8 @@ BUILD_DIR = build
 C_SOURCES =  \
 Core/Src/main.c \
 Core/Src/uart_printf.c \
-
+Core/Src/shell.c \
+Core/Src/command.c
 
 # ASM sources
 ASM_SOURCES =  \

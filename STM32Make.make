@@ -36,7 +36,9 @@ BUILD_DIR = build
 ######################################
 # C sources
 C_SOURCES =  \
+Core/Src/command.c \
 Core/Src/main.c \
+Core/Src/shell.c \
 Core/Src/uart_printf.c
 
 

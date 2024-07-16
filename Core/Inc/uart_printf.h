@@ -80,5 +80,6 @@ void uart_in(uint8_t *data);
 
 void uart_out(uint8_t data);
 
+void STR_TO_HEX(char *str, uint8_t *data);
 /******************************************************/
 #endif

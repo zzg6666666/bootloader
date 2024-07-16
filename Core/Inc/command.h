@@ -11,9 +11,14 @@ typedef void (*shell_func)(unsigned char argc, char *argv[]);
 typedef struct
 {
     char *name;
-    char *short_help;
-    char *long_help;
+    shell_func subFunction;
+} subfunc;
+
+typedef struct
+{
+    char *name;
     shell_func function;
+    subfunc *subFuns[];
 } shell_function;
 
 #endif
