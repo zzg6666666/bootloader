@@ -1,0 +1,3645 @@
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"uds.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/uds.c"
+  18              		.section	.rodata.service0x31Trigger.str1.4,"aMS",%progbits,1
+  19              		.align	2
+  20              	.LC0:
+  21 0000 33312073 		.ascii	"31 service data \000"
+  21      65727669 
+  21      63652064 
+  21      61746120 
+  21      00
+  22 0011 000000   		.align	2
+  23              	.LC1:
+  24 0014 33312073 		.ascii	"31 service find subId\015\012\000"
+  24      65727669 
+  24      63652066 
+  24      696E6420 
+  24      73756249 
+  25              		.align	2
+  26              	.LC2:
+  27 002c 73657276 		.ascii	"service 31 dont support this did or this did dont h"
+  27      69636520 
+  27      33312064 
+  27      6F6E7420 
+  27      73757070 
+  28 005f 61766520 		.ascii	"ave a sub function \015\012\000"
+  28      61207375 
+  28      62206675 
+  28      6E637469 
+  28      6F6E200D 
+  29              		.section	.text.service0x31Trigger,"ax",%progbits
+  30              		.align	1
+  31              		.syntax unified
+  32              		.thumb
+  33              		.thumb_func
+  35              	service0x31Trigger:
+  36              	.LVL0:
+  37              	.LFB10:
+   1:Core/Src/uds.c **** #include "uds.h"
+   2:Core/Src/uds.c **** #include "typedef_conf.h"
+   3:Core/Src/uds.c **** #include "uart_printf.h"
+   4:Core/Src/uds.c **** #include "string.h"  //memcpy  memset
+   5:Core/Src/uds.c **** #include "command.h" //flash_erase
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 2
+
+
+   6:Core/Src/uds.c **** #include "crc.h"
+   7:Core/Src/uds.c **** // static const Dcm_dids_conf dcmCfgDids[] = {
+   8:Core/Src/uds.c **** //     {
+   9:Core/Src/uds.c **** //         0xF190,   // id
+  10:Core/Src/uds.c **** //         dcm_NULL, // write
+  11:Core/Src/uds.c **** //         dcm_NULL, // read
+  12:Core/Src/uds.c **** //         dcm_NULL  // control
+  13:Core/Src/uds.c **** //     },
+  14:Core/Src/uds.c **** //     {
+  15:Core/Src/uds.c **** //         0xF180,   // id
+  16:Core/Src/uds.c **** //         dcm_NULL, // write
+  17:Core/Src/uds.c **** //         dcm_NULL, // read
+  18:Core/Src/uds.c **** //         dcm_NULL  // control
+  19:Core/Src/uds.c **** //     },
+  20:Core/Src/uds.c **** // };
+  21:Core/Src/uds.c **** 
+  22:Core/Src/uds.c **** // 0x31 01FF00开始擦写 0x3103FF00u擦写结果， 010202 crc  010203 检查前提条件  01ff05
+  23:Core/Src/uds.c **** 
+  24:Core/Src/uds.c **** // ota 流程 10 02 重启到bootloader  27解锁  擦除flash  38(34)请求升级  78正反馈，3
+  25:Core/Src/uds.c **** 
+  26:Core/Src/uds.c **** // 31服务Trigger
+  27:Core/Src/uds.c **** 
+  28:Core/Src/uds.c **** // 开始擦写
+  29:Core/Src/uds.c **** static uint8_t service0x31SubFunctionStartErase(uint8_t *data, uint16_t dataLen);
+  30:Core/Src/uds.c **** // 擦写结果
+  31:Core/Src/uds.c **** static uint8_t service0x31SubFunctionEraseResult(uint8_t *data, uint16_t dataLen);
+  32:Core/Src/uds.c **** // 进行CRC校验
+  33:Core/Src/uds.c **** static uint8_t service0x31SubFunctionCRCValidate(uint8_t *data, uint16_t dataLen);
+  34:Core/Src/uds.c **** // 开始刷写flash
+  35:Core/Src/uds.c **** static uint8_t service0x31SubFunctionUpdateProgram(uint8_t *data, uint16_t dataLen);
+  36:Core/Src/uds.c **** // 升级完成CRC验证
+  37:Core/Src/uds.c **** static uint8_t service0x31SubFunctionDownFinishCRCValidate(uint8_t *data, uint16_t dataLen);
+  38:Core/Src/uds.c **** 
+  39:Core/Src/uds.c **** static uint8_t service0x31Trigger(uint8_t *data, uint16_t dataLen);
+  40:Core/Src/uds.c **** static uint8_t service0x34Trigger(uint8_t *data, uint16_t dataLen);
+  41:Core/Src/uds.c **** static uint8_t service0x36Trigger(uint8_t *data, uint16_t dataLen);
+  42:Core/Src/uds.c **** static uint8_t service0x37Trigger(uint8_t *data, uint16_t dataLen);
+  43:Core/Src/uds.c **** 
+  44:Core/Src/uds.c **** // 支持的服务表长度 bootloader 必须的session 必须是1002 需要解锁
+  45:Core/Src/uds.c **** Dcm_services_conf dcmServicesTable[] =
+  46:Core/Src/uds.c ****     {
+  47:Core/Src/uds.c ****         {
+  48:Core/Src/uds.c ****             0x10U,    // id
+  49:Core/Src/uds.c ****             dcm_NULL, // service trigger
+  50:Core/Src/uds.c ****             dcm_NULL, // session
+  51:Core/Src/uds.c ****             dcm_NULL, // security //bootloader
+  52:Core/Src/uds.c ****             dcm_NULL  // subService
+  53:Core/Src/uds.c ****         },
+  54:Core/Src/uds.c ****         {
+  55:Core/Src/uds.c ****             0x11U,    // id
+  56:Core/Src/uds.c ****             dcm_NULL, // service trigger
+  57:Core/Src/uds.c ****             dcm_NULL, // session
+  58:Core/Src/uds.c ****             dcm_NULL, // security
+  59:Core/Src/uds.c ****             dcm_NULL  // subService
+  60:Core/Src/uds.c ****         },
+  61:Core/Src/uds.c ****         {
+  62:Core/Src/uds.c ****             0x22U,    // id
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 3
+
+
+  63:Core/Src/uds.c ****             dcm_NULL, // service trigger
+  64:Core/Src/uds.c ****             dcm_NULL, // session
+  65:Core/Src/uds.c ****             dcm_NULL, // security
+  66:Core/Src/uds.c ****             dcm_NULL  // subService
+  67:Core/Src/uds.c ****         },
+  68:Core/Src/uds.c ****         {
+  69:Core/Src/uds.c ****             0x2EU,    // id
+  70:Core/Src/uds.c ****             dcm_NULL, // service trigger
+  71:Core/Src/uds.c ****             dcm_NULL, // session
+  72:Core/Src/uds.c ****             dcm_NULL, // security
+  73:Core/Src/uds.c ****             dcm_NULL  // subService
+  74:Core/Src/uds.c ****         },
+  75:Core/Src/uds.c ****         {
+  76:Core/Src/uds.c ****             0x27U,    // id
+  77:Core/Src/uds.c ****             dcm_NULL, // service trigger
+  78:Core/Src/uds.c ****             dcm_NULL, // session
+  79:Core/Src/uds.c ****             dcm_NULL, // security
+  80:Core/Src/uds.c ****             dcm_NULL  // subService
+  81:Core/Src/uds.c ****         },
+  82:Core/Src/uds.c ****         {
+  83:Core/Src/uds.c ****             0x28U,    // id
+  84:Core/Src/uds.c ****             dcm_NULL, // service trigger
+  85:Core/Src/uds.c ****             dcm_NULL, // session
+  86:Core/Src/uds.c ****             dcm_NULL, // security
+  87:Core/Src/uds.c ****             dcm_NULL  // subService
+  88:Core/Src/uds.c ****         },
+  89:Core/Src/uds.c ****         {
+  90:Core/Src/uds.c ****             0x31U,              // id
+  91:Core/Src/uds.c ****             service0x31Trigger, // service trigger
+  92:Core/Src/uds.c ****             dcm_NULL,           // session
+  93:Core/Src/uds.c ****             dcm_NULL,           // security
+  94:Core/Src/uds.c ****             dcm_NULL            // subService
+  95:Core/Src/uds.c ****         },
+  96:Core/Src/uds.c ****         {
+  97:Core/Src/uds.c ****             0x34U,              // id
+  98:Core/Src/uds.c ****             service0x34Trigger, // service trigger
+  99:Core/Src/uds.c ****             dcm_NULL,           // session
+ 100:Core/Src/uds.c ****             dcm_NULL,           // security
+ 101:Core/Src/uds.c ****             dcm_NULL            // subService
+ 102:Core/Src/uds.c ****         },
+ 103:Core/Src/uds.c ****         {
+ 104:Core/Src/uds.c ****             0x36U,              // id
+ 105:Core/Src/uds.c ****             service0x36Trigger, // service trigger
+ 106:Core/Src/uds.c ****             dcm_NULL,           // session
+ 107:Core/Src/uds.c ****             dcm_NULL,           // security
+ 108:Core/Src/uds.c ****             dcm_NULL            // subService
+ 109:Core/Src/uds.c ****         },
+ 110:Core/Src/uds.c ****         {
+ 111:Core/Src/uds.c ****             0x37U,              // id
+ 112:Core/Src/uds.c ****             service0x37Trigger, // service trigger
+ 113:Core/Src/uds.c ****             dcm_NULL,           // session
+ 114:Core/Src/uds.c ****             dcm_NULL,           // security
+ 115:Core/Src/uds.c ****             dcm_NULL            // subService
+ 116:Core/Src/uds.c ****         },
+ 117:Core/Src/uds.c ****         {
+ 118:Core/Src/uds.c ****             0x38U,    // id
+ 119:Core/Src/uds.c ****             dcm_NULL, // service trigger
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 4
+
+
+ 120:Core/Src/uds.c ****             dcm_NULL, // session
+ 121:Core/Src/uds.c ****             dcm_NULL, // security
+ 122:Core/Src/uds.c ****             dcm_NULL  // subService
+ 123:Core/Src/uds.c ****         },
+ 124:Core/Src/uds.c ****         {
+ 125:Core/Src/uds.c ****             0x3EU,    // id
+ 126:Core/Src/uds.c ****             dcm_NULL, // service trigger
+ 127:Core/Src/uds.c ****             dcm_NULL, // session
+ 128:Core/Src/uds.c ****             dcm_NULL, // security
+ 129:Core/Src/uds.c ****             dcm_NULL  // subService
+ 130:Core/Src/uds.c ****         },
+ 131:Core/Src/uds.c ****         {
+ 132:Core/Src/uds.c ****             0x85U,    // id
+ 133:Core/Src/uds.c ****             dcm_NULL, // service trigger
+ 134:Core/Src/uds.c ****             dcm_NULL, // session
+ 135:Core/Src/uds.c ****             dcm_NULL, // security
+ 136:Core/Src/uds.c ****             dcm_NULL  // subService
+ 137:Core/Src/uds.c ****         },
+ 138:Core/Src/uds.c **** };
+ 139:Core/Src/uds.c **** static const Dcm_control_dids_conf dcmControlDids[] = // service 0x31
+ 140:Core/Src/uds.c ****     {
+ 141:Core/Src/uds.c ****         {0x010202, {dcm_NULL, dcm_NULL, service0x31SubFunctionCRCValidate}},           // crc验证
+ 142:Core/Src/uds.c ****         {0x01FF00, {dcm_NULL, dcm_NULL, service0x31SubFunctionStartErase}},            // erase fla
+ 143:Core/Src/uds.c ****         {0x03FF00, {dcm_NULL, dcm_NULL, service0x31SubFunctionEraseResult}},           // check fla
+ 144:Core/Src/uds.c ****         {0x010203, {dcm_NULL, dcm_NULL, service0x31SubFunctionUpdateProgram}},         // 开始升
+ 145:Core/Src/uds.c ****         {0x010205, {dcm_NULL, dcm_NULL, service0x31SubFunctionDownFinishCRCValidate}}, // 下载完
+ 146:Core/Src/uds.c ****         {0x01ff05, {dcm_NULL}}};
+ 147:Core/Src/uds.c **** 
+ 148:Core/Src/uds.c **** // 储存 uds接收到的信息
+ 149:Core/Src/uds.c **** uds_frame_tag uds_frame = {.init = 0,
+ 150:Core/Src/uds.c ****                            .receiveDataLength = 0,
+ 151:Core/Src/uds.c ****                            .reqDataLength = 0,
+ 152:Core/Src/uds.c ****                            .resDataLength = 0};
+ 153:Core/Src/uds.c **** 
+ 154:Core/Src/uds.c **** // memset(uds_frame.reqData, 0x00, 255);
+ 155:Core/Src/uds.c **** 
+ 156:Core/Src/uds.c **** // 储存ota收到的buff
+ 157:Core/Src/uds.c **** OTA_data ota_data = {.dataLength = 0,
+ 158:Core/Src/uds.c ****                      .reqDataLen = 0,
+ 159:Core/Src/uds.c ****                      .dataLength = 0,
+ 160:Core/Src/uds.c ****                      .CRC = 0,
+ 161:Core/Src/uds.c ****                      .reciveDataTimes = 0,
+ 162:Core/Src/uds.c ****                      .reqFlashAddress = 0};
+ 163:Core/Src/uds.c **** 
+ 164:Core/Src/uds.c **** // can 每条报文长度为8字节
+ 165:Core/Src/uds.c **** uint8_t can_service_entry(uint8_t *data)
+ 166:Core/Src/uds.c **** {
+ 167:Core/Src/uds.c **** 
+ 168:Core/Src/uds.c ****     // 检查服务是单帧(0)  连续帧(2) ，首帧(1)
+ 169:Core/Src/uds.c **** 
+ 170:Core/Src/uds.c ****     switch (((data[0]) & 0xf0) >> 4)
+ 171:Core/Src/uds.c ****     {
+ 172:Core/Src/uds.c ****     case 0: // 单帧
+ 173:Core/Src/uds.c ****     {
+ 174:Core/Src/uds.c ****         memset(uds_frame.reqData, 0x00, 255);
+ 175:Core/Src/uds.c ****         uds_frame.reqDataLength = data[0] & 0x0f;
+ 176:Core/Src/uds.c ****         memcpy(uds_frame.reqData, &data[1], uds_frame.reqDataLength);
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 5
+
+
+ 177:Core/Src/uds.c ****         uds_entry(uds_frame.reqData, uds_frame.reqDataLength);
+ 178:Core/Src/uds.c ****     }
+ 179:Core/Src/uds.c **** 
+ 180:Core/Src/uds.c ****     break;
+ 181:Core/Src/uds.c **** 
+ 182:Core/Src/uds.c ****     case 1: // 首帧
+ 183:Core/Src/uds.c ****     {
+ 184:Core/Src/uds.c ****         uds_frame.init = 1;
+ 185:Core/Src/uds.c ****         memset(uds_frame.reqData, 0x00, 255);
+ 186:Core/Src/uds.c ****         uds_frame.reqDataLength = ((data[0] & 0x0f) << 8) + data[1];
+ 187:Core/Src/uds.c ****         uds_frame.receiveDataLength = 6;
+ 188:Core/Src/uds.c ****         memcpy(&uds_frame.reqData[0], &data[2], 6);
+ 189:Core/Src/uds.c ****         {
+ 190:Core/Src/uds.c ****             // error catch 空间不足，跳帧 等等
+ 191:Core/Src/uds.c ****         }
+ 192:Core/Src/uds.c ****         uds_response(FirstFrameResponse);
+ 193:Core/Src/uds.c ****     }
+ 194:Core/Src/uds.c ****     break;
+ 195:Core/Src/uds.c ****     case 2: // 连续帧
+ 196:Core/Src/uds.c ****     {
+ 197:Core/Src/uds.c ****         if ((uds_frame.receiveDataLength + 7) >= uds_frame.reqDataLength)
+ 198:Core/Src/uds.c ****         {
+ 199:Core/Src/uds.c ****             // 接收完成
+ 200:Core/Src/uds.c ****             memcpy(&uds_frame.reqData[uds_frame.receiveDataLength], &data[1], (uds_frame.reqDataLen
+ 201:Core/Src/uds.c ****             uds_entry(uds_frame.reqData, uds_frame.reqDataLength);
+ 202:Core/Src/uds.c ****         }
+ 203:Core/Src/uds.c ****         else
+ 204:Core/Src/uds.c ****         {
+ 205:Core/Src/uds.c ****             // 持续接收
+ 206:Core/Src/uds.c ****             memcpy(&uds_frame.reqData[uds_frame.receiveDataLength], &data[1], 7);
+ 207:Core/Src/uds.c ****             uds_frame.receiveDataLength += 7;
+ 208:Core/Src/uds.c ****         }
+ 209:Core/Src/uds.c ****     }
+ 210:Core/Src/uds.c ****     }
+ 211:Core/Src/uds.c **** 
+ 212:Core/Src/uds.c ****     // can respoense
+ 213:Core/Src/uds.c **** 
+ 214:Core/Src/uds.c ****     return 0;
+ 215:Core/Src/uds.c **** }
+ 216:Core/Src/uds.c **** 
+ 217:Core/Src/uds.c **** // uds 入口，支持can和其他协议
+ 218:Core/Src/uds.c **** void uds_entry(uint8_t *data, uint16_t dataLen)
+ 219:Core/Src/uds.c **** {
+ 220:Core/Src/uds.c ****     for (int i = 0; i < 720000; i++)
+ 221:Core/Src/uds.c ****     { // 延时，
+ 222:Core/Src/uds.c ****     }
+ 223:Core/Src/uds.c ****     // uint8_t ret_value ;
+ 224:Core/Src/uds.c ****     Dcm_services_conf *service = dcm_NULL;
+ 225:Core/Src/uds.c **** 
+ 226:Core/Src/uds.c ****     // 检查服务是否被支持
+ 227:Core/Src/uds.c ****     for (uint8_t i = 0; i < sizeof(dcmServicesTable) / sizeof(Dcm_services_conf); i++)
+ 228:Core/Src/uds.c ****     {
+ 229:Core/Src/uds.c ****         if (data[0] == dcmServicesTable[i].service_id)
+ 230:Core/Src/uds.c ****         {
+ 231:Core/Src/uds.c ****             uart_printf(system_log, "find services :", &dcmServicesTable[i].service_id, 1);
+ 232:Core/Src/uds.c ****             uart_printf(system_log, "recive data is ", data, (uint8_t)dataLen);
+ 233:Core/Src/uds.c ****             service = &dcmServicesTable[i];
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 6
+
+
+ 234:Core/Src/uds.c ****             break;
+ 235:Core/Src/uds.c ****         }
+ 236:Core/Src/uds.c ****     }
+ 237:Core/Src/uds.c **** 
+ 238:Core/Src/uds.c ****     // 未找到sid
+ 239:Core/Src/uds.c ****     if (service == dcm_NULL)
+ 240:Core/Src/uds.c ****     {
+ 241:Core/Src/uds.c ****         uart_printf(system_log, "the sid dont been supported\r\n", NULL, 0);
+ 242:Core/Src/uds.c **** 
+ 243:Core/Src/uds.c ****         uds_response(ServiceNotSupported);
+ 244:Core/Src/uds.c ****     }
+ 245:Core/Src/uds.c ****     // 未找到 subid
+ 246:Core/Src/uds.c ****     else if (service->serviceTrigger == NULL)
+ 247:Core/Src/uds.c ****     {
+ 248:Core/Src/uds.c ****         uart_printf(system_log, "the sid dont have a trriger function\r\n", NULL, 0);
+ 249:Core/Src/uds.c ****         uds_response(SubFunctionNotSupported);
+ 250:Core/Src/uds.c ****     }
+ 251:Core/Src/uds.c ****     else if (service->serviceTrigger != dcm_NULL)
+ 252:Core/Src/uds.c ****     {
+ 253:Core/Src/uds.c ****         uds_response(ResponsePending);
+ 254:Core/Src/uds.c ****         service->serviceTrigger(&data[1], dataLen - 1);
+ 255:Core/Src/uds.c ****     }
+ 256:Core/Src/uds.c **** }
+ 257:Core/Src/uds.c **** 
+ 258:Core/Src/uds.c **** // 开始擦写
+ 259:Core/Src/uds.c **** static uint8_t service0x31SubFunctionStartErase(uint8_t *data, uint16_t dataLen)
+ 260:Core/Src/uds.c **** {
+ 261:Core/Src/uds.c ****     uint8_t ret_value = 0;
+ 262:Core/Src/uds.c ****     uart_printf(system_log, "Start Erase at ", data, 4);
+ 263:Core/Src/uds.c ****     uint32_t EraseAddress = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3];
+ 264:Core/Src/uds.c **** 
+ 265:Core/Src/uds.c ****     // 解锁 flash
+ 266:Core/Src/uds.c ****     flash_lock(1);
+ 267:Core/Src/uds.c ****     ret_value = flash_erase(EraseAddress);
+ 268:Core/Src/uds.c **** 
+ 269:Core/Src/uds.c ****     if (ret_value == true)
+ 270:Core/Src/uds.c ****     {
+ 271:Core/Src/uds.c ****         uds_response(ControlPositiveResponse);
+ 272:Core/Src/uds.c ****     }
+ 273:Core/Src/uds.c ****     else
+ 274:Core/Src/uds.c ****     {
+ 275:Core/Src/uds.c ****         uds_response(GeneralReject);
+ 276:Core/Src/uds.c ****     }
+ 277:Core/Src/uds.c ****     return ret_value;
+ 278:Core/Src/uds.c **** }
+ 279:Core/Src/uds.c **** 
+ 280:Core/Src/uds.c **** // 擦写结果 传入开始地址和结束地址
+ 281:Core/Src/uds.c **** static uint8_t service0x31SubFunctionEraseResult(uint8_t *data, uint16_t dataLen)
+ 282:Core/Src/uds.c **** {
+ 283:Core/Src/uds.c ****     uint8_t ret_value;
+ 284:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 285:Core/Src/uds.c ****     uint32_t readAddressStart;
+ 286:Core/Src/uds.c ****     uint32_t readAddressEnd;
+ 287:Core/Src/uds.c ****     uart_printf(system_log, "check Erase Result\r\n", NULL, 0);
+ 288:Core/Src/uds.c **** 
+ 289:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data, &readAddressStart, 1);
+ 290:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(&data[4], &readAddressEnd, 1);
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 7
+
+
+ 291:Core/Src/uds.c ****     // uint32_t readAddressStart = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3];
+ 292:Core/Src/uds.c ****     // uint32_t readAddressEnd = (data[4] << 24) + (data[5] << 16) + (data[6] << 8) + data[7];
+ 293:Core/Src/uds.c **** 
+ 294:Core/Src/uds.c ****     // 检查flash地址合法性 擦写时，flash_erase会做判断
+ 295:Core/Src/uds.c ****     ret_value = check_flash_address(readAddressStart);
+ 296:Core/Src/uds.c ****     ret_value = check_flash_address(readAddressEnd);
+ 297:Core/Src/uds.c **** 
+ 298:Core/Src/uds.c ****     // flash的真实地址
+ 299:Core/Src/uds.c ****     readAddressStart &= 0x0000FFFF;
+ 300:Core/Src/uds.c **** 
+ 301:Core/Src/uds.c ****     // 页地址
+ 302:Core/Src/uds.c ****     readAddressStart = readAddressStart - (readAddressStart % 1024);
+ 303:Core/Src/uds.c ****     readAddressStart |= 0x08000000;
+ 304:Core/Src/uds.c **** 
+ 305:Core/Src/uds.c ****     readAddressEnd |= 0x08000000;
+ 306:Core/Src/uds.c **** 
+ 307:Core/Src/uds.c ****     // 读取flash
+ 308:Core/Src/uds.c ****     uint32_t *temp = (uint32_t *)readAddressStart;
+ 309:Core/Src/uds.c **** 
+ 310:Core/Src/uds.c ****     if (ret_value == true)
+ 311:Core/Src/uds.c ****     {
+ 312:Core/Src/uds.c ****         // 检查区域是不是都是0xFF
+ 313:Core/Src/uds.c ****         uint16_t i;
+ 314:Core/Src/uds.c ****         for (i = 0; i < (readAddressEnd - readAddressStart) / 4; i++)
+ 315:Core/Src/uds.c ****         {
+ 316:Core/Src/uds.c ****             if (*temp != 0xFFFFFFFF)
+ 317:Core/Src/uds.c ****             {
+ 318:Core/Src/uds.c ****                 break;
+ 319:Core/Src/uds.c ****             }
+ 320:Core/Src/uds.c ****             temp++;
+ 321:Core/Src/uds.c ****         }
+ 322:Core/Src/uds.c **** 
+ 323:Core/Src/uds.c ****         if (i != (readAddressEnd - readAddressStart) / 4)
+ 324:Core/Src/uds.c ****         {
+ 325:Core/Src/uds.c ****             ret_value = false;
+ 326:Core/Src/uds.c ****             uint8_t data_to_uint8_t[4];
+ 327:Core/Src/uds.c ****             readAddressStart += i * 4;
+ 328:Core/Src/uds.c ****             convert_uint32_t_to_uint8_t(&readAddressStart, data_to_uint8_t, 1);
+ 329:Core/Src/uds.c ****             uart_printf(error_log | system_log, "flash not 0xff :", data_to_uint8_t, 4);
+ 330:Core/Src/uds.c ****             nrc = GeneralReject;
+ 331:Core/Src/uds.c ****         }
+ 332:Core/Src/uds.c ****     }
+ 333:Core/Src/uds.c ****     uds_response(nrc);
+ 334:Core/Src/uds.c ****     return ret_value;
+ 335:Core/Src/uds.c **** }
+ 336:Core/Src/uds.c **** // 进行CRC校验 data 0 -3 传入的CRC值， data 4 = 0x1，验证ota一包的数据 0x02 ，验
+ 337:Core/Src/uds.c **** static uint8_t service0x31SubFunctionCRCValidate(uint8_t *data, uint16_t dataLen)
+ 338:Core/Src/uds.c **** {
+ 339:Core/Src/uds.c **** 
+ 340:Core/Src/uds.c ****     uart_printf(system_log, "CRC data\r\n", data, dataLen);
+ 341:Core/Src/uds.c ****     uint32_t inputCRC = 0x00; // 子服务传进来的CRC值
+ 342:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 343:Core/Src/uds.c ****     uint32_t crc_data[(ota_data.dataLength / 4)]; // 用于计算的cRC数据
+ 344:Core/Src/uds.c **** 
+ 345:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data, &inputCRC, 1);
+ 346:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(&ota_data.data[0], crc_data, ota_data.dataLength / 4);
+ 347:Core/Src/uds.c **** 
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 8
+
+
+ 348:Core/Src/uds.c ****     // 进行crc
+ 349:Core/Src/uds.c **** 
+ 350:Core/Src/uds.c ****     crc_init();
+ 351:Core/Src/uds.c ****     crc_reset();
+ 352:Core/Src/uds.c **** 
+ 353:Core/Src/uds.c ****     uint32_t crc_result;
+ 354:Core/Src/uds.c ****     crc_result = crc_calculate(crc_data, sizeof(crc_data) / sizeof(uint32_t));
+ 355:Core/Src/uds.c **** 
+ 356:Core/Src/uds.c ****     uint8_t temp[4];
+ 357:Core/Src/uds.c ****     convert_uint32_t_to_uint8_t(&crc_result, temp, 1);
+ 358:Core/Src/uds.c ****     if (crc_result != inputCRC)
+ 359:Core/Src/uds.c ****     {
+ 360:Core/Src/uds.c ****         uart_printf(error_log | system_log, "crc fail", temp, 4);
+ 361:Core/Src/uds.c ****         nrc = GeneralReject;
+ 362:Core/Src/uds.c ****     }
+ 363:Core/Src/uds.c ****     uds_response(nrc);
+ 364:Core/Src/uds.c ****     return 0;
+ 365:Core/Src/uds.c **** }
+ 366:Core/Src/uds.c **** 
+ 367:Core/Src/uds.c **** static uint8_t service0x31SubFunctionDownFinishCRCValidate(uint8_t *data, uint16_t dataLen)
+ 368:Core/Src/uds.c **** {
+ 369:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 370:Core/Src/uds.c ****     uint32_t inputCRC = 0x00; // 子服务传进来的CRC值
+ 371:Core/Src/uds.c ****     uint32_t APP_start_address = 0x00;
+ 372:Core/Src/uds.c ****     uint32_t APP_end_address = 0x00;
+ 373:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data, &inputCRC, 1);
+ 374:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data + 4, &APP_start_address, 1);
+ 375:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data + 8, &APP_end_address, 1);
+ 376:Core/Src/uds.c **** 
+ 377:Core/Src/uds.c ****     if (check_flash_address(APP_start_address) != true || check_flash_address(APP_end_address) != t
+ 378:Core/Src/uds.c ****     {
+ 379:Core/Src/uds.c ****         nrc = IncorrectMessageLengthOrInvalidFormat;
+ 380:Core/Src/uds.c ****     }
+ 381:Core/Src/uds.c ****     else
+ 382:Core/Src/uds.c ****     {
+ 383:Core/Src/uds.c ****         uint32_t *flash_data = (uint32_t *)APP_start_address;
+ 384:Core/Src/uds.c ****         uint16_t flash_data_length = (APP_end_address - APP_start_address) / 4;
+ 385:Core/Src/uds.c ****         crc_reset();
+ 386:Core/Src/uds.c ****         if (inputCRC != crc_calculate(flash_data, flash_data_length))
+ 387:Core/Src/uds.c ****         {
+ 388:Core/Src/uds.c ****             nrc = GeneralReject;
+ 389:Core/Src/uds.c ****         }
+ 390:Core/Src/uds.c ****     }
+ 391:Core/Src/uds.c ****     uds_response(nrc);
+ 392:Core/Src/uds.c ****     return 0;
+ 393:Core/Src/uds.c **** }
+ 394:Core/Src/uds.c **** 
+ 395:Core/Src/uds.c **** static uint8_t service0x31SubFunctionUpdateProgram(uint8_t *data, uint16_t dataLen)
+ 396:Core/Src/uds.c **** {
+ 397:Core/Src/uds.c ****     uart_printf(system_log, "31 service insatll app\r\n", NULL, 0);
+ 398:Core/Src/uds.c **** 
+ 399:Core/Src/uds.c ****     uint16_t flash_data_length = ota_data.dataLength / 4;
+ 400:Core/Src/uds.c ****     uint32_t flash_data[flash_data_length];
+ 401:Core/Src/uds.c **** 
+ 402:Core/Src/uds.c ****     memset(flash_data, 0, flash_data_length);
+ 403:Core/Src/uds.c **** 
+ 404:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(ota_data.data, flash_data, flash_data_length);
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 9
+
+
+ 405:Core/Src/uds.c **** 
+ 406:Core/Src/uds.c ****     flash_write(ota_data.reqFlashAddress, flash_data, flash_data_length);
+ 407:Core/Src/uds.c ****     uds_response(ControlPositiveResponse);
+ 408:Core/Src/uds.c ****     return 0;
+ 409:Core/Src/uds.c **** }
+ 410:Core/Src/uds.c **** 
+ 411:Core/Src/uds.c **** static uint8_t service0x31Trigger(uint8_t *data, uint16_t dataLen)
+ 412:Core/Src/uds.c **** {
+  38              		.loc 1 412 1 view -0
+  39              		.cfi_startproc
+  40              		@ args = 0, pretend = 0, frame = 16
+  41              		@ frame_needed = 0, uses_anonymous_args = 0
+  42              		.loc 1 412 1 is_stmt 0 view .LVU1
+  43 0000 70B5     		push	{r4, r5, r6, lr}
+  44              		.cfi_def_cfa_offset 16
+  45              		.cfi_offset 4, -16
+  46              		.cfi_offset 5, -12
+  47              		.cfi_offset 6, -8
+  48              		.cfi_offset 14, -4
+  49 0002 84B0     		sub	sp, sp, #16
+  50              		.cfi_def_cfa_offset 32
+  51 0004 0546     		mov	r5, r0
+  52 0006 0E46     		mov	r6, r1
+ 413:Core/Src/uds.c ****     uint8_t ret_value = false;
+  53              		.loc 1 413 5 is_stmt 1 view .LVU2
+  54              	.LVL1:
+ 414:Core/Src/uds.c ****     // 检查是否支持此功能
+ 415:Core/Src/uds.c ****     uart_printf(system_log, "31 service data ", data, dataLen);
+  55              		.loc 1 415 5 view .LVU3
+  56 0008 CBB2     		uxtb	r3, r1
+  57 000a 0246     		mov	r2, r0
+  58 000c 1C49     		ldr	r1, .L11
+  59              	.LVL2:
+  60              		.loc 1 415 5 is_stmt 0 view .LVU4
+  61 000e 0820     		movs	r0, #8
+  62              	.LVL3:
+  63              		.loc 1 415 5 view .LVU5
+  64 0010 FFF7FEFF 		bl	uart_printf
+  65              	.LVL4:
+ 416:Core/Src/uds.c **** 
+ 417:Core/Src/uds.c ****     // 解析sid
+ 418:Core/Src/uds.c ****     uint32_t identifier = (data[0] << 16) + (data[1] << 8) + data[2];
+  66              		.loc 1 418 5 is_stmt 1 view .LVU6
+  67              		.loc 1 418 32 is_stmt 0 view .LVU7
+  68 0014 2B78     		ldrb	r3, [r5]	@ zero_extendqisi2
+  69              		.loc 1 418 50 view .LVU8
+  70 0016 95F801C0 		ldrb	ip, [r5, #1]	@ zero_extendqisi2
+  71              		.loc 1 418 54 view .LVU9
+  72 001a 4FEA0C2C 		lsl	ip, ip, #8
+  73              		.loc 1 418 43 view .LVU10
+  74 001e 0CEB034C 		add	ip, ip, r3, lsl #16
+  75              		.loc 1 418 66 view .LVU11
+  76 0022 AB78     		ldrb	r3, [r5, #2]	@ zero_extendqisi2
+  77              		.loc 1 418 60 view .LVU12
+  78 0024 9C44     		add	ip, ip, r3
+  79              	.LVL5:
+ 419:Core/Src/uds.c ****     Dcm_controlDid_conf Dcm_controlDid_conf = {dcm_NULL};
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 10
+
+
+  80              		.loc 1 419 5 is_stmt 1 view .LVU13
+  81              		.loc 1 419 25 is_stmt 0 view .LVU14
+  82 0026 0024     		movs	r4, #0
+  83 0028 0194     		str	r4, [sp, #4]
+  84 002a 0294     		str	r4, [sp, #8]
+  85 002c 0394     		str	r4, [sp, #12]
+ 420:Core/Src/uds.c ****     for (uint8_t i = 0; i < sizeof(dcmControlDids) / sizeof(Dcm_control_dids_conf); i++)
+  86              		.loc 1 420 5 is_stmt 1 view .LVU15
+  87              	.LBB2:
+  88              		.loc 1 420 10 view .LVU16
+  89              	.LVL6:
+  90              	.L2:
+  91              		.loc 1 420 27 discriminator 1 view .LVU17
+  92 002e 052C     		cmp	r4, #5
+  93 0030 16D8     		bhi	.L4
+ 421:Core/Src/uds.c ****     {
+ 422:Core/Src/uds.c ****         if (dcmControlDids[i].longIdentifier == identifier)
+  94              		.loc 1 422 9 view .LVU18
+  95              		.loc 1 422 30 is_stmt 0 view .LVU19
+  96 0032 2301     		lsls	r3, r4, #4
+  97 0034 134A     		ldr	r2, .L11+4
+  98 0036 D358     		ldr	r3, [r2, r3]
+  99              		.loc 1 422 12 view .LVU20
+ 100 0038 6345     		cmp	r3, ip
+ 101 003a 02D0     		beq	.L9
+ 420:Core/Src/uds.c ****     for (uint8_t i = 0; i < sizeof(dcmControlDids) / sizeof(Dcm_control_dids_conf); i++)
+ 102              		.loc 1 420 86 is_stmt 1 discriminator 2 view .LVU21
+ 103 003c 0134     		adds	r4, r4, #1
+ 104              	.LVL7:
+ 420:Core/Src/uds.c ****     for (uint8_t i = 0; i < sizeof(dcmControlDids) / sizeof(Dcm_control_dids_conf); i++)
+ 105              		.loc 1 420 86 is_stmt 0 discriminator 2 view .LVU22
+ 106 003e E4B2     		uxtb	r4, r4
+ 107              	.LVL8:
+ 420:Core/Src/uds.c ****     for (uint8_t i = 0; i < sizeof(dcmControlDids) / sizeof(Dcm_control_dids_conf); i++)
+ 108              		.loc 1 420 86 discriminator 2 view .LVU23
+ 109 0040 F5E7     		b	.L2
+ 110              	.L9:
+ 423:Core/Src/uds.c ****         {
+ 424:Core/Src/uds.c ****             uart_printf(system_log, "31 service find subId\r\n", NULL, 0);
+ 111              		.loc 1 424 13 is_stmt 1 view .LVU24
+ 112 0042 0023     		movs	r3, #0
+ 113 0044 1A46     		mov	r2, r3
+ 114 0046 1049     		ldr	r1, .L11+8
+ 115 0048 0820     		movs	r0, #8
+ 116 004a FFF7FEFF 		bl	uart_printf
+ 117              	.LVL9:
+ 425:Core/Src/uds.c ****             Dcm_controlDid_conf = dcmControlDids[i].didControlConf;
+ 118              		.loc 1 425 13 view .LVU25
+ 119              		.loc 1 425 33 is_stmt 0 view .LVU26
+ 120 004e 0D4B     		ldr	r3, .L11+4
+ 121 0050 03EB0413 		add	r3, r3, r4, lsl #4
+ 122 0054 0433     		adds	r3, r3, #4
+ 123 0056 93E80700 		ldm	r3, {r0, r1, r2}
+ 124 005a 04AB     		add	r3, sp, #16
+ 125 005c 03E90700 		stmdb	r3, {r0, r1, r2}
+ 426:Core/Src/uds.c ****             break;
+ 126              		.loc 1 426 13 is_stmt 1 view .LVU27
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 11
+
+
+ 127              	.L4:
+ 128              		.loc 1 426 13 is_stmt 0 view .LVU28
+ 129              	.LBE2:
+ 427:Core/Src/uds.c ****         }
+ 428:Core/Src/uds.c ****     }
+ 429:Core/Src/uds.c ****     // 找到sid 对应的 function
+ 430:Core/Src/uds.c ****     if (Dcm_controlDid_conf.controlDidFunc == dcm_NULL)
+ 130              		.loc 1 430 5 is_stmt 1 view .LVU29
+ 131              		.loc 1 430 28 is_stmt 0 view .LVU30
+ 132 0060 039B     		ldr	r3, [sp, #12]
+ 133              		.loc 1 430 8 view .LVU31
+ 134 0062 2BB1     		cbz	r3, .L10
+ 431:Core/Src/uds.c ****     {
+ 432:Core/Src/uds.c ****         uart_printf(system_log, "service 31 dont support this did or this did dont have a sub funct
+ 433:Core/Src/uds.c ****     }
+ 434:Core/Src/uds.c ****     else
+ 435:Core/Src/uds.c ****     {
+ 436:Core/Src/uds.c ****         // 执行对应的control did
+ 437:Core/Src/uds.c ****         ret_value = Dcm_controlDid_conf.controlDidFunc(&data[3], dataLen - 3);
+ 135              		.loc 1 437 9 is_stmt 1 view .LVU32
+ 136              		.loc 1 437 21 is_stmt 0 view .LVU33
+ 137 0064 F11E     		subs	r1, r6, #3
+ 138 0066 89B2     		uxth	r1, r1
+ 139 0068 E81C     		adds	r0, r5, #3
+ 140 006a 9847     		blx	r3
+ 141              	.LVL10:
+ 142              	.L7:
+ 438:Core/Src/uds.c ****     }
+ 439:Core/Src/uds.c **** 
+ 440:Core/Src/uds.c ****     return ret_value;
+ 143              		.loc 1 440 5 is_stmt 1 view .LVU34
+ 441:Core/Src/uds.c **** }
+ 144              		.loc 1 441 1 is_stmt 0 view .LVU35
+ 145 006c 04B0     		add	sp, sp, #16
+ 146              		.cfi_remember_state
+ 147              		.cfi_def_cfa_offset 16
+ 148              		@ sp needed
+ 149 006e 70BD     		pop	{r4, r5, r6, pc}
+ 150              	.LVL11:
+ 151              	.L10:
+ 152              		.cfi_restore_state
+ 432:Core/Src/uds.c ****     }
+ 153              		.loc 1 432 9 is_stmt 1 view .LVU36
+ 154 0070 1A46     		mov	r2, r3
+ 155 0072 0649     		ldr	r1, .L11+12
+ 156 0074 0820     		movs	r0, #8
+ 157 0076 FFF7FEFF 		bl	uart_printf
+ 158              	.LVL12:
+ 413:Core/Src/uds.c ****     // 检查是否支持此功能
+ 159              		.loc 1 413 13 is_stmt 0 view .LVU37
+ 160 007a 0020     		movs	r0, #0
+ 161 007c F6E7     		b	.L7
+ 162              	.L12:
+ 163 007e 00BF     		.align	2
+ 164              	.L11:
+ 165 0080 00000000 		.word	.LC0
+ 166 0084 00000000 		.word	dcmControlDids
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 12
+
+
+ 167 0088 14000000 		.word	.LC1
+ 168 008c 2C000000 		.word	.LC2
+ 169              		.cfi_endproc
+ 170              	.LFE10:
+ 172              		.section	.rodata.can_service_response.str1.4,"aMS",%progbits,1
+ 173              		.align	2
+ 174              	.LC3:
+ 175 0000 63616E5F 		.ascii	"can_service_response \000"
+ 175      73657276 
+ 175      6963655F 
+ 175      72657370 
+ 175      6F6E7365 
+ 176 0016 0000     		.align	2
+ 177              	.LC4:
+ 178 0018 63616E20 		.ascii	"can frame\000"
+ 178      6672616D 
+ 178      6500
+ 179              		.section	.text.can_service_response,"ax",%progbits
+ 180              		.align	1
+ 181              		.global	can_service_response
+ 182              		.syntax unified
+ 183              		.thumb
+ 184              		.thumb_func
+ 186              	can_service_response:
+ 187              	.LVL13:
+ 188              	.LFB15:
+ 442:Core/Src/uds.c **** 
+ 443:Core/Src/uds.c **** // 34 服务
+ 444:Core/Src/uds.c **** static uint8_t service0x34Trigger(uint8_t *data, uint16_t dataLen)
+ 445:Core/Src/uds.c **** {
+ 446:Core/Src/uds.c ****     uint8_t ret_value = true;
+ 447:Core/Src/uds.c ****     uart_printf(info_log, "34 service trigger data is ", data, dataLen);
+ 448:Core/Src/uds.c **** 
+ 449:Core/Src/uds.c ****     // 34服务没有对应的sid 主要是参数配置
+ 450:Core/Src/uds.c ****     /*
+ 451:Core/Src/uds.c ****     data[0] : 参数配置 比如是否压缩
+ 452:Core/Src/uds.c ****     data[1] : 该参数是代表后续的两个部分memoryAddress和memorySize所占的字节长�
+ 453:Core/Src/uds.c ****     data[2 - data[(data[1] & 0xf0)] memoryAddress
+ 454:Core/Src/uds.c ****     剩下 memorySize
+ 455:Core/Src/uds.c ****     */
+ 456:Core/Src/uds.c **** 
+ 457:Core/Src/uds.c ****     /*
+ 458:Core/Src/uds.c ****     返回：74
+ 459:Core/Src/uds.c ****     高4bit为maxNumberOfBlockLength有效字节长度，低4bit保留为0.
+ 460:Core/Src/uds.c ****     maxNumberOfBlockLength :表示0x36服务一次传输一个block的最大的字节数。
+ 461:Core/Src/uds.c ****      */
+ 462:Core/Src/uds.c ****     //
+ 463:Core/Src/uds.c ****     // 忽略 data[0]
+ 464:Core/Src/uds.c **** 
+ 465:Core/Src/uds.c ****     // 写入的数据size 高4位
+ 466:Core/Src/uds.c ****     uint8_t memorySizeLength = (data[1] & 0xf0) >> 4;
+ 467:Core/Src/uds.c ****     // 写入的数据地址size 低4位
+ 468:Core/Src/uds.c ****     uint8_t memoryAddressLength = (data[1] & 0x0f);
+ 469:Core/Src/uds.c **** 
+ 470:Core/Src/uds.c ****     // 数据长度
+ 471:Core/Src/uds.c ****     uint8_t memorySize[4] = {0x00};
+ 472:Core/Src/uds.c ****     // 写入数据地址
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 13
+
+
+ 473:Core/Src/uds.c ****     uint8_t memoryAddress[4] = {0x00};
+ 474:Core/Src/uds.c **** 
+ 475:Core/Src/uds.c ****     // 取出数据长度
+ 476:Core/Src/uds.c ****     for (uint8_t i = 0; i < memorySizeLength; i++)
+ 477:Core/Src/uds.c ****     {
+ 478:Core/Src/uds.c ****         memorySize[(4 - memorySizeLength) + i] |= data[2 + i];
+ 479:Core/Src/uds.c ****     }
+ 480:Core/Src/uds.c ****     // 取出数据地址
+ 481:Core/Src/uds.c ****     for (uint8_t i = 0; i < memoryAddressLength; i++)
+ 482:Core/Src/uds.c ****     {
+ 483:Core/Src/uds.c ****         memoryAddress[(4 - memoryAddressLength) + i] |= data[2 + memorySizeLength + i];
+ 484:Core/Src/uds.c ****     }
+ 485:Core/Src/uds.c **** 
+ 486:Core/Src/uds.c ****     uart_printf(info_log, "memorySize :", memorySize, 4);
+ 487:Core/Src/uds.c ****     uart_printf(info_log, "memoryAddress :", memoryAddress, 4);
+ 488:Core/Src/uds.c **** 
+ 489:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(memorySize, &ota_data.reqDataLen, 1);
+ 490:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(memoryAddress, &ota_data.reqFlashAddress, 1);
+ 491:Core/Src/uds.c **** 
+ 492:Core/Src/uds.c ****     // 清零写入的数据长度
+ 493:Core/Src/uds.c ****     ota_data.dataLength = 0x00;
+ 494:Core/Src/uds.c **** 
+ 495:Core/Src/uds.c ****     // 清零写入的次数
+ 496:Core/Src/uds.c ****     ota_data.reciveDataTimes = 0x00;
+ 497:Core/Src/uds.c ****     {
+ 498:Core/Src/uds.c ****         uds_frame.resData[0] = 0x74;
+ 499:Core/Src/uds.c ****         uds_frame.resData[1] = 0x10;
+ 500:Core/Src/uds.c ****         uds_frame.resData[2] = 0x1C; // 36 服务一帧的最大字节
+ 501:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 502:Core/Src/uds.c ****         uds_response(CustomResponse);
+ 503:Core/Src/uds.c ****     }
+ 504:Core/Src/uds.c ****     return ret_value;
+ 505:Core/Src/uds.c **** }
+ 506:Core/Src/uds.c **** 
+ 507:Core/Src/uds.c **** // 36 服务 格式 36 count xxxx ，count 从 01 到 ff，然后从00开始
+ 508:Core/Src/uds.c **** static uint8_t service0x36Trigger(uint8_t *data, uint16_t dataLen)
+ 509:Core/Src/uds.c **** {
+ 510:Core/Src/uds.c ****     uart_printf(info_log, "36 data ", data, dataLen);
+ 511:Core/Src/uds.c **** 
+ 512:Core/Src/uds.c ****     // 检查传包的顺序
+ 513:Core/Src/uds.c ****     if ((ota_data.reciveDataTimes + 1) != data[0])
+ 514:Core/Src/uds.c ****     {
+ 515:Core/Src/uds.c ****         uds_response(GeneralReject);
+ 516:Core/Src/uds.c ****         return false;
+ 517:Core/Src/uds.c ****     }
+ 518:Core/Src/uds.c **** 
+ 519:Core/Src/uds.c ****     // 检查数据是不是超了
+ 520:Core/Src/uds.c ****     if ((dataLen + ota_data.dataLength - 1) > sizeof(ota_data.data))
+ 521:Core/Src/uds.c ****     {
+ 522:Core/Src/uds.c ****         uds_response(GeneralReject);
+ 523:Core/Src/uds.c ****         return false;
+ 524:Core/Src/uds.c ****     }
+ 525:Core/Src/uds.c **** 
+ 526:Core/Src/uds.c ****     // 复制到暂存数据 跳过 counter
+ 527:Core/Src/uds.c ****     memcpy(&ota_data.data[ota_data.dataLength], &data[1], dataLen - 1);
+ 528:Core/Src/uds.c **** 
+ 529:Core/Src/uds.c ****     // 更新请求数据长度
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 14
+
+
+ 530:Core/Src/uds.c ****     ota_data.dataLength += dataLen - 1;
+ 531:Core/Src/uds.c ****     // 更新请求的数据次数
+ 532:Core/Src/uds.c ****     ota_data.reciveDataTimes++;
+ 533:Core/Src/uds.c ****     uds_frame.resDataLength = 0x02;
+ 534:Core/Src/uds.c ****     uds_frame.resData[0] = uds_frame.reqData[0] + 0x40;
+ 535:Core/Src/uds.c ****     uds_frame.resData[1] = uds_frame.reqData[1];
+ 536:Core/Src/uds.c ****     uds_response(CustomResponse);
+ 537:Core/Src/uds.c ****     return true;
+ 538:Core/Src/uds.c **** }
+ 539:Core/Src/uds.c **** 
+ 540:Core/Src/uds.c **** // 37服务
+ 541:Core/Src/uds.c **** static uint8_t service0x37Trigger(uint8_t *data, uint16_t dataLen)
+ 542:Core/Src/uds.c **** {
+ 543:Core/Src/uds.c ****     // 传入的数据没有规定
+ 544:Core/Src/uds.c ****     uart_printf(info_log, "37 data ", data, dataLen);
+ 545:Core/Src/uds.c **** 
+ 546:Core/Src/uds.c ****     // 数据传输完成 检查数据是否完成 并返回正反馈的nrc
+ 547:Core/Src/uds.c **** 
+ 548:Core/Src/uds.c ****     // 检查传入的数据长度和请求的数据长度 检查传入的数据长度能不能整�
+ 549:Core/Src/uds.c ****     if ((ota_data.dataLength != ota_data.reqDataLen) || (ota_data.dataLength % 4 != 0))
+ 550:Core/Src/uds.c ****     {
+ 551:Core/Src/uds.c ****         uds_response(IncorrectMessageLengthOrInvalidFormat);
+ 552:Core/Src/uds.c ****         return false;
+ 553:Core/Src/uds.c ****     }
+ 554:Core/Src/uds.c **** 
+ 555:Core/Src/uds.c ****     uds_frame.resDataLength = 0x02;
+ 556:Core/Src/uds.c ****     uds_frame.resData[0] = 0x77;
+ 557:Core/Src/uds.c ****     uds_frame.resData[1] = 0x00;
+ 558:Core/Src/uds.c ****     uds_response(CustomResponse);
+ 559:Core/Src/uds.c ****     return true;
+ 560:Core/Src/uds.c **** }
+ 561:Core/Src/uds.c **** 
+ 562:Core/Src/uds.c **** void uds_response(uint8_t nrc)
+ 563:Core/Src/uds.c **** {
+ 564:Core/Src/uds.c ****     switch (nrc)
+ 565:Core/Src/uds.c ****     {
+ 566:Core/Src/uds.c ****     case PositiveResponse:
+ 567:Core/Src/uds.c ****     {
+ 568:Core/Src/uds.c ****         uds_frame.resData[0] = uds_frame.reqData[0] + 0x40;
+ 569:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 570:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 571:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 572:Core/Src/uds.c ****     }
+ 573:Core/Src/uds.c ****     break;
+ 574:Core/Src/uds.c ****     case ControlPositiveResponse:
+ 575:Core/Src/uds.c ****     {
+ 576:Core/Src/uds.c ****         uds_frame.resData[0] = uds_frame.reqData[0] + 0x40;
+ 577:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 578:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 579:Core/Src/uds.c ****         uds_frame.resData[3] = uds_frame.reqData[3];
+ 580:Core/Src/uds.c ****         uds_frame.resDataLength = 0x04;
+ 581:Core/Src/uds.c ****     }
+ 582:Core/Src/uds.c **** 
+ 583:Core/Src/uds.c ****     break;
+ 584:Core/Src/uds.c **** 
+ 585:Core/Src/uds.c ****     case FirstFrameResponse:
+ 586:Core/Src/uds.c ****     {
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 15
+
+
+ 587:Core/Src/uds.c ****         uds_frame.resData[0] = 0x30;
+ 588:Core/Src/uds.c ****         uds_frame.resDataLength = 0x01;
+ 589:Core/Src/uds.c ****         break;
+ 590:Core/Src/uds.c ****     }
+ 591:Core/Src/uds.c ****     case ServiceNotSupported:
+ 592:Core/Src/uds.c ****     case ServiceNotSupportedInActiveSession:
+ 593:Core/Src/uds.c ****     case ResponsePending:
+ 594:Core/Src/uds.c ****     case SubFunctionNotSupported:
+ 595:Core/Src/uds.c ****     case IncorrectMessageLengthOrInvalidFormat:
+ 596:Core/Src/uds.c ****     case RequestSequenceError:
+ 597:Core/Src/uds.c ****     case GeneralReject:
+ 598:Core/Src/uds.c ****     {
+ 599:Core/Src/uds.c ****         uds_frame.resData[0] = 0x7F;
+ 600:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[0];
+ 601:Core/Src/uds.c ****         uds_frame.resData[2] = nrc;
+ 602:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 603:Core/Src/uds.c ****     }
+ 604:Core/Src/uds.c ****     break;
+ 605:Core/Src/uds.c ****     case CustomResponse:
+ 606:Core/Src/uds.c ****     default:
+ 607:Core/Src/uds.c ****         break;
+ 608:Core/Src/uds.c ****     }
+ 609:Core/Src/uds.c ****     uart_printf(info_log, "response :", uds_frame.resData, uds_frame.resDataLength);
+ 610:Core/Src/uds.c ****     can_service_response(uds_frame.resData, uds_frame.resDataLength);
+ 611:Core/Src/uds.c ****     // 其他方式
+ 612:Core/Src/uds.c **** }
+ 613:Core/Src/uds.c **** 
+ 614:Core/Src/uds.c **** void can_service_response(uint8_t *data, uint16_t dataLength)
+ 615:Core/Src/uds.c **** {
+ 189              		.loc 1 615 1 is_stmt 1 view -0
+ 190              		.cfi_startproc
+ 191              		@ args = 0, pretend = 0, frame = 8
+ 192              		@ frame_needed = 0, uses_anonymous_args = 0
+ 193              		.loc 1 615 1 is_stmt 0 view .LVU39
+ 194 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 195              		.cfi_def_cfa_offset 20
+ 196              		.cfi_offset 4, -20
+ 197              		.cfi_offset 5, -16
+ 198              		.cfi_offset 6, -12
+ 199              		.cfi_offset 7, -8
+ 200              		.cfi_offset 14, -4
+ 201 0002 83B0     		sub	sp, sp, #12
+ 202              		.cfi_def_cfa_offset 32
+ 203 0004 0546     		mov	r5, r0
+ 204 0006 0E46     		mov	r6, r1
+ 616:Core/Src/uds.c ****     // 一帧can消息为8字节 单帧和连续帧
+ 617:Core/Src/uds.c **** 
+ 618:Core/Src/uds.c ****     uart_printf(info_log, "can_service_response ", data, dataLength);
+ 205              		.loc 1 618 5 is_stmt 1 view .LVU40
+ 206 0008 CCB2     		uxtb	r4, r1
+ 207 000a 2346     		mov	r3, r4
+ 208 000c 0246     		mov	r2, r0
+ 209 000e 4349     		ldr	r1, .L25
+ 210              	.LVL14:
+ 211              		.loc 1 618 5 is_stmt 0 view .LVU41
+ 212 0010 0220     		movs	r0, #2
+ 213              	.LVL15:
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 16
+
+
+ 214              		.loc 1 618 5 view .LVU42
+ 215 0012 FFF7FEFF 		bl	uart_printf
+ 216              	.LVL16:
+ 619:Core/Src/uds.c **** 
+ 620:Core/Src/uds.c ****     uint8_t can_data[8] = {0x00};
+ 217              		.loc 1 620 5 is_stmt 1 view .LVU43
+ 218              		.loc 1 620 13 is_stmt 0 view .LVU44
+ 219 0016 0023     		movs	r3, #0
+ 220 0018 0093     		str	r3, [sp]
+ 221 001a 0193     		str	r3, [sp, #4]
+ 621:Core/Src/uds.c ****     if (dataLength <= 7) // 单帧
+ 222              		.loc 1 621 5 is_stmt 1 view .LVU45
+ 223              		.loc 1 621 8 is_stmt 0 view .LVU46
+ 224 001c 072E     		cmp	r6, #7
+ 225 001e 27D9     		bls	.L22
+ 226              	.LBB3:
+ 622:Core/Src/uds.c ****     {
+ 623:Core/Src/uds.c ****         can_data[0] = dataLength & 0xff;
+ 624:Core/Src/uds.c ****         memcpy(&can_data[1], data, dataLength);
+ 625:Core/Src/uds.c ****         uart2_communicate_tx(can_data, 8);
+ 626:Core/Src/uds.c ****     }
+ 627:Core/Src/uds.c ****     else
+ 628:Core/Src/uds.c ****     {
+ 629:Core/Src/uds.c ****         // 连续帧的首帧
+ 630:Core/Src/uds.c ****         can_data[0] = 0x10;
+ 227              		.loc 1 630 9 is_stmt 1 view .LVU47
+ 228              		.loc 1 630 21 is_stmt 0 view .LVU48
+ 229 0020 1023     		movs	r3, #16
+ 230 0022 8DF80030 		strb	r3, [sp]
+ 631:Core/Src/uds.c ****         if (dataLength > 255)
+ 231              		.loc 1 631 9 is_stmt 1 view .LVU49
+ 232              		.loc 1 631 12 is_stmt 0 view .LVU50
+ 233 0026 FF2E     		cmp	r6, #255
+ 234 0028 05D9     		bls	.L16
+ 632:Core/Src/uds.c ****         {
+ 633:Core/Src/uds.c ****             can_data[0] |= (dataLength & 0xf00) >> 8;
+ 235              		.loc 1 633 13 is_stmt 1 view .LVU51
+ 236              		.loc 1 633 49 is_stmt 0 view .LVU52
+ 237 002a C6F30323 		ubfx	r3, r6, #8, #4
+ 238              		.loc 1 633 25 view .LVU53
+ 239 002e 43F01003 		orr	r3, r3, #16
+ 240 0032 8DF80030 		strb	r3, [sp]
+ 241              	.L16:
+ 634:Core/Src/uds.c ****         }
+ 635:Core/Src/uds.c **** 
+ 636:Core/Src/uds.c ****         can_data[1] = (dataLength & 0xff); // 消息长度
+ 242              		.loc 1 636 9 is_stmt 1 view .LVU54
+ 243              		.loc 1 636 21 is_stmt 0 view .LVU55
+ 244 0036 8DF80140 		strb	r4, [sp, #1]
+ 637:Core/Src/uds.c **** 
+ 638:Core/Src/uds.c ****         memcpy(&can_data[2], data, 6); // 首帧写入6个字节
+ 245              		.loc 1 638 9 is_stmt 1 view .LVU56
+ 246 003a 2B68     		ldr	r3, [r5]	@ unaligned
+ 247 003c CDF80230 		str	r3, [sp, #2]	@ unaligned
+ 248 0040 AB88     		ldrh	r3, [r5, #4]	@ unaligned
+ 249 0042 ADF80630 		strh	r3, [sp, #6]	@ unaligned
+ 639:Core/Src/uds.c ****         // 写入到fifo中
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 17
+
+
+ 640:Core/Src/uds.c ****         uart2_communicate_tx(can_data, 8);
+ 250              		.loc 1 640 9 view .LVU57
+ 251 0046 0821     		movs	r1, #8
+ 252 0048 6846     		mov	r0, sp
+ 253 004a FFF7FEFF 		bl	uart2_communicate_tx
+ 254              	.LVL17:
+ 641:Core/Src/uds.c **** 
+ 642:Core/Src/uds.c ****         uart_printf(info_log, "can frame", can_data, 8);
+ 255              		.loc 1 642 9 view .LVU58
+ 256 004e 0823     		movs	r3, #8
+ 257 0050 6A46     		mov	r2, sp
+ 258 0052 3349     		ldr	r1, .L25+4
+ 259 0054 0220     		movs	r0, #2
+ 260 0056 FFF7FEFF 		bl	uart_printf
+ 261              	.LVL18:
+ 643:Core/Src/uds.c **** 
+ 644:Core/Src/uds.c ****         // 连续帧的数量
+ 645:Core/Src/uds.c ****         uint8_t frame_count = ((dataLength - 6) / 7);
+ 262              		.loc 1 645 9 view .LVU59
+ 263              		.loc 1 645 44 is_stmt 0 view .LVU60
+ 264 005a B41F     		subs	r4, r6, #6
+ 265              		.loc 1 645 49 view .LVU61
+ 266 005c 314B     		ldr	r3, .L25+8
+ 267 005e 83FB0423 		smull	r2, r3, r3, r4
+ 268 0062 2344     		add	r3, r3, r4
+ 269 0064 E417     		asrs	r4, r4, #31
+ 270 0066 C4EBA304 		rsb	r4, r4, r3, asr #2
+ 271              		.loc 1 645 17 view .LVU62
+ 272 006a E4B2     		uxtb	r4, r4
+ 273              	.LVL19:
+ 646:Core/Src/uds.c ****         // 连续帧的低位
+ 647:Core/Src/uds.c ****         uint8_t frame_low_4bits = 0x01;
+ 274              		.loc 1 647 9 is_stmt 1 view .LVU63
+ 648:Core/Src/uds.c **** 
+ 649:Core/Src/uds.c ****         // 连续帧中的一帧数据为7字节，从data[6]开始
+ 650:Core/Src/uds.c ****         for (uint8_t i = 0; i < frame_count; i++)
+ 275              		.loc 1 650 9 view .LVU64
+ 276              	.LBB4:
+ 277              		.loc 1 650 14 view .LVU65
+ 278              		.loc 1 650 22 is_stmt 0 view .LVU66
+ 279 006c 0027     		movs	r7, #0
+ 280              		.loc 1 650 9 view .LVU67
+ 281 006e 0EE0     		b	.L17
+ 282              	.LVL20:
+ 283              	.L22:
+ 284              		.loc 1 650 9 view .LVU68
+ 285              	.LBE4:
+ 286              	.LBE3:
+ 623:Core/Src/uds.c ****         memcpy(&can_data[1], data, dataLength);
+ 287              		.loc 1 623 9 is_stmt 1 view .LVU69
+ 623:Core/Src/uds.c ****         memcpy(&can_data[1], data, dataLength);
+ 288              		.loc 1 623 21 is_stmt 0 view .LVU70
+ 289 0070 8DF80040 		strb	r4, [sp]
+ 624:Core/Src/uds.c ****         uart2_communicate_tx(can_data, 8);
+ 290              		.loc 1 624 9 is_stmt 1 view .LVU71
+ 291 0074 3246     		mov	r2, r6
+ 292 0076 2946     		mov	r1, r5
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 18
+
+
+ 293 0078 0DF10100 		add	r0, sp, #1
+ 294 007c FFF7FEFF 		bl	memcpy
+ 295              	.LVL21:
+ 625:Core/Src/uds.c ****     }
+ 296              		.loc 1 625 9 view .LVU72
+ 297 0080 0821     		movs	r1, #8
+ 298 0082 6846     		mov	r0, sp
+ 299 0084 FFF7FEFF 		bl	uart2_communicate_tx
+ 300              	.LVL22:
+ 301 0088 2BE0     		b	.L13
+ 302              	.LVL23:
+ 303              	.L18:
+ 304              	.LBB6:
+ 305              	.LBB5:
+ 306              		.loc 1 650 47 discriminator 2 view .LVU73
+ 307 008a 7B1C     		adds	r3, r7, #1
+ 308 008c DFB2     		uxtb	r7, r3
+ 309              	.LVL24:
+ 310              	.L17:
+ 311              		.loc 1 650 31 discriminator 1 view .LVU74
+ 312 008e BC42     		cmp	r4, r7
+ 313 0090 22D9     		bls	.L23
+ 651:Core/Src/uds.c ****         {
+ 652:Core/Src/uds.c ****             // 连续帧的第几帧
+ 653:Core/Src/uds.c ****             can_data[0] = (0x20 | frame_low_4bits);
+ 314              		.loc 1 653 13 view .LVU75
+ 315              		.loc 1 653 25 is_stmt 0 view .LVU76
+ 316 0092 2123     		movs	r3, #33
+ 317 0094 8DF80030 		strb	r3, [sp]
+ 654:Core/Src/uds.c ****             // 复制这一帧的数据
+ 655:Core/Src/uds.c ****             memcpy(&can_data[1], &data[6 + 7 * i], 7);
+ 318              		.loc 1 655 13 is_stmt 1 view .LVU77
+ 319              		.loc 1 655 46 is_stmt 0 view .LVU78
+ 320 0098 C7EBC703 		rsb	r3, r7, r7, lsl #3
+ 321              		.loc 1 655 42 view .LVU79
+ 322 009c 0633     		adds	r3, r3, #6
+ 323              		.loc 1 655 34 view .LVU80
+ 324 009e 05EB030C 		add	ip, r5, r3
+ 325              		.loc 1 655 13 view .LVU81
+ 326 00a2 EB58     		ldr	r3, [r5, r3]	@ unaligned
+ 327 00a4 CDF80130 		str	r3, [sp, #1]	@ unaligned
+ 328 00a8 BCF80420 		ldrh	r2, [ip, #4]	@ unaligned
+ 329 00ac 9CF80630 		ldrb	r3, [ip, #6]	@ zero_extendqisi2
+ 330 00b0 ADF80520 		strh	r2, [sp, #5]	@ unaligned
+ 331 00b4 8DF80730 		strb	r3, [sp, #7]
+ 656:Core/Src/uds.c ****             uart2_communicate_tx(can_data, 8);
+ 332              		.loc 1 656 13 is_stmt 1 view .LVU82
+ 333 00b8 0821     		movs	r1, #8
+ 334 00ba 6846     		mov	r0, sp
+ 335 00bc FFF7FEFF 		bl	uart2_communicate_tx
+ 336              	.LVL25:
+ 657:Core/Src/uds.c ****             uart_printf(info_log, "can frame", can_data, 8);
+ 337              		.loc 1 657 13 view .LVU83
+ 338 00c0 0823     		movs	r3, #8
+ 339 00c2 6A46     		mov	r2, sp
+ 340 00c4 1649     		ldr	r1, .L25+4
+ 341 00c6 0220     		movs	r0, #2
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 19
+
+
+ 342 00c8 FFF7FEFF 		bl	uart_printf
+ 343              	.LVL26:
+ 658:Core/Src/uds.c ****             frame_count++;
+ 344              		.loc 1 658 13 view .LVU84
+ 345              		.loc 1 658 24 is_stmt 0 view .LVU85
+ 346 00cc 0134     		adds	r4, r4, #1
+ 347              	.LVL27:
+ 348              		.loc 1 658 24 view .LVU86
+ 349 00ce E4B2     		uxtb	r4, r4
+ 350              	.LVL28:
+ 659:Core/Src/uds.c ****             if (frame_count > 0x0f)
+ 351              		.loc 1 659 13 is_stmt 1 view .LVU87
+ 352              		.loc 1 659 16 is_stmt 0 view .LVU88
+ 353 00d0 0F2C     		cmp	r4, #15
+ 354 00d2 DAD9     		bls	.L18
+ 660:Core/Src/uds.c ****             {
+ 661:Core/Src/uds.c ****                 frame_count = 0x00;
+ 355              		.loc 1 661 29 view .LVU89
+ 356 00d4 0024     		movs	r4, #0
+ 357              	.LVL29:
+ 358              		.loc 1 661 29 view .LVU90
+ 359 00d6 D8E7     		b	.L18
+ 360              	.LVL30:
+ 361              	.L23:
+ 362              		.loc 1 661 29 view .LVU91
+ 363              	.LBE5:
+ 662:Core/Src/uds.c ****             }
+ 663:Core/Src/uds.c ****         }
+ 664:Core/Src/uds.c ****         // 是否还有不满7字节的一帧需要发送
+ 665:Core/Src/uds.c ****         if ((frame_count * 7 + 6) != dataLength)
+ 364              		.loc 1 665 9 is_stmt 1 view .LVU92
+ 365              		.loc 1 665 26 is_stmt 0 view .LVU93
+ 366 00d8 C4EBC404 		rsb	r4, r4, r4, lsl #3
+ 367              	.LVL31:
+ 368              		.loc 1 665 30 view .LVU94
+ 369 00dc A31D     		adds	r3, r4, #6
+ 370              		.loc 1 665 12 view .LVU95
+ 371 00de 9E42     		cmp	r6, r3
+ 372 00e0 01D1     		bne	.L24
+ 373              	.LVL32:
+ 374              	.L13:
+ 375              		.loc 1 665 12 view .LVU96
+ 376              	.LBE6:
+ 666:Core/Src/uds.c ****         {
+ 667:Core/Src/uds.c ****             can_data[0] = (0x20 | frame_low_4bits);
+ 668:Core/Src/uds.c ****             // 设置can_data数据为0
+ 669:Core/Src/uds.c ****             memset(&can_data[1], 0, 7);
+ 670:Core/Src/uds.c ****             // 复制剩下的数据
+ 671:Core/Src/uds.c ****             memcpy(&can_data[1], &data[frame_count * 7 + 6], dataLength - frame_count * 7 - 6);
+ 672:Core/Src/uds.c ****             uart_printf(info_log, "can frame", can_data, 8);
+ 673:Core/Src/uds.c ****             uart2_communicate_tx(can_data, 8);
+ 674:Core/Src/uds.c ****         }
+ 675:Core/Src/uds.c ****     }
+ 676:Core/Src/uds.c **** }
+ 377              		.loc 1 676 1 view .LVU97
+ 378 00e2 03B0     		add	sp, sp, #12
+ 379              		.cfi_remember_state
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 20
+
+
+ 380              		.cfi_def_cfa_offset 20
+ 381              		@ sp needed
+ 382 00e4 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 383              	.LVL33:
+ 384              	.L24:
+ 385              		.cfi_restore_state
+ 386              	.LBB7:
+ 667:Core/Src/uds.c ****             // 设置can_data数据为0
+ 387              		.loc 1 667 13 is_stmt 1 view .LVU98
+ 667:Core/Src/uds.c ****             // 设置can_data数据为0
+ 388              		.loc 1 667 25 is_stmt 0 view .LVU99
+ 389 00e6 2123     		movs	r3, #33
+ 390 00e8 8DF80030 		strb	r3, [sp]
+ 669:Core/Src/uds.c ****             // 复制剩下的数据
+ 391              		.loc 1 669 13 is_stmt 1 view .LVU100
+ 392 00ec 0023     		movs	r3, #0
+ 393 00ee CDF80130 		str	r3, [sp, #1]	@ unaligned
+ 394 00f2 0193     		str	r3, [sp, #4]	@ unaligned
+ 671:Core/Src/uds.c ****             uart_printf(info_log, "can frame", can_data, 8);
+ 395              		.loc 1 671 13 view .LVU101
+ 671:Core/Src/uds.c ****             uart_printf(info_log, "can frame", can_data, 8);
+ 396              		.loc 1 671 39 is_stmt 0 view .LVU102
+ 397 00f4 A11D     		adds	r1, r4, #6
+ 671:Core/Src/uds.c ****             uart_printf(info_log, "can frame", can_data, 8);
+ 398              		.loc 1 671 91 view .LVU103
+ 399 00f6 321B     		subs	r2, r6, r4
+ 671:Core/Src/uds.c ****             uart_printf(info_log, "can frame", can_data, 8);
+ 400              		.loc 1 671 13 view .LVU104
+ 401 00f8 063A     		subs	r2, r2, #6
+ 402 00fa 2944     		add	r1, r1, r5
+ 403 00fc 0DF10100 		add	r0, sp, #1
+ 404 0100 FFF7FEFF 		bl	memcpy
+ 405              	.LVL34:
+ 672:Core/Src/uds.c ****             uart2_communicate_tx(can_data, 8);
+ 406              		.loc 1 672 13 is_stmt 1 view .LVU105
+ 407 0104 0823     		movs	r3, #8
+ 408 0106 6A46     		mov	r2, sp
+ 409 0108 0549     		ldr	r1, .L25+4
+ 410 010a 0220     		movs	r0, #2
+ 411 010c FFF7FEFF 		bl	uart_printf
+ 412              	.LVL35:
+ 673:Core/Src/uds.c ****         }
+ 413              		.loc 1 673 13 view .LVU106
+ 414 0110 0821     		movs	r1, #8
+ 415 0112 6846     		mov	r0, sp
+ 416 0114 FFF7FEFF 		bl	uart2_communicate_tx
+ 417              	.LVL36:
+ 418              	.LBE7:
+ 419              		.loc 1 676 1 is_stmt 0 view .LVU107
+ 420 0118 E3E7     		b	.L13
+ 421              	.L26:
+ 422 011a 00BF     		.align	2
+ 423              	.L25:
+ 424 011c 00000000 		.word	.LC3
+ 425 0120 18000000 		.word	.LC4
+ 426 0124 93244992 		.word	-1840700269
+ 427              		.cfi_endproc
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 21
+
+
+ 428              	.LFE15:
+ 430              		.section	.rodata.uds_response.str1.4,"aMS",%progbits,1
+ 431              		.align	2
+ 432              	.LC5:
+ 433 0000 72657370 		.ascii	"response :\000"
+ 433      6F6E7365 
+ 433      203A00
+ 434              		.section	.text.uds_response,"ax",%progbits
+ 435              		.align	1
+ 436              		.global	uds_response
+ 437              		.syntax unified
+ 438              		.thumb
+ 439              		.thumb_func
+ 441              	uds_response:
+ 442              	.LVL37:
+ 443              	.LFB14:
+ 563:Core/Src/uds.c ****     switch (nrc)
+ 444              		.loc 1 563 1 is_stmt 1 view -0
+ 445              		.cfi_startproc
+ 446              		@ args = 0, pretend = 0, frame = 0
+ 447              		@ frame_needed = 0, uses_anonymous_args = 0
+ 563:Core/Src/uds.c ****     switch (nrc)
+ 448              		.loc 1 563 1 is_stmt 0 view .LVU109
+ 449 0000 38B5     		push	{r3, r4, r5, lr}
+ 450              		.cfi_def_cfa_offset 16
+ 451              		.cfi_offset 3, -16
+ 452              		.cfi_offset 4, -12
+ 453              		.cfi_offset 5, -8
+ 454              		.cfi_offset 14, -4
+ 564:Core/Src/uds.c ****     {
+ 455              		.loc 1 564 5 is_stmt 1 view .LVU110
+ 456 0002 4128     		cmp	r0, #65
+ 457 0004 1CD8     		bhi	.L28
+ 458 0006 2428     		cmp	r0, #36
+ 459 0008 14D3     		bcc	.L39
+ 460 000a A0F12403 		sub	r3, r0, #36
+ 461 000e 1D2B     		cmp	r3, #29
+ 462 0010 35D8     		bhi	.L30
+ 463 0012 DFE803F0 		tbb	[pc, r3]
+ 464              	.L33:
+ 465 0016 19       		.byte	(.L31-.L33)/2
+ 466 0017 56       		.byte	(.L35-.L33)/2
+ 467 0018 34       		.byte	(.L30-.L33)/2
+ 468 0019 34       		.byte	(.L30-.L33)/2
+ 469 001a 34       		.byte	(.L30-.L33)/2
+ 470 001b 34       		.byte	(.L30-.L33)/2
+ 471 001c 34       		.byte	(.L30-.L33)/2
+ 472 001d 34       		.byte	(.L30-.L33)/2
+ 473 001e 34       		.byte	(.L30-.L33)/2
+ 474 001f 34       		.byte	(.L30-.L33)/2
+ 475 0020 34       		.byte	(.L30-.L33)/2
+ 476 0021 34       		.byte	(.L30-.L33)/2
+ 477 0022 34       		.byte	(.L30-.L33)/2
+ 478 0023 34       		.byte	(.L30-.L33)/2
+ 479 0024 34       		.byte	(.L30-.L33)/2
+ 480 0025 34       		.byte	(.L30-.L33)/2
+ 481 0026 34       		.byte	(.L30-.L33)/2
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 22
+
+
+ 482 0027 34       		.byte	(.L30-.L33)/2
+ 483 0028 34       		.byte	(.L30-.L33)/2
+ 484 0029 34       		.byte	(.L30-.L33)/2
+ 485 002a 34       		.byte	(.L30-.L33)/2
+ 486 002b 34       		.byte	(.L30-.L33)/2
+ 487 002c 34       		.byte	(.L30-.L33)/2
+ 488 002d 34       		.byte	(.L30-.L33)/2
+ 489 002e 34       		.byte	(.L30-.L33)/2
+ 490 002f 34       		.byte	(.L30-.L33)/2
+ 491 0030 34       		.byte	(.L30-.L33)/2
+ 492 0031 34       		.byte	(.L30-.L33)/2
+ 493 0032 26       		.byte	(.L34-.L33)/2
+ 494 0033 44       		.byte	(.L32-.L33)/2
+ 495              		.p2align 1
+ 496              	.L39:
+ 497 0034 A0F11003 		sub	r3, r0, #16
+ 498 0038 DBB2     		uxtb	r3, r3
+ 499 003a 032B     		cmp	r3, #3
+ 500 003c 1FD8     		bhi	.L30
+ 501 003e 03E0     		b	.L31
+ 502              	.L28:
+ 503 0040 7828     		cmp	r0, #120
+ 504 0042 01D0     		beq	.L31
+ 505 0044 7F28     		cmp	r0, #127
+ 506 0046 1AD1     		bne	.L30
+ 507              	.L31:
+ 599:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[0];
+ 508              		.loc 1 599 9 view .LVU111
+ 599:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[0];
+ 509              		.loc 1 599 30 is_stmt 0 view .LVU112
+ 510 0048 224B     		ldr	r3, .L40
+ 511 004a 7F22     		movs	r2, #127
+ 512 004c 83F80421 		strb	r2, [r3, #260]
+ 600:Core/Src/uds.c ****         uds_frame.resData[2] = nrc;
+ 513              		.loc 1 600 9 is_stmt 1 view .LVU113
+ 600:Core/Src/uds.c ****         uds_frame.resData[2] = nrc;
+ 514              		.loc 1 600 49 is_stmt 0 view .LVU114
+ 515 0050 5A78     		ldrb	r2, [r3, #1]	@ zero_extendqisi2
+ 600:Core/Src/uds.c ****         uds_frame.resData[2] = nrc;
+ 516              		.loc 1 600 30 view .LVU115
+ 517 0052 83F80521 		strb	r2, [r3, #261]
+ 601:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 518              		.loc 1 601 9 is_stmt 1 view .LVU116
+ 601:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 519              		.loc 1 601 30 is_stmt 0 view .LVU117
+ 520 0056 83F80601 		strb	r0, [r3, #262]
+ 602:Core/Src/uds.c ****     }
+ 521              		.loc 1 602 9 is_stmt 1 view .LVU118
+ 602:Core/Src/uds.c ****     }
+ 522              		.loc 1 602 33 is_stmt 0 view .LVU119
+ 523 005a 0322     		movs	r2, #3
+ 524 005c A3F80422 		strh	r2, [r3, #516]	@ movhi
+ 604:Core/Src/uds.c ****     case CustomResponse:
+ 525              		.loc 1 604 5 is_stmt 1 view .LVU120
+ 526 0060 0DE0     		b	.L30
+ 527              	.L34:
+ 568:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 23
+
+
+ 528              		.loc 1 568 9 view .LVU121
+ 568:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 529              		.loc 1 568 49 is_stmt 0 view .LVU122
+ 530 0062 1C4B     		ldr	r3, .L40
+ 531 0064 5A78     		ldrb	r2, [r3, #1]	@ zero_extendqisi2
+ 568:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 532              		.loc 1 568 53 view .LVU123
+ 533 0066 4032     		adds	r2, r2, #64
+ 568:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 534              		.loc 1 568 30 view .LVU124
+ 535 0068 83F80421 		strb	r2, [r3, #260]
+ 569:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 536              		.loc 1 569 9 is_stmt 1 view .LVU125
+ 569:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 537              		.loc 1 569 49 is_stmt 0 view .LVU126
+ 538 006c 9A78     		ldrb	r2, [r3, #2]	@ zero_extendqisi2
+ 569:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 539              		.loc 1 569 30 view .LVU127
+ 540 006e 83F80521 		strb	r2, [r3, #261]
+ 570:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 541              		.loc 1 570 9 is_stmt 1 view .LVU128
+ 570:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 542              		.loc 1 570 49 is_stmt 0 view .LVU129
+ 543 0072 DA78     		ldrb	r2, [r3, #3]	@ zero_extendqisi2
+ 570:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 544              		.loc 1 570 30 view .LVU130
+ 545 0074 83F80621 		strb	r2, [r3, #262]
+ 571:Core/Src/uds.c ****     }
+ 546              		.loc 1 571 9 is_stmt 1 view .LVU131
+ 571:Core/Src/uds.c ****     }
+ 547              		.loc 1 571 33 is_stmt 0 view .LVU132
+ 548 0078 0322     		movs	r2, #3
+ 549 007a A3F80422 		strh	r2, [r3, #516]	@ movhi
+ 573:Core/Src/uds.c ****     case ControlPositiveResponse:
+ 550              		.loc 1 573 5 is_stmt 1 view .LVU133
+ 551              	.L30:
+ 609:Core/Src/uds.c ****     can_service_response(uds_frame.resData, uds_frame.resDataLength);
+ 552              		.loc 1 609 5 view .LVU134
+ 609:Core/Src/uds.c ****     can_service_response(uds_frame.resData, uds_frame.resDataLength);
+ 553              		.loc 1 609 69 is_stmt 0 view .LVU135
+ 554 007e 154C     		ldr	r4, .L40
+ 609:Core/Src/uds.c ****     can_service_response(uds_frame.resData, uds_frame.resDataLength);
+ 555              		.loc 1 609 5 view .LVU136
+ 556 0080 04F58275 		add	r5, r4, #260
+ 557 0084 94F80432 		ldrb	r3, [r4, #516]	@ zero_extendqisi2
+ 558 0088 2A46     		mov	r2, r5
+ 559 008a 1349     		ldr	r1, .L40+4
+ 560 008c 0220     		movs	r0, #2
+ 561              	.LVL38:
+ 609:Core/Src/uds.c ****     can_service_response(uds_frame.resData, uds_frame.resDataLength);
+ 562              		.loc 1 609 5 view .LVU137
+ 563 008e FFF7FEFF 		bl	uart_printf
+ 564              	.LVL39:
+ 610:Core/Src/uds.c ****     // 其他方式
+ 565              		.loc 1 610 5 is_stmt 1 view .LVU138
+ 566 0092 B4F80412 		ldrh	r1, [r4, #516]
+ 567 0096 2846     		mov	r0, r5
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 24
+
+
+ 568 0098 FFF7FEFF 		bl	can_service_response
+ 569              	.LVL40:
+ 612:Core/Src/uds.c **** 
+ 570              		.loc 1 612 1 is_stmt 0 view .LVU139
+ 571 009c 38BD     		pop	{r3, r4, r5, pc}
+ 572              	.LVL41:
+ 573              	.L32:
+ 576:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 574              		.loc 1 576 9 is_stmt 1 view .LVU140
+ 576:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 575              		.loc 1 576 49 is_stmt 0 view .LVU141
+ 576 009e 0D4B     		ldr	r3, .L40
+ 577 00a0 5A78     		ldrb	r2, [r3, #1]	@ zero_extendqisi2
+ 576:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 578              		.loc 1 576 53 view .LVU142
+ 579 00a2 4032     		adds	r2, r2, #64
+ 576:Core/Src/uds.c ****         uds_frame.resData[1] = uds_frame.reqData[1];
+ 580              		.loc 1 576 30 view .LVU143
+ 581 00a4 83F80421 		strb	r2, [r3, #260]
+ 577:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 582              		.loc 1 577 9 is_stmt 1 view .LVU144
+ 577:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 583              		.loc 1 577 49 is_stmt 0 view .LVU145
+ 584 00a8 9A78     		ldrb	r2, [r3, #2]	@ zero_extendqisi2
+ 577:Core/Src/uds.c ****         uds_frame.resData[2] = uds_frame.reqData[2];
+ 585              		.loc 1 577 30 view .LVU146
+ 586 00aa 83F80521 		strb	r2, [r3, #261]
+ 578:Core/Src/uds.c ****         uds_frame.resData[3] = uds_frame.reqData[3];
+ 587              		.loc 1 578 9 is_stmt 1 view .LVU147
+ 578:Core/Src/uds.c ****         uds_frame.resData[3] = uds_frame.reqData[3];
+ 588              		.loc 1 578 49 is_stmt 0 view .LVU148
+ 589 00ae DA78     		ldrb	r2, [r3, #3]	@ zero_extendqisi2
+ 578:Core/Src/uds.c ****         uds_frame.resData[3] = uds_frame.reqData[3];
+ 590              		.loc 1 578 30 view .LVU149
+ 591 00b0 83F80621 		strb	r2, [r3, #262]
+ 579:Core/Src/uds.c ****         uds_frame.resDataLength = 0x04;
+ 592              		.loc 1 579 9 is_stmt 1 view .LVU150
+ 579:Core/Src/uds.c ****         uds_frame.resDataLength = 0x04;
+ 593              		.loc 1 579 49 is_stmt 0 view .LVU151
+ 594 00b4 1A79     		ldrb	r2, [r3, #4]	@ zero_extendqisi2
+ 579:Core/Src/uds.c ****         uds_frame.resDataLength = 0x04;
+ 595              		.loc 1 579 30 view .LVU152
+ 596 00b6 83F80721 		strb	r2, [r3, #263]
+ 580:Core/Src/uds.c ****     }
+ 597              		.loc 1 580 9 is_stmt 1 view .LVU153
+ 580:Core/Src/uds.c ****     }
+ 598              		.loc 1 580 33 is_stmt 0 view .LVU154
+ 599 00ba 0422     		movs	r2, #4
+ 600 00bc A3F80422 		strh	r2, [r3, #516]	@ movhi
+ 583:Core/Src/uds.c **** 
+ 601              		.loc 1 583 5 is_stmt 1 view .LVU155
+ 602 00c0 DDE7     		b	.L30
+ 603              	.L35:
+ 587:Core/Src/uds.c ****         uds_frame.resDataLength = 0x01;
+ 604              		.loc 1 587 9 view .LVU156
+ 587:Core/Src/uds.c ****         uds_frame.resDataLength = 0x01;
+ 605              		.loc 1 587 30 is_stmt 0 view .LVU157
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 25
+
+
+ 606 00c2 044B     		ldr	r3, .L40
+ 607 00c4 3022     		movs	r2, #48
+ 608 00c6 83F80421 		strb	r2, [r3, #260]
+ 588:Core/Src/uds.c ****         break;
+ 609              		.loc 1 588 9 is_stmt 1 view .LVU158
+ 588:Core/Src/uds.c ****         break;
+ 610              		.loc 1 588 33 is_stmt 0 view .LVU159
+ 611 00ca 0122     		movs	r2, #1
+ 612 00cc A3F80422 		strh	r2, [r3, #516]	@ movhi
+ 589:Core/Src/uds.c ****     }
+ 613              		.loc 1 589 9 is_stmt 1 view .LVU160
+ 614 00d0 D5E7     		b	.L30
+ 615              	.L41:
+ 616 00d2 00BF     		.align	2
+ 617              	.L40:
+ 618 00d4 00000000 		.word	uds_frame
+ 619 00d8 00000000 		.word	.LC5
+ 620              		.cfi_endproc
+ 621              	.LFE14:
+ 623              		.section	.rodata.service0x37Trigger.str1.4,"aMS",%progbits,1
+ 624              		.align	2
+ 625              	.LC6:
+ 626 0000 33372064 		.ascii	"37 data \000"
+ 626      61746120 
+ 626      00
+ 627              		.section	.text.service0x37Trigger,"ax",%progbits
+ 628              		.align	1
+ 629              		.syntax unified
+ 630              		.thumb
+ 631              		.thumb_func
+ 633              	service0x37Trigger:
+ 634              	.LVL42:
+ 635              	.LFB13:
+ 542:Core/Src/uds.c ****     // 传入的数据没有规定
+ 636              		.loc 1 542 1 view -0
+ 637              		.cfi_startproc
+ 638              		@ args = 0, pretend = 0, frame = 0
+ 639              		@ frame_needed = 0, uses_anonymous_args = 0
+ 542:Core/Src/uds.c ****     // 传入的数据没有规定
+ 640              		.loc 1 542 1 is_stmt 0 view .LVU162
+ 641 0000 08B5     		push	{r3, lr}
+ 642              		.cfi_def_cfa_offset 8
+ 643              		.cfi_offset 3, -8
+ 644              		.cfi_offset 14, -4
+ 645 0002 0246     		mov	r2, r0
+ 544:Core/Src/uds.c **** 
+ 646              		.loc 1 544 5 is_stmt 1 view .LVU163
+ 647 0004 CBB2     		uxtb	r3, r1
+ 648 0006 1149     		ldr	r1, .L47
+ 649              	.LVL43:
+ 544:Core/Src/uds.c **** 
+ 650              		.loc 1 544 5 is_stmt 0 view .LVU164
+ 651 0008 0220     		movs	r0, #2
+ 652              	.LVL44:
+ 544:Core/Src/uds.c **** 
+ 653              		.loc 1 544 5 view .LVU165
+ 654 000a FFF7FEFF 		bl	uart_printf
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 26
+
+
+ 655              	.LVL45:
+ 549:Core/Src/uds.c ****     {
+ 656              		.loc 1 549 5 is_stmt 1 view .LVU166
+ 549:Core/Src/uds.c ****     {
+ 657              		.loc 1 549 18 is_stmt 0 view .LVU167
+ 658 000e 104B     		ldr	r3, .L47+4
+ 659 0010 D3F80421 		ldr	r2, [r3, #260]
+ 549:Core/Src/uds.c ****     {
+ 660              		.loc 1 549 41 view .LVU168
+ 661 0014 D3F80831 		ldr	r3, [r3, #264]
+ 549:Core/Src/uds.c ****     {
+ 662              		.loc 1 549 8 view .LVU169
+ 663 0018 9A42     		cmp	r2, r3
+ 664 001a 02D1     		bne	.L43
+ 549:Core/Src/uds.c ****     {
+ 665              		.loc 1 549 54 discriminator 1 view .LVU170
+ 666 001c 12F0030F 		tst	r2, #3
+ 667 0020 04D0     		beq	.L44
+ 668              	.L43:
+ 551:Core/Src/uds.c ****         return false;
+ 669              		.loc 1 551 9 is_stmt 1 view .LVU171
+ 670 0022 1320     		movs	r0, #19
+ 671 0024 FFF7FEFF 		bl	uds_response
+ 672              	.LVL46:
+ 552:Core/Src/uds.c ****     }
+ 673              		.loc 1 552 9 view .LVU172
+ 552:Core/Src/uds.c ****     }
+ 674              		.loc 1 552 16 is_stmt 0 view .LVU173
+ 675 0028 0020     		movs	r0, #0
+ 676              	.L45:
+ 560:Core/Src/uds.c **** 
+ 677              		.loc 1 560 1 view .LVU174
+ 678 002a 08BD     		pop	{r3, pc}
+ 679              	.L44:
+ 555:Core/Src/uds.c ****     uds_frame.resData[0] = 0x77;
+ 680              		.loc 1 555 5 is_stmt 1 view .LVU175
+ 555:Core/Src/uds.c ****     uds_frame.resData[0] = 0x77;
+ 681              		.loc 1 555 29 is_stmt 0 view .LVU176
+ 682 002c 094B     		ldr	r3, .L47+8
+ 683 002e 0222     		movs	r2, #2
+ 684 0030 A3F80422 		strh	r2, [r3, #516]	@ movhi
+ 556:Core/Src/uds.c ****     uds_frame.resData[1] = 0x00;
+ 685              		.loc 1 556 5 is_stmt 1 view .LVU177
+ 556:Core/Src/uds.c ****     uds_frame.resData[1] = 0x00;
+ 686              		.loc 1 556 26 is_stmt 0 view .LVU178
+ 687 0034 7722     		movs	r2, #119
+ 688 0036 83F80421 		strb	r2, [r3, #260]
+ 557:Core/Src/uds.c ****     uds_response(CustomResponse);
+ 689              		.loc 1 557 5 is_stmt 1 view .LVU179
+ 557:Core/Src/uds.c ****     uds_response(CustomResponse);
+ 690              		.loc 1 557 26 is_stmt 0 view .LVU180
+ 691 003a 0022     		movs	r2, #0
+ 692 003c 83F80521 		strb	r2, [r3, #261]
+ 558:Core/Src/uds.c ****     return true;
+ 693              		.loc 1 558 5 is_stmt 1 view .LVU181
+ 694 0040 2620     		movs	r0, #38
+ 695 0042 FFF7FEFF 		bl	uds_response
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 27
+
+
+ 696              	.LVL47:
+ 559:Core/Src/uds.c **** }
+ 697              		.loc 1 559 5 view .LVU182
+ 559:Core/Src/uds.c **** }
+ 698              		.loc 1 559 12 is_stmt 0 view .LVU183
+ 699 0046 0120     		movs	r0, #1
+ 700 0048 EFE7     		b	.L45
+ 701              	.L48:
+ 702 004a 00BF     		.align	2
+ 703              	.L47:
+ 704 004c 00000000 		.word	.LC6
+ 705 0050 00000000 		.word	ota_data
+ 706 0054 00000000 		.word	uds_frame
+ 707              		.cfi_endproc
+ 708              	.LFE13:
+ 710              		.section	.rodata.service0x36Trigger.str1.4,"aMS",%progbits,1
+ 711              		.align	2
+ 712              	.LC7:
+ 713 0000 33362064 		.ascii	"36 data \000"
+ 713      61746120 
+ 713      00
+ 714              		.section	.text.service0x36Trigger,"ax",%progbits
+ 715              		.align	1
+ 716              		.syntax unified
+ 717              		.thumb
+ 718              		.thumb_func
+ 720              	service0x36Trigger:
+ 721              	.LVL48:
+ 722              	.LFB12:
+ 509:Core/Src/uds.c ****     uart_printf(info_log, "36 data ", data, dataLen);
+ 723              		.loc 1 509 1 is_stmt 1 view -0
+ 724              		.cfi_startproc
+ 725              		@ args = 0, pretend = 0, frame = 0
+ 726              		@ frame_needed = 0, uses_anonymous_args = 0
+ 509:Core/Src/uds.c ****     uart_printf(info_log, "36 data ", data, dataLen);
+ 727              		.loc 1 509 1 is_stmt 0 view .LVU185
+ 728 0000 70B5     		push	{r4, r5, r6, lr}
+ 729              		.cfi_def_cfa_offset 16
+ 730              		.cfi_offset 4, -16
+ 731              		.cfi_offset 5, -12
+ 732              		.cfi_offset 6, -8
+ 733              		.cfi_offset 14, -4
+ 734 0002 0546     		mov	r5, r0
+ 735 0004 0C46     		mov	r4, r1
+ 510:Core/Src/uds.c **** 
+ 736              		.loc 1 510 5 is_stmt 1 view .LVU186
+ 737 0006 CBB2     		uxtb	r3, r1
+ 738 0008 0246     		mov	r2, r0
+ 739 000a 1E49     		ldr	r1, .L56
+ 740              	.LVL49:
+ 510:Core/Src/uds.c **** 
+ 741              		.loc 1 510 5 is_stmt 0 view .LVU187
+ 742 000c 0220     		movs	r0, #2
+ 743              	.LVL50:
+ 510:Core/Src/uds.c **** 
+ 744              		.loc 1 510 5 view .LVU188
+ 745 000e FFF7FEFF 		bl	uart_printf
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 28
+
+
+ 746              	.LVL51:
+ 513:Core/Src/uds.c ****     {
+ 747              		.loc 1 513 5 is_stmt 1 view .LVU189
+ 513:Core/Src/uds.c ****     {
+ 748              		.loc 1 513 18 is_stmt 0 view .LVU190
+ 749 0012 1D4B     		ldr	r3, .L56+4
+ 750 0014 93F81031 		ldrb	r3, [r3, #272]	@ zero_extendqisi2
+ 513:Core/Src/uds.c ****     {
+ 751              		.loc 1 513 35 view .LVU191
+ 752 0018 0133     		adds	r3, r3, #1
+ 513:Core/Src/uds.c ****     {
+ 753              		.loc 1 513 47 view .LVU192
+ 754 001a 2A78     		ldrb	r2, [r5]	@ zero_extendqisi2
+ 513:Core/Src/uds.c ****     {
+ 755              		.loc 1 513 8 view .LVU193
+ 756 001c 9342     		cmp	r3, r2
+ 757 001e 27D1     		bne	.L54
+ 520:Core/Src/uds.c ****     {
+ 758              		.loc 1 520 5 is_stmt 1 view .LVU194
+ 520:Core/Src/uds.c ****     {
+ 759              		.loc 1 520 28 is_stmt 0 view .LVU195
+ 760 0020 194B     		ldr	r3, .L56+4
+ 761 0022 D3F80401 		ldr	r0, [r3, #260]
+ 520:Core/Src/uds.c ****     {
+ 762              		.loc 1 520 18 view .LVU196
+ 763 0026 2318     		adds	r3, r4, r0
+ 520:Core/Src/uds.c ****     {
+ 764              		.loc 1 520 40 view .LVU197
+ 765 0028 013B     		subs	r3, r3, #1
+ 520:Core/Src/uds.c ****     {
+ 766              		.loc 1 520 8 view .LVU198
+ 767 002a FF2B     		cmp	r3, #255
+ 768 002c 25D8     		bhi	.L55
+ 527:Core/Src/uds.c **** 
+ 769              		.loc 1 527 5 is_stmt 1 view .LVU199
+ 527:Core/Src/uds.c **** 
+ 770              		.loc 1 527 12 is_stmt 0 view .LVU200
+ 771 002e 164E     		ldr	r6, .L56+4
+ 527:Core/Src/uds.c **** 
+ 772              		.loc 1 527 5 view .LVU201
+ 773 0030 621E     		subs	r2, r4, #1
+ 774 0032 691C     		adds	r1, r5, #1
+ 775 0034 3044     		add	r0, r0, r6
+ 776 0036 FFF7FEFF 		bl	memcpy
+ 777              	.LVL52:
+ 530:Core/Src/uds.c ****     // 更新请求的数据次数
+ 778              		.loc 1 530 5 is_stmt 1 view .LVU202
+ 530:Core/Src/uds.c ****     // 更新请求的数据次数
+ 779              		.loc 1 530 13 is_stmt 0 view .LVU203
+ 780 003a D6F80431 		ldr	r3, [r6, #260]
+ 530:Core/Src/uds.c ****     // 更新请求的数据次数
+ 781              		.loc 1 530 25 view .LVU204
+ 782 003e 1C44     		add	r4, r4, r3
+ 783              	.LVL53:
+ 530:Core/Src/uds.c ****     // 更新请求的数据次数
+ 784              		.loc 1 530 25 view .LVU205
+ 785 0040 013C     		subs	r4, r4, #1
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 29
+
+
+ 786 0042 C6F80441 		str	r4, [r6, #260]
+ 532:Core/Src/uds.c ****     uds_frame.resDataLength = 0x02;
+ 787              		.loc 1 532 5 is_stmt 1 view .LVU206
+ 532:Core/Src/uds.c ****     uds_frame.resDataLength = 0x02;
+ 788              		.loc 1 532 13 is_stmt 0 view .LVU207
+ 789 0046 96F81031 		ldrb	r3, [r6, #272]	@ zero_extendqisi2
+ 532:Core/Src/uds.c ****     uds_frame.resDataLength = 0x02;
+ 790              		.loc 1 532 29 view .LVU208
+ 791 004a 0133     		adds	r3, r3, #1
+ 792 004c 86F81031 		strb	r3, [r6, #272]
+ 533:Core/Src/uds.c ****     uds_frame.resData[0] = uds_frame.reqData[0] + 0x40;
+ 793              		.loc 1 533 5 is_stmt 1 view .LVU209
+ 533:Core/Src/uds.c ****     uds_frame.resData[0] = uds_frame.reqData[0] + 0x40;
+ 794              		.loc 1 533 29 is_stmt 0 view .LVU210
+ 795 0050 0E4B     		ldr	r3, .L56+8
+ 796 0052 0222     		movs	r2, #2
+ 797 0054 A3F80422 		strh	r2, [r3, #516]	@ movhi
+ 534:Core/Src/uds.c ****     uds_frame.resData[1] = uds_frame.reqData[1];
+ 798              		.loc 1 534 5 is_stmt 1 view .LVU211
+ 534:Core/Src/uds.c ****     uds_frame.resData[1] = uds_frame.reqData[1];
+ 799              		.loc 1 534 45 is_stmt 0 view .LVU212
+ 800 0058 5A78     		ldrb	r2, [r3, #1]	@ zero_extendqisi2
+ 534:Core/Src/uds.c ****     uds_frame.resData[1] = uds_frame.reqData[1];
+ 801              		.loc 1 534 49 view .LVU213
+ 802 005a 4032     		adds	r2, r2, #64
+ 534:Core/Src/uds.c ****     uds_frame.resData[1] = uds_frame.reqData[1];
+ 803              		.loc 1 534 26 view .LVU214
+ 804 005c 83F80421 		strb	r2, [r3, #260]
+ 535:Core/Src/uds.c ****     uds_response(CustomResponse);
+ 805              		.loc 1 535 5 is_stmt 1 view .LVU215
+ 535:Core/Src/uds.c ****     uds_response(CustomResponse);
+ 806              		.loc 1 535 45 is_stmt 0 view .LVU216
+ 807 0060 9A78     		ldrb	r2, [r3, #2]	@ zero_extendqisi2
+ 535:Core/Src/uds.c ****     uds_response(CustomResponse);
+ 808              		.loc 1 535 26 view .LVU217
+ 809 0062 83F80521 		strb	r2, [r3, #261]
+ 536:Core/Src/uds.c ****     return true;
+ 810              		.loc 1 536 5 is_stmt 1 view .LVU218
+ 811 0066 2620     		movs	r0, #38
+ 812 0068 FFF7FEFF 		bl	uds_response
+ 813              	.LVL54:
+ 537:Core/Src/uds.c **** }
+ 814              		.loc 1 537 5 view .LVU219
+ 537:Core/Src/uds.c **** }
+ 815              		.loc 1 537 12 is_stmt 0 view .LVU220
+ 816 006c 0120     		movs	r0, #1
+ 817              	.L51:
+ 538:Core/Src/uds.c **** 
+ 818              		.loc 1 538 1 view .LVU221
+ 819 006e 70BD     		pop	{r4, r5, r6, pc}
+ 820              	.LVL55:
+ 821              	.L54:
+ 515:Core/Src/uds.c ****         return false;
+ 822              		.loc 1 515 9 is_stmt 1 view .LVU222
+ 823 0070 1020     		movs	r0, #16
+ 824 0072 FFF7FEFF 		bl	uds_response
+ 825              	.LVL56:
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 30
+
+
+ 516:Core/Src/uds.c ****     }
+ 826              		.loc 1 516 9 view .LVU223
+ 516:Core/Src/uds.c ****     }
+ 827              		.loc 1 516 16 is_stmt 0 view .LVU224
+ 828 0076 0020     		movs	r0, #0
+ 829 0078 F9E7     		b	.L51
+ 830              	.L55:
+ 522:Core/Src/uds.c ****         return false;
+ 831              		.loc 1 522 9 is_stmt 1 view .LVU225
+ 832 007a 1020     		movs	r0, #16
+ 833 007c FFF7FEFF 		bl	uds_response
+ 834              	.LVL57:
+ 523:Core/Src/uds.c ****     }
+ 835              		.loc 1 523 9 view .LVU226
+ 523:Core/Src/uds.c ****     }
+ 836              		.loc 1 523 16 is_stmt 0 view .LVU227
+ 837 0080 0020     		movs	r0, #0
+ 838 0082 F4E7     		b	.L51
+ 839              	.L57:
+ 840              		.align	2
+ 841              	.L56:
+ 842 0084 00000000 		.word	.LC7
+ 843 0088 00000000 		.word	ota_data
+ 844 008c 00000000 		.word	uds_frame
+ 845              		.cfi_endproc
+ 846              	.LFE12:
+ 848              		.section	.rodata.service0x34Trigger.str1.4,"aMS",%progbits,1
+ 849              		.align	2
+ 850              	.LC8:
+ 851 0000 33342073 		.ascii	"34 service trigger data is \000"
+ 851      65727669 
+ 851      63652074 
+ 851      72696767 
+ 851      65722064 
+ 852              		.align	2
+ 853              	.LC9:
+ 854 001c 6D656D6F 		.ascii	"memorySize :\000"
+ 854      72795369 
+ 854      7A65203A 
+ 854      00
+ 855 0029 000000   		.align	2
+ 856              	.LC10:
+ 857 002c 6D656D6F 		.ascii	"memoryAddress :\000"
+ 857      72794164 
+ 857      64726573 
+ 857      73203A00 
+ 858              		.section	.text.service0x34Trigger,"ax",%progbits
+ 859              		.align	1
+ 860              		.syntax unified
+ 861              		.thumb
+ 862              		.thumb_func
+ 864              	service0x34Trigger:
+ 865              	.LVL58:
+ 866              	.LFB11:
+ 445:Core/Src/uds.c ****     uint8_t ret_value = true;
+ 867              		.loc 1 445 1 is_stmt 1 view -0
+ 868              		.cfi_startproc
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 31
+
+
+ 869              		@ args = 0, pretend = 0, frame = 8
+ 870              		@ frame_needed = 0, uses_anonymous_args = 0
+ 445:Core/Src/uds.c ****     uint8_t ret_value = true;
+ 871              		.loc 1 445 1 is_stmt 0 view .LVU229
+ 872 0000 10B5     		push	{r4, lr}
+ 873              		.cfi_def_cfa_offset 8
+ 874              		.cfi_offset 4, -8
+ 875              		.cfi_offset 14, -4
+ 876 0002 82B0     		sub	sp, sp, #8
+ 877              		.cfi_def_cfa_offset 16
+ 878 0004 0446     		mov	r4, r0
+ 446:Core/Src/uds.c ****     uart_printf(info_log, "34 service trigger data is ", data, dataLen);
+ 879              		.loc 1 446 5 is_stmt 1 view .LVU230
+ 880              	.LVL59:
+ 447:Core/Src/uds.c **** 
+ 881              		.loc 1 447 5 view .LVU231
+ 882 0006 CBB2     		uxtb	r3, r1
+ 883 0008 0246     		mov	r2, r0
+ 884 000a 3449     		ldr	r1, .L64
+ 885              	.LVL60:
+ 447:Core/Src/uds.c **** 
+ 886              		.loc 1 447 5 is_stmt 0 view .LVU232
+ 887 000c 0220     		movs	r0, #2
+ 888              	.LVL61:
+ 447:Core/Src/uds.c **** 
+ 889              		.loc 1 447 5 view .LVU233
+ 890 000e FFF7FEFF 		bl	uart_printf
+ 891              	.LVL62:
+ 466:Core/Src/uds.c ****     // 写入的数据地址size 低4位
+ 892              		.loc 1 466 5 is_stmt 1 view .LVU234
+ 466:Core/Src/uds.c ****     // 写入的数据地址size 低4位
+ 893              		.loc 1 466 37 is_stmt 0 view .LVU235
+ 894 0012 94F801C0 		ldrb	ip, [r4, #1]	@ zero_extendqisi2
+ 466:Core/Src/uds.c ****     // 写入的数据地址size 低4位
+ 895              		.loc 1 466 13 view .LVU236
+ 896 0016 4FEA1C10 		lsr	r0, ip, #4
+ 897              	.LVL63:
+ 468:Core/Src/uds.c **** 
+ 898              		.loc 1 468 5 is_stmt 1 view .LVU237
+ 468:Core/Src/uds.c **** 
+ 899              		.loc 1 468 13 is_stmt 0 view .LVU238
+ 900 001a 0CF00F0C 		and	ip, ip, #15
+ 901              	.LVL64:
+ 471:Core/Src/uds.c ****     // 写入数据地址
+ 902              		.loc 1 471 5 is_stmt 1 view .LVU239
+ 471:Core/Src/uds.c ****     // 写入数据地址
+ 903              		.loc 1 471 13 is_stmt 0 view .LVU240
+ 904 001e 0023     		movs	r3, #0
+ 905 0020 0193     		str	r3, [sp, #4]
+ 473:Core/Src/uds.c **** 
+ 906              		.loc 1 473 5 is_stmt 1 view .LVU241
+ 473:Core/Src/uds.c **** 
+ 907              		.loc 1 473 13 is_stmt 0 view .LVU242
+ 908 0022 0093     		str	r3, [sp]
+ 476:Core/Src/uds.c ****     {
+ 909              		.loc 1 476 5 is_stmt 1 view .LVU243
+ 910              	.LBB8:
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 32
+
+
+ 476:Core/Src/uds.c ****     {
+ 911              		.loc 1 476 10 view .LVU244
+ 912              	.LVL65:
+ 476:Core/Src/uds.c ****     {
+ 913              		.loc 1 476 5 is_stmt 0 view .LVU245
+ 914 0024 10E0     		b	.L59
+ 915              	.LVL66:
+ 916              	.L60:
+ 478:Core/Src/uds.c ****     }
+ 917              		.loc 1 478 9 is_stmt 1 view .LVU246
+ 478:Core/Src/uds.c ****     }
+ 918              		.loc 1 478 19 is_stmt 0 view .LVU247
+ 919 0026 C0F10402 		rsb	r2, r0, #4
+ 920 002a 1A44     		add	r2, r2, r3
+ 921 002c 0832     		adds	r2, r2, #8
+ 922 002e 6A44     		add	r2, sp, r2
+ 923 0030 12F8041C 		ldrb	r1, [r2, #-4]	@ zero_extendqisi2
+ 478:Core/Src/uds.c ****     }
+ 924              		.loc 1 478 58 view .LVU248
+ 925 0034 03F1020E 		add	lr, r3, #2
+ 478:Core/Src/uds.c ****     }
+ 926              		.loc 1 478 55 view .LVU249
+ 927 0038 14F80EE0 		ldrb	lr, [r4, lr]	@ zero_extendqisi2
+ 478:Core/Src/uds.c ****     }
+ 928              		.loc 1 478 48 view .LVU250
+ 929 003c 41EA0E01 		orr	r1, r1, lr
+ 930 0040 02F8041C 		strb	r1, [r2, #-4]
+ 476:Core/Src/uds.c ****     {
+ 931              		.loc 1 476 48 is_stmt 1 discriminator 3 view .LVU251
+ 932 0044 0133     		adds	r3, r3, #1
+ 933              	.LVL67:
+ 476:Core/Src/uds.c ****     {
+ 934              		.loc 1 476 48 is_stmt 0 discriminator 3 view .LVU252
+ 935 0046 DBB2     		uxtb	r3, r3
+ 936              	.LVL68:
+ 937              	.L59:
+ 476:Core/Src/uds.c ****     {
+ 938              		.loc 1 476 27 is_stmt 1 discriminator 1 view .LVU253
+ 939 0048 8342     		cmp	r3, r0
+ 940 004a ECD3     		bcc	.L60
+ 941              	.LBE8:
+ 942              	.LBB9:
+ 481:Core/Src/uds.c ****     {
+ 943              		.loc 1 481 18 is_stmt 0 view .LVU254
+ 944 004c 0023     		movs	r3, #0
+ 945              	.LVL69:
+ 481:Core/Src/uds.c ****     {
+ 946              		.loc 1 481 18 view .LVU255
+ 947 004e 13E0     		b	.L61
+ 948              	.LVL70:
+ 949              	.L62:
+ 483:Core/Src/uds.c ****     }
+ 950              		.loc 1 483 9 is_stmt 1 view .LVU256
+ 483:Core/Src/uds.c ****     }
+ 951              		.loc 1 483 22 is_stmt 0 view .LVU257
+ 952 0050 CCF10401 		rsb	r1, ip, #4
+ 953 0054 1944     		add	r1, r1, r3
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 33
+
+
+ 954 0056 01F10802 		add	r2, r1, #8
+ 955 005a 0DEB0201 		add	r1, sp, r2
+ 956 005e 11F8082C 		ldrb	r2, [r1, #-8]	@ zero_extendqisi2
+ 483:Core/Src/uds.c ****     }
+ 957              		.loc 1 483 64 view .LVU258
+ 958 0062 00F1020E 		add	lr, r0, #2
+ 483:Core/Src/uds.c ****     }
+ 959              		.loc 1 483 83 view .LVU259
+ 960 0066 9E44     		add	lr, lr, r3
+ 483:Core/Src/uds.c ****     }
+ 961              		.loc 1 483 61 view .LVU260
+ 962 0068 14F80EE0 		ldrb	lr, [r4, lr]	@ zero_extendqisi2
+ 483:Core/Src/uds.c ****     }
+ 963              		.loc 1 483 54 view .LVU261
+ 964 006c 42EA0E02 		orr	r2, r2, lr
+ 965 0070 01F8082C 		strb	r2, [r1, #-8]
+ 481:Core/Src/uds.c ****     {
+ 966              		.loc 1 481 51 is_stmt 1 discriminator 3 view .LVU262
+ 967 0074 0133     		adds	r3, r3, #1
+ 968              	.LVL71:
+ 481:Core/Src/uds.c ****     {
+ 969              		.loc 1 481 51 is_stmt 0 discriminator 3 view .LVU263
+ 970 0076 DBB2     		uxtb	r3, r3
+ 971              	.LVL72:
+ 972              	.L61:
+ 481:Core/Src/uds.c ****     {
+ 973              		.loc 1 481 27 is_stmt 1 discriminator 1 view .LVU264
+ 974 0078 6345     		cmp	r3, ip
+ 975 007a E9D3     		bcc	.L62
+ 976              	.LBE9:
+ 486:Core/Src/uds.c ****     uart_printf(info_log, "memoryAddress :", memoryAddress, 4);
+ 977              		.loc 1 486 5 view .LVU265
+ 978 007c 0423     		movs	r3, #4
+ 979              	.LVL73:
+ 486:Core/Src/uds.c ****     uart_printf(info_log, "memoryAddress :", memoryAddress, 4);
+ 980              		.loc 1 486 5 is_stmt 0 view .LVU266
+ 981 007e 0DEB0302 		add	r2, sp, r3
+ 982 0082 1749     		ldr	r1, .L64+4
+ 983 0084 0220     		movs	r0, #2
+ 984              	.LVL74:
+ 486:Core/Src/uds.c ****     uart_printf(info_log, "memoryAddress :", memoryAddress, 4);
+ 985              		.loc 1 486 5 view .LVU267
+ 986 0086 FFF7FEFF 		bl	uart_printf
+ 987              	.LVL75:
+ 487:Core/Src/uds.c **** 
+ 988              		.loc 1 487 5 is_stmt 1 view .LVU268
+ 989 008a 0423     		movs	r3, #4
+ 990 008c 6A46     		mov	r2, sp
+ 991 008e 1549     		ldr	r1, .L64+8
+ 992 0090 0220     		movs	r0, #2
+ 993 0092 FFF7FEFF 		bl	uart_printf
+ 994              	.LVL76:
+ 489:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(memoryAddress, &ota_data.reqFlashAddress, 1);
+ 995              		.loc 1 489 5 view .LVU269
+ 996 0096 144C     		ldr	r4, .L64+12
+ 997              	.LVL77:
+ 489:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(memoryAddress, &ota_data.reqFlashAddress, 1);
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 34
+
+
+ 998              		.loc 1 489 5 is_stmt 0 view .LVU270
+ 999 0098 0122     		movs	r2, #1
+ 1000 009a 2146     		mov	r1, r4
+ 1001 009c 01A8     		add	r0, sp, #4
+ 1002 009e FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1003              	.LVL78:
+ 490:Core/Src/uds.c **** 
+ 1004              		.loc 1 490 5 is_stmt 1 view .LVU271
+ 1005 00a2 0122     		movs	r2, #1
+ 1006 00a4 211D     		adds	r1, r4, #4
+ 1007 00a6 6846     		mov	r0, sp
+ 1008 00a8 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1009              	.LVL79:
+ 493:Core/Src/uds.c **** 
+ 1010              		.loc 1 493 5 view .LVU272
+ 493:Core/Src/uds.c **** 
+ 1011              		.loc 1 493 25 is_stmt 0 view .LVU273
+ 1012 00ac 0023     		movs	r3, #0
+ 1013 00ae 44F8043C 		str	r3, [r4, #-4]
+ 496:Core/Src/uds.c ****     {
+ 1014              		.loc 1 496 5 is_stmt 1 view .LVU274
+ 496:Core/Src/uds.c ****     {
+ 1015              		.loc 1 496 30 is_stmt 0 view .LVU275
+ 1016 00b2 2372     		strb	r3, [r4, #8]
+ 498:Core/Src/uds.c ****         uds_frame.resData[1] = 0x10;
+ 1017              		.loc 1 498 9 is_stmt 1 view .LVU276
+ 498:Core/Src/uds.c ****         uds_frame.resData[1] = 0x10;
+ 1018              		.loc 1 498 30 is_stmt 0 view .LVU277
+ 1019 00b4 0D4B     		ldr	r3, .L64+16
+ 1020 00b6 7422     		movs	r2, #116
+ 1021 00b8 83F80421 		strb	r2, [r3, #260]
+ 499:Core/Src/uds.c ****         uds_frame.resData[2] = 0x1C; // 36 服务一帧的最大字节
+ 1022              		.loc 1 499 9 is_stmt 1 view .LVU278
+ 499:Core/Src/uds.c ****         uds_frame.resData[2] = 0x1C; // 36 服务一帧的最大字节
+ 1023              		.loc 1 499 30 is_stmt 0 view .LVU279
+ 1024 00bc 1022     		movs	r2, #16
+ 1025 00be 83F80521 		strb	r2, [r3, #261]
+ 500:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 1026              		.loc 1 500 9 is_stmt 1 view .LVU280
+ 500:Core/Src/uds.c ****         uds_frame.resDataLength = 0x03;
+ 1027              		.loc 1 500 30 is_stmt 0 view .LVU281
+ 1028 00c2 1C22     		movs	r2, #28
+ 1029 00c4 83F80621 		strb	r2, [r3, #262]
+ 501:Core/Src/uds.c ****         uds_response(CustomResponse);
+ 1030              		.loc 1 501 9 is_stmt 1 view .LVU282
+ 501:Core/Src/uds.c ****         uds_response(CustomResponse);
+ 1031              		.loc 1 501 33 is_stmt 0 view .LVU283
+ 1032 00c8 0322     		movs	r2, #3
+ 1033 00ca A3F80422 		strh	r2, [r3, #516]	@ movhi
+ 502:Core/Src/uds.c ****     }
+ 1034              		.loc 1 502 9 is_stmt 1 view .LVU284
+ 1035 00ce 2620     		movs	r0, #38
+ 1036 00d0 FFF7FEFF 		bl	uds_response
+ 1037              	.LVL80:
+ 504:Core/Src/uds.c **** }
+ 1038              		.loc 1 504 5 view .LVU285
+ 505:Core/Src/uds.c **** 
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 35
+
+
+ 1039              		.loc 1 505 1 is_stmt 0 view .LVU286
+ 1040 00d4 0120     		movs	r0, #1
+ 1041 00d6 02B0     		add	sp, sp, #8
+ 1042              		.cfi_def_cfa_offset 8
+ 1043              		@ sp needed
+ 1044 00d8 10BD     		pop	{r4, pc}
+ 1045              	.L65:
+ 1046 00da 00BF     		.align	2
+ 1047              	.L64:
+ 1048 00dc 00000000 		.word	.LC8
+ 1049 00e0 1C000000 		.word	.LC9
+ 1050 00e4 2C000000 		.word	.LC10
+ 1051 00e8 08010000 		.word	ota_data+264
+ 1052 00ec 00000000 		.word	uds_frame
+ 1053              		.cfi_endproc
+ 1054              	.LFE11:
+ 1056              		.section	.text.service0x31SubFunctionDownFinishCRCValidate,"ax",%progbits
+ 1057              		.align	1
+ 1058              		.syntax unified
+ 1059              		.thumb
+ 1060              		.thumb_func
+ 1062              	service0x31SubFunctionDownFinishCRCValidate:
+ 1063              	.LVL81:
+ 1064              	.LFB8:
+ 368:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 1065              		.loc 1 368 1 is_stmt 1 view -0
+ 1066              		.cfi_startproc
+ 1067              		@ args = 0, pretend = 0, frame = 16
+ 1068              		@ frame_needed = 0, uses_anonymous_args = 0
+ 368:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 1069              		.loc 1 368 1 is_stmt 0 view .LVU288
+ 1070 0000 30B5     		push	{r4, r5, lr}
+ 1071              		.cfi_def_cfa_offset 12
+ 1072              		.cfi_offset 4, -12
+ 1073              		.cfi_offset 5, -8
+ 1074              		.cfi_offset 14, -4
+ 1075 0002 85B0     		sub	sp, sp, #20
+ 1076              		.cfi_def_cfa_offset 32
+ 1077 0004 0446     		mov	r4, r0
+ 369:Core/Src/uds.c ****     uint32_t inputCRC = 0x00; // 子服务传进来的CRC值
+ 1078              		.loc 1 369 5 is_stmt 1 view .LVU289
+ 1079              	.LVL82:
+ 370:Core/Src/uds.c ****     uint32_t APP_start_address = 0x00;
+ 1080              		.loc 1 370 5 view .LVU290
+ 370:Core/Src/uds.c ****     uint32_t APP_start_address = 0x00;
+ 1081              		.loc 1 370 14 is_stmt 0 view .LVU291
+ 1082 0006 0023     		movs	r3, #0
+ 1083 0008 0393     		str	r3, [sp, #12]
+ 371:Core/Src/uds.c ****     uint32_t APP_end_address = 0x00;
+ 1084              		.loc 1 371 5 is_stmt 1 view .LVU292
+ 371:Core/Src/uds.c ****     uint32_t APP_end_address = 0x00;
+ 1085              		.loc 1 371 14 is_stmt 0 view .LVU293
+ 1086 000a 0293     		str	r3, [sp, #8]
+ 372:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data, &inputCRC, 1);
+ 1087              		.loc 1 372 5 is_stmt 1 view .LVU294
+ 372:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data, &inputCRC, 1);
+ 1088              		.loc 1 372 14 is_stmt 0 view .LVU295
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 36
+
+
+ 1089 000c 0193     		str	r3, [sp, #4]
+ 373:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data + 4, &APP_start_address, 1);
+ 1090              		.loc 1 373 5 is_stmt 1 view .LVU296
+ 1091 000e 0122     		movs	r2, #1
+ 1092 0010 03A9     		add	r1, sp, #12
+ 1093              	.LVL83:
+ 373:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data + 4, &APP_start_address, 1);
+ 1094              		.loc 1 373 5 is_stmt 0 view .LVU297
+ 1095 0012 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1096              	.LVL84:
+ 374:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(data + 8, &APP_end_address, 1);
+ 1097              		.loc 1 374 5 is_stmt 1 view .LVU298
+ 1098 0016 0122     		movs	r2, #1
+ 1099 0018 02A9     		add	r1, sp, #8
+ 1100 001a 201D     		adds	r0, r4, #4
+ 1101 001c FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1102              	.LVL85:
+ 375:Core/Src/uds.c **** 
+ 1103              		.loc 1 375 5 view .LVU299
+ 1104 0020 0122     		movs	r2, #1
+ 1105 0022 01A9     		add	r1, sp, #4
+ 1106 0024 04F10800 		add	r0, r4, #8
+ 1107 0028 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1108              	.LVL86:
+ 377:Core/Src/uds.c ****     {
+ 1109              		.loc 1 377 5 view .LVU300
+ 377:Core/Src/uds.c ****     {
+ 1110              		.loc 1 377 9 is_stmt 0 view .LVU301
+ 1111 002c 0298     		ldr	r0, [sp, #8]
+ 1112 002e FFF7FEFF 		bl	check_flash_address
+ 1113              	.LVL87:
+ 377:Core/Src/uds.c ****     {
+ 1114              		.loc 1 377 8 discriminator 1 view .LVU302
+ 1115 0032 0128     		cmp	r0, #1
+ 1116 0034 05D0     		beq	.L72
+ 379:Core/Src/uds.c ****     }
+ 1117              		.loc 1 379 13 view .LVU303
+ 1118 0036 1320     		movs	r0, #19
+ 1119              	.LVL88:
+ 1120              	.L67:
+ 391:Core/Src/uds.c ****     return 0;
+ 1121              		.loc 1 391 5 is_stmt 1 view .LVU304
+ 1122 0038 FFF7FEFF 		bl	uds_response
+ 1123              	.LVL89:
+ 392:Core/Src/uds.c **** }
+ 1124              		.loc 1 392 5 view .LVU305
+ 393:Core/Src/uds.c **** 
+ 1125              		.loc 1 393 1 is_stmt 0 view .LVU306
+ 1126 003c 0020     		movs	r0, #0
+ 1127 003e 05B0     		add	sp, sp, #20
+ 1128              		.cfi_remember_state
+ 1129              		.cfi_def_cfa_offset 12
+ 1130              		@ sp needed
+ 1131 0040 30BD     		pop	{r4, r5, pc}
+ 1132              	.LVL90:
+ 1133              	.L72:
+ 1134              		.cfi_restore_state
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 37
+
+
+ 377:Core/Src/uds.c ****     {
+ 1135              		.loc 1 377 59 discriminator 1 view .LVU307
+ 1136 0042 0198     		ldr	r0, [sp, #4]
+ 1137 0044 FFF7FEFF 		bl	check_flash_address
+ 1138              	.LVL91:
+ 377:Core/Src/uds.c ****     {
+ 1139              		.loc 1 377 56 discriminator 1 view .LVU308
+ 1140 0048 0128     		cmp	r0, #1
+ 1141 004a 01D0     		beq	.L73
+ 379:Core/Src/uds.c ****     }
+ 1142              		.loc 1 379 13 view .LVU309
+ 1143 004c 1320     		movs	r0, #19
+ 1144 004e F3E7     		b	.L67
+ 1145              	.L73:
+ 1146              	.LBB10:
+ 383:Core/Src/uds.c ****         uint16_t flash_data_length = (APP_end_address - APP_start_address) / 4;
+ 1147              		.loc 1 383 9 is_stmt 1 view .LVU310
+ 383:Core/Src/uds.c ****         uint16_t flash_data_length = (APP_end_address - APP_start_address) / 4;
+ 1148              		.loc 1 383 32 is_stmt 0 view .LVU311
+ 1149 0050 029D     		ldr	r5, [sp, #8]
+ 1150              	.LVL92:
+ 384:Core/Src/uds.c ****         crc_reset();
+ 1151              		.loc 1 384 9 is_stmt 1 view .LVU312
+ 384:Core/Src/uds.c ****         crc_reset();
+ 1152              		.loc 1 384 55 is_stmt 0 view .LVU313
+ 1153 0052 019C     		ldr	r4, [sp, #4]
+ 1154              	.LVL93:
+ 384:Core/Src/uds.c ****         crc_reset();
+ 1155              		.loc 1 384 55 view .LVU314
+ 1156 0054 641B     		subs	r4, r4, r5
+ 384:Core/Src/uds.c ****         crc_reset();
+ 1157              		.loc 1 384 76 view .LVU315
+ 1158 0056 A408     		lsrs	r4, r4, #2
+ 1159              	.LVL94:
+ 385:Core/Src/uds.c ****         if (inputCRC != crc_calculate(flash_data, flash_data_length))
+ 1160              		.loc 1 385 9 is_stmt 1 view .LVU316
+ 1161 0058 FFF7FEFF 		bl	crc_reset
+ 1162              	.LVL95:
+ 386:Core/Src/uds.c ****         {
+ 1163              		.loc 1 386 9 view .LVU317
+ 386:Core/Src/uds.c ****         {
+ 1164              		.loc 1 386 25 is_stmt 0 view .LVU318
+ 1165 005c A1B2     		uxth	r1, r4
+ 1166 005e 2846     		mov	r0, r5
+ 1167 0060 FFF7FEFF 		bl	crc_calculate
+ 1168              	.LVL96:
+ 386:Core/Src/uds.c ****         {
+ 1169              		.loc 1 386 22 discriminator 1 view .LVU319
+ 1170 0064 039B     		ldr	r3, [sp, #12]
+ 386:Core/Src/uds.c ****         {
+ 1171              		.loc 1 386 12 discriminator 1 view .LVU320
+ 1172 0066 9842     		cmp	r0, r3
+ 1173 0068 01D0     		beq	.L74
+ 388:Core/Src/uds.c ****         }
+ 1174              		.loc 1 388 17 view .LVU321
+ 1175 006a 1020     		movs	r0, #16
+ 1176 006c E4E7     		b	.L67
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 38
+
+
+ 1177              	.L74:
+ 1178              	.LBE10:
+ 369:Core/Src/uds.c ****     uint32_t inputCRC = 0x00; // 子服务传进来的CRC值
+ 1179              		.loc 1 369 13 view .LVU322
+ 1180 006e 4120     		movs	r0, #65
+ 1181 0070 E2E7     		b	.L67
+ 1182              		.cfi_endproc
+ 1183              	.LFE8:
+ 1185              		.section	.rodata.service0x31SubFunctionUpdateProgram.str1.4,"aMS",%progbits,1
+ 1186              		.align	2
+ 1187              	.LC11:
+ 1188 0000 33312073 		.ascii	"31 service insatll app\015\012\000"
+ 1188      65727669 
+ 1188      63652069 
+ 1188      6E736174 
+ 1188      6C6C2061 
+ 1189              		.section	.text.service0x31SubFunctionUpdateProgram,"ax",%progbits
+ 1190              		.align	1
+ 1191              		.syntax unified
+ 1192              		.thumb
+ 1193              		.thumb_func
+ 1195              	service0x31SubFunctionUpdateProgram:
+ 1196              	.LVL97:
+ 1197              	.LFB9:
+ 396:Core/Src/uds.c ****     uart_printf(system_log, "31 service insatll app\r\n", NULL, 0);
+ 1198              		.loc 1 396 1 is_stmt 1 view -0
+ 1199              		.cfi_startproc
+ 1200              		@ args = 0, pretend = 0, frame = 0
+ 1201              		@ frame_needed = 1, uses_anonymous_args = 0
+ 396:Core/Src/uds.c ****     uart_printf(system_log, "31 service insatll app\r\n", NULL, 0);
+ 1202              		.loc 1 396 1 is_stmt 0 view .LVU324
+ 1203 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 1204              		.cfi_def_cfa_offset 24
+ 1205              		.cfi_offset 3, -24
+ 1206              		.cfi_offset 4, -20
+ 1207              		.cfi_offset 5, -16
+ 1208              		.cfi_offset 6, -12
+ 1209              		.cfi_offset 7, -8
+ 1210              		.cfi_offset 14, -4
+ 1211 0002 00AF     		add	r7, sp, #0
+ 1212              		.cfi_def_cfa_register 7
+ 397:Core/Src/uds.c **** 
+ 1213              		.loc 1 397 5 is_stmt 1 view .LVU325
+ 1214 0004 0023     		movs	r3, #0
+ 1215 0006 1A46     		mov	r2, r3
+ 1216 0008 1249     		ldr	r1, .L77
+ 1217              	.LVL98:
+ 397:Core/Src/uds.c **** 
+ 1218              		.loc 1 397 5 is_stmt 0 view .LVU326
+ 1219 000a 0820     		movs	r0, #8
+ 1220              	.LVL99:
+ 397:Core/Src/uds.c **** 
+ 1221              		.loc 1 397 5 view .LVU327
+ 1222 000c FFF7FEFF 		bl	uart_printf
+ 1223              	.LVL100:
+ 399:Core/Src/uds.c ****     uint32_t flash_data[flash_data_length];
+ 1224              		.loc 1 399 5 is_stmt 1 view .LVU328
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 39
+
+
+ 399:Core/Src/uds.c ****     uint32_t flash_data[flash_data_length];
+ 1225              		.loc 1 399 42 is_stmt 0 view .LVU329
+ 1226 0010 114D     		ldr	r5, .L77+4
+ 1227 0012 D5F80441 		ldr	r4, [r5, #260]
+ 399:Core/Src/uds.c ****     uint32_t flash_data[flash_data_length];
+ 1228              		.loc 1 399 14 view .LVU330
+ 1229 0016 C4F38F04 		ubfx	r4, r4, #2, #16
+ 1230              	.LVL101:
+ 400:Core/Src/uds.c **** 
+ 1231              		.loc 1 400 5 is_stmt 1 view .LVU331
+ 400:Core/Src/uds.c **** 
+ 1232              		.loc 1 400 14 is_stmt 0 view .LVU332
+ 1233 001a A300     		lsls	r3, r4, #2
+ 1234 001c 0733     		adds	r3, r3, #7
+ 1235 001e 23F00703 		bic	r3, r3, #7
+ 1236 0022 ADEB030D 		sub	sp, sp, r3
+ 1237 0026 6E46     		mov	r6, sp
+ 1238              	.LVL102:
+ 402:Core/Src/uds.c **** 
+ 1239              		.loc 1 402 5 is_stmt 1 view .LVU333
+ 1240 0028 2246     		mov	r2, r4
+ 1241 002a 0021     		movs	r1, #0
+ 1242 002c 3046     		mov	r0, r6
+ 1243 002e FFF7FEFF 		bl	memset
+ 1244              	.LVL103:
+ 404:Core/Src/uds.c **** 
+ 1245              		.loc 1 404 5 view .LVU334
+ 1246 0032 2246     		mov	r2, r4
+ 1247 0034 3146     		mov	r1, r6
+ 1248 0036 2846     		mov	r0, r5
+ 1249 0038 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1250              	.LVL104:
+ 406:Core/Src/uds.c ****     uds_response(ControlPositiveResponse);
+ 1251              		.loc 1 406 5 view .LVU335
+ 1252 003c 2246     		mov	r2, r4
+ 1253 003e 3146     		mov	r1, r6
+ 1254 0040 D5F80C01 		ldr	r0, [r5, #268]
+ 1255 0044 FFF7FEFF 		bl	flash_write
+ 1256              	.LVL105:
+ 407:Core/Src/uds.c ****     return 0;
+ 1257              		.loc 1 407 5 view .LVU336
+ 1258 0048 4120     		movs	r0, #65
+ 1259 004a FFF7FEFF 		bl	uds_response
+ 1260              	.LVL106:
+ 408:Core/Src/uds.c **** }
+ 1261              		.loc 1 408 5 view .LVU337
+ 409:Core/Src/uds.c **** 
+ 1262              		.loc 1 409 1 is_stmt 0 view .LVU338
+ 1263 004e 0020     		movs	r0, #0
+ 1264 0050 BD46     		mov	sp, r7
+ 1265              		.cfi_def_cfa_register 13
+ 1266              		@ sp needed
+ 1267 0052 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 1268              	.LVL107:
+ 1269              	.L78:
+ 409:Core/Src/uds.c **** 
+ 1270              		.loc 1 409 1 view .LVU339
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 40
+
+
+ 1271              		.align	2
+ 1272              	.L77:
+ 1273 0054 00000000 		.word	.LC11
+ 1274 0058 00000000 		.word	ota_data
+ 1275              		.cfi_endproc
+ 1276              	.LFE9:
+ 1278              		.section	.rodata.service0x31SubFunctionEraseResult.str1.4,"aMS",%progbits,1
+ 1279              		.align	2
+ 1280              	.LC12:
+ 1281 0000 63686563 		.ascii	"check Erase Result\015\012\000"
+ 1281      6B204572 
+ 1281      61736520 
+ 1281      52657375 
+ 1281      6C740D0A 
+ 1282 0015 000000   		.align	2
+ 1283              	.LC13:
+ 1284 0018 666C6173 		.ascii	"flash not 0xff :\000"
+ 1284      68206E6F 
+ 1284      74203078 
+ 1284      6666203A 
+ 1284      00
+ 1285              		.section	.text.service0x31SubFunctionEraseResult,"ax",%progbits
+ 1286              		.align	1
+ 1287              		.syntax unified
+ 1288              		.thumb
+ 1289              		.thumb_func
+ 1291              	service0x31SubFunctionEraseResult:
+ 1292              	.LVL108:
+ 1293              	.LFB6:
+ 282:Core/Src/uds.c ****     uint8_t ret_value;
+ 1294              		.loc 1 282 1 is_stmt 1 view -0
+ 1295              		.cfi_startproc
+ 1296              		@ args = 0, pretend = 0, frame = 16
+ 1297              		@ frame_needed = 0, uses_anonymous_args = 0
+ 282:Core/Src/uds.c ****     uint8_t ret_value;
+ 1298              		.loc 1 282 1 is_stmt 0 view .LVU341
+ 1299 0000 30B5     		push	{r4, r5, lr}
+ 1300              		.cfi_def_cfa_offset 12
+ 1301              		.cfi_offset 4, -12
+ 1302              		.cfi_offset 5, -8
+ 1303              		.cfi_offset 14, -4
+ 1304 0002 85B0     		sub	sp, sp, #20
+ 1305              		.cfi_def_cfa_offset 32
+ 1306 0004 0446     		mov	r4, r0
+ 283:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 1307              		.loc 1 283 5 is_stmt 1 view .LVU342
+ 284:Core/Src/uds.c ****     uint32_t readAddressStart;
+ 1308              		.loc 1 284 5 view .LVU343
+ 1309              	.LVL109:
+ 285:Core/Src/uds.c ****     uint32_t readAddressEnd;
+ 1310              		.loc 1 285 5 view .LVU344
+ 286:Core/Src/uds.c ****     uart_printf(system_log, "check Erase Result\r\n", NULL, 0);
+ 1311              		.loc 1 286 5 view .LVU345
+ 287:Core/Src/uds.c **** 
+ 1312              		.loc 1 287 5 view .LVU346
+ 1313 0006 0023     		movs	r3, #0
+ 1314 0008 1A46     		mov	r2, r3
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 41
+
+
+ 1315 000a 2949     		ldr	r1, .L88
+ 1316              	.LVL110:
+ 287:Core/Src/uds.c **** 
+ 1317              		.loc 1 287 5 is_stmt 0 view .LVU347
+ 1318 000c 0820     		movs	r0, #8
+ 1319              	.LVL111:
+ 287:Core/Src/uds.c **** 
+ 1320              		.loc 1 287 5 view .LVU348
+ 1321 000e FFF7FEFF 		bl	uart_printf
+ 1322              	.LVL112:
+ 289:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(&data[4], &readAddressEnd, 1);
+ 1323              		.loc 1 289 5 is_stmt 1 view .LVU349
+ 1324 0012 0122     		movs	r2, #1
+ 1325 0014 03A9     		add	r1, sp, #12
+ 1326 0016 2046     		mov	r0, r4
+ 1327 0018 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1328              	.LVL113:
+ 290:Core/Src/uds.c ****     // uint32_t readAddressStart = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3];
+ 1329              		.loc 1 290 5 view .LVU350
+ 1330 001c 0122     		movs	r2, #1
+ 1331 001e 02A9     		add	r1, sp, #8
+ 1332 0020 201D     		adds	r0, r4, #4
+ 1333 0022 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1334              	.LVL114:
+ 295:Core/Src/uds.c ****     ret_value = check_flash_address(readAddressEnd);
+ 1335              		.loc 1 295 5 view .LVU351
+ 295:Core/Src/uds.c ****     ret_value = check_flash_address(readAddressEnd);
+ 1336              		.loc 1 295 17 is_stmt 0 view .LVU352
+ 1337 0026 0398     		ldr	r0, [sp, #12]
+ 1338 0028 FFF7FEFF 		bl	check_flash_address
+ 1339              	.LVL115:
+ 296:Core/Src/uds.c **** 
+ 1340              		.loc 1 296 5 is_stmt 1 view .LVU353
+ 296:Core/Src/uds.c **** 
+ 1341              		.loc 1 296 17 is_stmt 0 view .LVU354
+ 1342 002c 0298     		ldr	r0, [sp, #8]
+ 1343 002e FFF7FEFF 		bl	check_flash_address
+ 1344              	.LVL116:
+ 1345 0032 0446     		mov	r4, r0
+ 1346              	.LVL117:
+ 299:Core/Src/uds.c **** 
+ 1347              		.loc 1 299 5 is_stmt 1 view .LVU355
+ 299:Core/Src/uds.c **** 
+ 1348              		.loc 1 299 22 is_stmt 0 view .LVU356
+ 1349 0034 039A     		ldr	r2, [sp, #12]
+ 1350 0036 93B2     		uxth	r3, r2
+ 1351 0038 0393     		str	r3, [sp, #12]
+ 302:Core/Src/uds.c ****     readAddressStart |= 0x08000000;
+ 1352              		.loc 1 302 5 is_stmt 1 view .LVU357
+ 302:Core/Src/uds.c ****     readAddressStart |= 0x08000000;
+ 1353              		.loc 1 302 41 is_stmt 0 view .LVU358
+ 1354 003a 02F47C42 		and	r2, r2, #64512
+ 302:Core/Src/uds.c ****     readAddressStart |= 0x08000000;
+ 1355              		.loc 1 302 22 view .LVU359
+ 1356 003e 0392     		str	r2, [sp, #12]
+ 303:Core/Src/uds.c **** 
+ 1357              		.loc 1 303 5 is_stmt 1 view .LVU360
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 42
+
+
+ 303:Core/Src/uds.c **** 
+ 1358              		.loc 1 303 22 is_stmt 0 view .LVU361
+ 1359 0040 42F00062 		orr	r2, r2, #134217728
+ 1360 0044 0392     		str	r2, [sp, #12]
+ 305:Core/Src/uds.c **** 
+ 1361              		.loc 1 305 5 is_stmt 1 view .LVU362
+ 305:Core/Src/uds.c **** 
+ 1362              		.loc 1 305 20 is_stmt 0 view .LVU363
+ 1363 0046 0298     		ldr	r0, [sp, #8]
+ 1364 0048 40F00060 		orr	r0, r0, #134217728
+ 1365 004c 0290     		str	r0, [sp, #8]
+ 308:Core/Src/uds.c **** 
+ 1366              		.loc 1 308 5 is_stmt 1 view .LVU364
+ 1367              	.LVL118:
+ 310:Core/Src/uds.c ****     {
+ 1368              		.loc 1 310 5 view .LVU365
+ 310:Core/Src/uds.c ****     {
+ 1369              		.loc 1 310 8 is_stmt 0 view .LVU366
+ 1370 004e 012C     		cmp	r4, #1
+ 1371 0050 05D0     		beq	.L84
+ 284:Core/Src/uds.c ****     uint32_t readAddressStart;
+ 1372              		.loc 1 284 13 view .LVU367
+ 1373 0052 4120     		movs	r0, #65
+ 1374              	.LVL119:
+ 1375              	.L81:
+ 333:Core/Src/uds.c ****     return ret_value;
+ 1376              		.loc 1 333 5 is_stmt 1 view .LVU368
+ 1377 0054 FFF7FEFF 		bl	uds_response
+ 1378              	.LVL120:
+ 334:Core/Src/uds.c **** }
+ 1379              		.loc 1 334 5 view .LVU369
+ 335:Core/Src/uds.c **** // 进行CRC校验 data 0 -3 传入的CRC值， data 4 = 0x1，验证ota一包的数据 0x02 ，验
+ 1380              		.loc 1 335 1 is_stmt 0 view .LVU370
+ 1381 0058 2046     		mov	r0, r4
+ 1382 005a 05B0     		add	sp, sp, #20
+ 1383              		.cfi_remember_state
+ 1384              		.cfi_def_cfa_offset 12
+ 1385              		@ sp needed
+ 1386 005c 30BD     		pop	{r4, r5, pc}
+ 1387              	.LVL121:
+ 1388              	.L84:
+ 1389              		.cfi_restore_state
+ 335:Core/Src/uds.c **** // 进行CRC校验 data 0 -3 传入的CRC值， data 4 = 0x1，验证ota一包的数据 0x02 ，验
+ 1390              		.loc 1 335 1 view .LVU371
+ 1391 005e 1146     		mov	r1, r2
+ 1392              	.LBB11:
+ 314:Core/Src/uds.c ****         {
+ 1393              		.loc 1 314 16 view .LVU372
+ 1394 0060 0023     		movs	r3, #0
+ 1395              	.LVL122:
+ 1396              	.L80:
+ 314:Core/Src/uds.c ****         {
+ 1397              		.loc 1 314 23 is_stmt 1 discriminator 1 view .LVU373
+ 1398 0062 1D46     		mov	r5, r3
+ 314:Core/Src/uds.c ****         {
+ 1399              		.loc 1 314 41 is_stmt 0 discriminator 1 view .LVU374
+ 1400 0064 A0EB020C 		sub	ip, r0, r2
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 43
+
+
+ 314:Core/Src/uds.c ****         {
+ 1401              		.loc 1 314 61 discriminator 1 view .LVU375
+ 1402 0068 4FEA9C0E 		lsr	lr, ip, #2
+ 314:Core/Src/uds.c ****         {
+ 1403              		.loc 1 314 23 discriminator 1 view .LVU376
+ 1404 006c B3EB9C0F 		cmp	r3, ip, lsr #2
+ 1405 0070 08D2     		bcs	.L82
+ 316:Core/Src/uds.c ****             {
+ 1406              		.loc 1 316 13 is_stmt 1 view .LVU377
+ 316:Core/Src/uds.c ****             {
+ 1407              		.loc 1 316 16 is_stmt 0 view .LVU378
+ 1408 0072 D1F800C0 		ldr	ip, [r1]
+ 1409 0076 BCF1FF3F 		cmp	ip, #-1
+ 1410 007a 03D1     		bne	.L82
+ 320:Core/Src/uds.c ****         }
+ 1411              		.loc 1 320 13 is_stmt 1 view .LVU379
+ 320:Core/Src/uds.c ****         }
+ 1412              		.loc 1 320 17 is_stmt 0 view .LVU380
+ 1413 007c 0431     		adds	r1, r1, #4
+ 1414              	.LVL123:
+ 314:Core/Src/uds.c ****         {
+ 1415              		.loc 1 314 67 is_stmt 1 discriminator 2 view .LVU381
+ 1416 007e 0133     		adds	r3, r3, #1
+ 1417              	.LVL124:
+ 314:Core/Src/uds.c ****         {
+ 1418              		.loc 1 314 67 is_stmt 0 discriminator 2 view .LVU382
+ 1419 0080 9BB2     		uxth	r3, r3
+ 1420              	.LVL125:
+ 314:Core/Src/uds.c ****         {
+ 1421              		.loc 1 314 67 discriminator 2 view .LVU383
+ 1422 0082 EEE7     		b	.L80
+ 1423              	.L82:
+ 323:Core/Src/uds.c ****         {
+ 1424              		.loc 1 323 9 is_stmt 1 view .LVU384
+ 323:Core/Src/uds.c ****         {
+ 1425              		.loc 1 323 12 is_stmt 0 view .LVU385
+ 1426 0084 7545     		cmp	r5, lr
+ 1427 0086 01D1     		bne	.L87
+ 1428              	.LBE11:
+ 284:Core/Src/uds.c ****     uint32_t readAddressStart;
+ 1429              		.loc 1 284 13 view .LVU386
+ 1430 0088 4120     		movs	r0, #65
+ 1431 008a E3E7     		b	.L81
+ 1432              	.L87:
+ 1433              	.LBB13:
+ 1434              	.LBB12:
+ 325:Core/Src/uds.c ****             uint8_t data_to_uint8_t[4];
+ 1435              		.loc 1 325 13 is_stmt 1 view .LVU387
+ 1436              	.LVL126:
+ 326:Core/Src/uds.c ****             readAddressStart += i * 4;
+ 1437              		.loc 1 326 13 view .LVU388
+ 327:Core/Src/uds.c ****             convert_uint32_t_to_uint8_t(&readAddressStart, data_to_uint8_t, 1);
+ 1438              		.loc 1 327 13 view .LVU389
+ 327:Core/Src/uds.c ****             convert_uint32_t_to_uint8_t(&readAddressStart, data_to_uint8_t, 1);
+ 1439              		.loc 1 327 30 is_stmt 0 view .LVU390
+ 1440 008c 02EB8302 		add	r2, r2, r3, lsl #2
+ 1441 0090 0392     		str	r2, [sp, #12]
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 44
+
+
+ 328:Core/Src/uds.c ****             uart_printf(error_log | system_log, "flash not 0xff :", data_to_uint8_t, 4);
+ 1442              		.loc 1 328 13 is_stmt 1 view .LVU391
+ 1443 0092 0122     		movs	r2, #1
+ 1444 0094 01A9     		add	r1, sp, #4
+ 1445              	.LVL127:
+ 328:Core/Src/uds.c ****             uart_printf(error_log | system_log, "flash not 0xff :", data_to_uint8_t, 4);
+ 1446              		.loc 1 328 13 is_stmt 0 view .LVU392
+ 1447 0096 03A8     		add	r0, sp, #12
+ 1448 0098 FFF7FEFF 		bl	convert_uint32_t_to_uint8_t
+ 1449              	.LVL128:
+ 329:Core/Src/uds.c ****             nrc = GeneralReject;
+ 1450              		.loc 1 329 13 is_stmt 1 view .LVU393
+ 1451 009c 0423     		movs	r3, #4
+ 1452 009e 0DEB0302 		add	r2, sp, r3
+ 1453 00a2 0449     		ldr	r1, .L88+4
+ 1454 00a4 0C20     		movs	r0, #12
+ 1455 00a6 FFF7FEFF 		bl	uart_printf
+ 1456              	.LVL129:
+ 330:Core/Src/uds.c ****         }
+ 1457              		.loc 1 330 13 view .LVU394
+ 330:Core/Src/uds.c ****         }
+ 1458              		.loc 1 330 17 is_stmt 0 view .LVU395
+ 1459 00aa 1020     		movs	r0, #16
+ 325:Core/Src/uds.c ****             uint8_t data_to_uint8_t[4];
+ 1460              		.loc 1 325 23 view .LVU396
+ 1461 00ac 0024     		movs	r4, #0
+ 1462 00ae D1E7     		b	.L81
+ 1463              	.L89:
+ 1464              		.align	2
+ 1465              	.L88:
+ 1466 00b0 00000000 		.word	.LC12
+ 1467 00b4 18000000 		.word	.LC13
+ 1468              	.LBE12:
+ 1469              	.LBE13:
+ 1470              		.cfi_endproc
+ 1471              	.LFE6:
+ 1473              		.section	.rodata.service0x31SubFunctionStartErase.str1.4,"aMS",%progbits,1
+ 1474              		.align	2
+ 1475              	.LC14:
+ 1476 0000 53746172 		.ascii	"Start Erase at \000"
+ 1476      74204572 
+ 1476      61736520 
+ 1476      61742000 
+ 1477              		.section	.text.service0x31SubFunctionStartErase,"ax",%progbits
+ 1478              		.align	1
+ 1479              		.syntax unified
+ 1480              		.thumb
+ 1481              		.thumb_func
+ 1483              	service0x31SubFunctionStartErase:
+ 1484              	.LVL130:
+ 1485              	.LFB5:
+ 260:Core/Src/uds.c ****     uint8_t ret_value = 0;
+ 1486              		.loc 1 260 1 is_stmt 1 view -0
+ 1487              		.cfi_startproc
+ 1488              		@ args = 0, pretend = 0, frame = 0
+ 1489              		@ frame_needed = 0, uses_anonymous_args = 0
+ 260:Core/Src/uds.c ****     uint8_t ret_value = 0;
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 45
+
+
+ 1490              		.loc 1 260 1 is_stmt 0 view .LVU398
+ 1491 0000 38B5     		push	{r3, r4, r5, lr}
+ 1492              		.cfi_def_cfa_offset 16
+ 1493              		.cfi_offset 3, -16
+ 1494              		.cfi_offset 4, -12
+ 1495              		.cfi_offset 5, -8
+ 1496              		.cfi_offset 14, -4
+ 1497 0002 0546     		mov	r5, r0
+ 261:Core/Src/uds.c ****     uart_printf(system_log, "Start Erase at ", data, 4);
+ 1498              		.loc 1 261 5 is_stmt 1 view .LVU399
+ 1499              	.LVL131:
+ 262:Core/Src/uds.c ****     uint32_t EraseAddress = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3];
+ 1500              		.loc 1 262 5 view .LVU400
+ 1501 0004 0423     		movs	r3, #4
+ 1502 0006 0246     		mov	r2, r0
+ 1503 0008 0F49     		ldr	r1, .L95
+ 1504              	.LVL132:
+ 262:Core/Src/uds.c ****     uint32_t EraseAddress = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3];
+ 1505              		.loc 1 262 5 is_stmt 0 view .LVU401
+ 1506 000a 0820     		movs	r0, #8
+ 1507              	.LVL133:
+ 262:Core/Src/uds.c ****     uint32_t EraseAddress = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3];
+ 1508              		.loc 1 262 5 view .LVU402
+ 1509 000c FFF7FEFF 		bl	uart_printf
+ 1510              	.LVL134:
+ 263:Core/Src/uds.c **** 
+ 1511              		.loc 1 263 5 is_stmt 1 view .LVU403
+ 263:Core/Src/uds.c **** 
+ 1512              		.loc 1 263 34 is_stmt 0 view .LVU404
+ 1513 0010 2B78     		ldrb	r3, [r5]	@ zero_extendqisi2
+ 263:Core/Src/uds.c **** 
+ 1514              		.loc 1 263 52 view .LVU405
+ 1515 0012 6C78     		ldrb	r4, [r5, #1]	@ zero_extendqisi2
+ 263:Core/Src/uds.c **** 
+ 1516              		.loc 1 263 56 view .LVU406
+ 1517 0014 2404     		lsls	r4, r4, #16
+ 263:Core/Src/uds.c **** 
+ 1518              		.loc 1 263 45 view .LVU407
+ 1519 0016 04EB0364 		add	r4, r4, r3, lsl #24
+ 263:Core/Src/uds.c **** 
+ 1520              		.loc 1 263 70 view .LVU408
+ 1521 001a AB78     		ldrb	r3, [r5, #2]	@ zero_extendqisi2
+ 263:Core/Src/uds.c **** 
+ 1522              		.loc 1 263 63 view .LVU409
+ 1523 001c 04EB0324 		add	r4, r4, r3, lsl #8
+ 263:Core/Src/uds.c **** 
+ 1524              		.loc 1 263 86 view .LVU410
+ 1525 0020 EB78     		ldrb	r3, [r5, #3]	@ zero_extendqisi2
+ 263:Core/Src/uds.c **** 
+ 1526              		.loc 1 263 80 view .LVU411
+ 1527 0022 1C44     		add	r4, r4, r3
+ 1528              	.LVL135:
+ 266:Core/Src/uds.c ****     ret_value = flash_erase(EraseAddress);
+ 1529              		.loc 1 266 5 is_stmt 1 view .LVU412
+ 1530 0024 0120     		movs	r0, #1
+ 1531 0026 FFF7FEFF 		bl	flash_lock
+ 1532              	.LVL136:
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 46
+
+
+ 267:Core/Src/uds.c **** 
+ 1533              		.loc 1 267 5 view .LVU413
+ 267:Core/Src/uds.c **** 
+ 1534              		.loc 1 267 17 is_stmt 0 view .LVU414
+ 1535 002a 2046     		mov	r0, r4
+ 1536 002c FFF7FEFF 		bl	flash_erase
+ 1537              	.LVL137:
+ 1538 0030 0446     		mov	r4, r0
+ 1539              	.LVL138:
+ 269:Core/Src/uds.c ****     {
+ 1540              		.loc 1 269 5 is_stmt 1 view .LVU415
+ 269:Core/Src/uds.c ****     {
+ 1541              		.loc 1 269 8 is_stmt 0 view .LVU416
+ 1542 0032 0128     		cmp	r0, #1
+ 1543 0034 04D0     		beq	.L94
+ 275:Core/Src/uds.c ****     }
+ 1544              		.loc 1 275 9 is_stmt 1 view .LVU417
+ 1545 0036 1020     		movs	r0, #16
+ 1546              	.LVL139:
+ 275:Core/Src/uds.c ****     }
+ 1547              		.loc 1 275 9 is_stmt 0 view .LVU418
+ 1548 0038 FFF7FEFF 		bl	uds_response
+ 1549              	.LVL140:
+ 1550              	.L92:
+ 277:Core/Src/uds.c **** }
+ 1551              		.loc 1 277 5 is_stmt 1 view .LVU419
+ 278:Core/Src/uds.c **** 
+ 1552              		.loc 1 278 1 is_stmt 0 view .LVU420
+ 1553 003c 2046     		mov	r0, r4
+ 1554 003e 38BD     		pop	{r3, r4, r5, pc}
+ 1555              	.LVL141:
+ 1556              	.L94:
+ 271:Core/Src/uds.c ****     }
+ 1557              		.loc 1 271 9 is_stmt 1 view .LVU421
+ 1558 0040 4120     		movs	r0, #65
+ 1559              	.LVL142:
+ 271:Core/Src/uds.c ****     }
+ 1560              		.loc 1 271 9 is_stmt 0 view .LVU422
+ 1561 0042 FFF7FEFF 		bl	uds_response
+ 1562              	.LVL143:
+ 1563 0046 F9E7     		b	.L92
+ 1564              	.L96:
+ 1565              		.align	2
+ 1566              	.L95:
+ 1567 0048 00000000 		.word	.LC14
+ 1568              		.cfi_endproc
+ 1569              	.LFE5:
+ 1571              		.section	.rodata.service0x31SubFunctionCRCValidate.str1.4,"aMS",%progbits,1
+ 1572              		.align	2
+ 1573              	.LC15:
+ 1574 0000 43524320 		.ascii	"CRC data\015\012\000"
+ 1574      64617461 
+ 1574      0D0A00
+ 1575 000b 00       		.align	2
+ 1576              	.LC16:
+ 1577 000c 63726320 		.ascii	"crc fail\000"
+ 1577      6661696C 
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 47
+
+
+ 1577      00
+ 1578              		.section	.text.service0x31SubFunctionCRCValidate,"ax",%progbits
+ 1579              		.align	1
+ 1580              		.syntax unified
+ 1581              		.thumb
+ 1582              		.thumb_func
+ 1584              	service0x31SubFunctionCRCValidate:
+ 1585              	.LVL144:
+ 1586              	.LFB7:
+ 338:Core/Src/uds.c **** 
+ 1587              		.loc 1 338 1 is_stmt 1 view -0
+ 1588              		.cfi_startproc
+ 1589              		@ args = 0, pretend = 0, frame = 16
+ 1590              		@ frame_needed = 1, uses_anonymous_args = 0
+ 338:Core/Src/uds.c **** 
+ 1591              		.loc 1 338 1 is_stmt 0 view .LVU424
+ 1592 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 1593              		.cfi_def_cfa_offset 24
+ 1594              		.cfi_offset 4, -24
+ 1595              		.cfi_offset 5, -20
+ 1596              		.cfi_offset 6, -16
+ 1597              		.cfi_offset 7, -12
+ 1598              		.cfi_offset 8, -8
+ 1599              		.cfi_offset 14, -4
+ 1600 0004 84B0     		sub	sp, sp, #16
+ 1601              		.cfi_def_cfa_offset 40
+ 1602 0006 00AF     		add	r7, sp, #0
+ 1603              		.cfi_def_cfa_register 7
+ 1604 0008 0446     		mov	r4, r0
+ 340:Core/Src/uds.c ****     uint32_t inputCRC = 0x00; // 子服务传进来的CRC值
+ 1605              		.loc 1 340 5 is_stmt 1 view .LVU425
+ 1606 000a CBB2     		uxtb	r3, r1
+ 1607 000c 0246     		mov	r2, r0
+ 1608 000e 2149     		ldr	r1, .L102
+ 1609              	.LVL145:
+ 340:Core/Src/uds.c ****     uint32_t inputCRC = 0x00; // 子服务传进来的CRC值
+ 1610              		.loc 1 340 5 is_stmt 0 view .LVU426
+ 1611 0010 0820     		movs	r0, #8
+ 1612              	.LVL146:
+ 340:Core/Src/uds.c ****     uint32_t inputCRC = 0x00; // 子服务传进来的CRC值
+ 1613              		.loc 1 340 5 view .LVU427
+ 1614 0012 FFF7FEFF 		bl	uart_printf
+ 1615              	.LVL147:
+ 341:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 1616              		.loc 1 341 5 is_stmt 1 view .LVU428
+ 341:Core/Src/uds.c ****     uint8_t nrc = ControlPositiveResponse;
+ 1617              		.loc 1 341 14 is_stmt 0 view .LVU429
+ 1618 0016 0023     		movs	r3, #0
+ 1619 0018 FB60     		str	r3, [r7, #12]
+ 342:Core/Src/uds.c ****     uint32_t crc_data[(ota_data.dataLength / 4)]; // 用于计算的cRC数据
+ 1620              		.loc 1 342 5 is_stmt 1 view .LVU430
+ 1621              	.LVL148:
+ 343:Core/Src/uds.c **** 
+ 1622              		.loc 1 343 5 view .LVU431
+ 343:Core/Src/uds.c **** 
+ 1623              		.loc 1 343 32 is_stmt 0 view .LVU432
+ 1624 001a 1F4D     		ldr	r5, .L102+4
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 48
+
+
+ 1625 001c D5F80481 		ldr	r8, [r5, #260]
+ 1626              	.LVL149:
+ 343:Core/Src/uds.c **** 
+ 1627              		.loc 1 343 14 view .LVU433
+ 1628 0020 28F00303 		bic	r3, r8, #3
+ 1629 0024 0733     		adds	r3, r3, #7
+ 1630 0026 23F00703 		bic	r3, r3, #7
+ 1631 002a ADEB030D 		sub	sp, sp, r3
+ 1632 002e 6E46     		mov	r6, sp
+ 1633              	.LVL150:
+ 345:Core/Src/uds.c ****     convert_uint8_t_to_uint32_t(&ota_data.data[0], crc_data, ota_data.dataLength / 4);
+ 1634              		.loc 1 345 5 is_stmt 1 view .LVU434
+ 1635 0030 0122     		movs	r2, #1
+ 1636 0032 07F10C01 		add	r1, r7, #12
+ 1637 0036 2046     		mov	r0, r4
+ 1638 0038 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1639              	.LVL151:
+ 346:Core/Src/uds.c **** 
+ 1640              		.loc 1 346 5 view .LVU435
+ 346:Core/Src/uds.c **** 
+ 1641              		.loc 1 346 70 is_stmt 0 view .LVU436
+ 1642 003c D5F80421 		ldr	r2, [r5, #260]
+ 346:Core/Src/uds.c **** 
+ 1643              		.loc 1 346 5 view .LVU437
+ 1644 0040 C2F38F02 		ubfx	r2, r2, #2, #16
+ 1645 0044 3146     		mov	r1, r6
+ 1646 0046 2846     		mov	r0, r5
+ 1647 0048 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1648              	.LVL152:
+ 350:Core/Src/uds.c ****     crc_reset();
+ 1649              		.loc 1 350 5 is_stmt 1 view .LVU438
+ 1650 004c FFF7FEFF 		bl	crc_init
+ 1651              	.LVL153:
+ 351:Core/Src/uds.c **** 
+ 1652              		.loc 1 351 5 view .LVU439
+ 1653 0050 FFF7FEFF 		bl	crc_reset
+ 1654              	.LVL154:
+ 353:Core/Src/uds.c ****     crc_result = crc_calculate(crc_data, sizeof(crc_data) / sizeof(uint32_t));
+ 1655              		.loc 1 353 5 view .LVU440
+ 354:Core/Src/uds.c **** 
+ 1656              		.loc 1 354 5 view .LVU441
+ 354:Core/Src/uds.c **** 
+ 1657              		.loc 1 354 18 is_stmt 0 view .LVU442
+ 1658 0054 4FEA9801 		lsr	r1, r8, #2
+ 1659              	.LVL155:
+ 354:Core/Src/uds.c **** 
+ 1660              		.loc 1 354 18 view .LVU443
+ 1661 0058 3046     		mov	r0, r6
+ 1662 005a FFF7FEFF 		bl	crc_calculate
+ 1663              	.LVL156:
+ 354:Core/Src/uds.c **** 
+ 1664              		.loc 1 354 16 discriminator 1 view .LVU444
+ 1665 005e B860     		str	r0, [r7, #8]
+ 356:Core/Src/uds.c ****     convert_uint32_t_to_uint8_t(&crc_result, temp, 1);
+ 1666              		.loc 1 356 5 is_stmt 1 view .LVU445
+ 357:Core/Src/uds.c ****     if (crc_result != inputCRC)
+ 1667              		.loc 1 357 5 view .LVU446
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 49
+
+
+ 1668 0060 0122     		movs	r2, #1
+ 1669 0062 391D     		adds	r1, r7, #4
+ 1670 0064 07F10800 		add	r0, r7, #8
+ 1671 0068 FFF7FEFF 		bl	convert_uint32_t_to_uint8_t
+ 1672              	.LVL157:
+ 358:Core/Src/uds.c ****     {
+ 1673              		.loc 1 358 5 view .LVU447
+ 358:Core/Src/uds.c ****     {
+ 1674              		.loc 1 358 8 is_stmt 0 view .LVU448
+ 1675 006c BA68     		ldr	r2, [r7, #8]
+ 1676 006e FB68     		ldr	r3, [r7, #12]
+ 1677 0070 9A42     		cmp	r2, r3
+ 1678 0072 07D1     		bne	.L101
+ 342:Core/Src/uds.c ****     uint32_t crc_data[(ota_data.dataLength / 4)]; // 用于计算的cRC数据
+ 1679              		.loc 1 342 13 view .LVU449
+ 1680 0074 4120     		movs	r0, #65
+ 1681              	.LVL158:
+ 1682              	.L98:
+ 363:Core/Src/uds.c ****     return 0;
+ 1683              		.loc 1 363 5 is_stmt 1 view .LVU450
+ 1684 0076 FFF7FEFF 		bl	uds_response
+ 1685              	.LVL159:
+ 364:Core/Src/uds.c **** }
+ 1686              		.loc 1 364 5 view .LVU451
+ 365:Core/Src/uds.c **** 
+ 1687              		.loc 1 365 1 is_stmt 0 view .LVU452
+ 1688 007a 0020     		movs	r0, #0
+ 1689 007c 1037     		adds	r7, r7, #16
+ 1690              		.cfi_remember_state
+ 1691              		.cfi_def_cfa_offset 24
+ 1692 007e BD46     		mov	sp, r7
+ 1693              		.cfi_def_cfa_register 13
+ 1694              		@ sp needed
+ 1695 0080 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 1696              	.LVL160:
+ 1697              	.L101:
+ 1698              		.cfi_restore_state
+ 360:Core/Src/uds.c ****         nrc = GeneralReject;
+ 1699              		.loc 1 360 9 is_stmt 1 view .LVU453
+ 1700 0084 0423     		movs	r3, #4
+ 1701 0086 FA18     		adds	r2, r7, r3
+ 1702 0088 0449     		ldr	r1, .L102+8
+ 1703 008a 0C20     		movs	r0, #12
+ 1704 008c FFF7FEFF 		bl	uart_printf
+ 1705              	.LVL161:
+ 361:Core/Src/uds.c ****     }
+ 1706              		.loc 1 361 9 view .LVU454
+ 361:Core/Src/uds.c ****     }
+ 1707              		.loc 1 361 13 is_stmt 0 view .LVU455
+ 1708 0090 1020     		movs	r0, #16
+ 1709 0092 F0E7     		b	.L98
+ 1710              	.L103:
+ 1711              		.align	2
+ 1712              	.L102:
+ 1713 0094 00000000 		.word	.LC15
+ 1714 0098 00000000 		.word	ota_data
+ 1715 009c 0C000000 		.word	.LC16
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 50
+
+
+ 1716              		.cfi_endproc
+ 1717              	.LFE7:
+ 1719              		.section	.rodata.uds_entry.str1.4,"aMS",%progbits,1
+ 1720              		.align	2
+ 1721              	.LC17:
+ 1722 0000 66696E64 		.ascii	"find services :\000"
+ 1722      20736572 
+ 1722      76696365 
+ 1722      73203A00 
+ 1723              		.align	2
+ 1724              	.LC18:
+ 1725 0010 72656369 		.ascii	"recive data is \000"
+ 1725      76652064 
+ 1725      61746120 
+ 1725      69732000 
+ 1726              		.align	2
+ 1727              	.LC19:
+ 1728 0020 74686520 		.ascii	"the sid dont been supported\015\012\000"
+ 1728      73696420 
+ 1728      646F6E74 
+ 1728      20626565 
+ 1728      6E207375 
+ 1729 003e 0000     		.align	2
+ 1730              	.LC20:
+ 1731 0040 74686520 		.ascii	"the sid dont have a trriger function\015\012\000"
+ 1731      73696420 
+ 1731      646F6E74 
+ 1731      20686176 
+ 1731      65206120 
+ 1732              		.section	.text.uds_entry,"ax",%progbits
+ 1733              		.align	1
+ 1734              		.global	uds_entry
+ 1735              		.syntax unified
+ 1736              		.thumb
+ 1737              		.thumb_func
+ 1739              	uds_entry:
+ 1740              	.LVL162:
+ 1741              	.LFB4:
+ 219:Core/Src/uds.c ****     for (int i = 0; i < 720000; i++)
+ 1742              		.loc 1 219 1 is_stmt 1 view -0
+ 1743              		.cfi_startproc
+ 1744              		@ args = 0, pretend = 0, frame = 0
+ 1745              		@ frame_needed = 0, uses_anonymous_args = 0
+ 219:Core/Src/uds.c ****     for (int i = 0; i < 720000; i++)
+ 1746              		.loc 1 219 1 is_stmt 0 view .LVU457
+ 1747 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 1748              		.cfi_def_cfa_offset 24
+ 1749              		.cfi_offset 4, -24
+ 1750              		.cfi_offset 5, -20
+ 1751              		.cfi_offset 6, -16
+ 1752              		.cfi_offset 7, -12
+ 1753              		.cfi_offset 8, -8
+ 1754              		.cfi_offset 14, -4
+ 1755 0004 0546     		mov	r5, r0
+ 1756 0006 0E46     		mov	r6, r1
+ 220:Core/Src/uds.c ****     { // 延时，
+ 1757              		.loc 1 220 5 is_stmt 1 view .LVU458
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 51
+
+
+ 1758              	.LBB14:
+ 220:Core/Src/uds.c ****     { // 延时，
+ 1759              		.loc 1 220 10 view .LVU459
+ 1760              	.LVL163:
+ 220:Core/Src/uds.c ****     { // 延时，
+ 1761              		.loc 1 220 14 is_stmt 0 view .LVU460
+ 1762 0008 0023     		movs	r3, #0
+ 220:Core/Src/uds.c ****     { // 延时，
+ 1763              		.loc 1 220 5 view .LVU461
+ 1764 000a 00E0     		b	.L105
+ 1765              	.LVL164:
+ 1766              	.L106:
+ 222:Core/Src/uds.c ****     // uint8_t ret_value ;
+ 1767              		.loc 1 222 5 is_stmt 1 view .LVU462
+ 220:Core/Src/uds.c ****     { // 延时，
+ 1768              		.loc 1 220 34 discriminator 3 view .LVU463
+ 1769 000c 0133     		adds	r3, r3, #1
+ 1770              	.LVL165:
+ 1771              	.L105:
+ 220:Core/Src/uds.c ****     { // 延时，
+ 1772              		.loc 1 220 23 discriminator 1 view .LVU464
+ 1773 000e 234A     		ldr	r2, .L118
+ 1774 0010 9342     		cmp	r3, r2
+ 1775 0012 FBDD     		ble	.L106
+ 1776              	.LBE14:
+ 1777              	.LBB15:
+ 227:Core/Src/uds.c ****     {
+ 1778              		.loc 1 227 18 is_stmt 0 view .LVU465
+ 1779 0014 0024     		movs	r4, #0
+ 1780              	.LVL166:
+ 1781              	.L107:
+ 227:Core/Src/uds.c ****     {
+ 1782              		.loc 1 227 27 is_stmt 1 discriminator 1 view .LVU466
+ 1783 0016 0C2C     		cmp	r4, #12
+ 1784 0018 2AD8     		bhi	.L115
+ 229:Core/Src/uds.c ****         {
+ 1785              		.loc 1 229 9 view .LVU467
+ 229:Core/Src/uds.c ****         {
+ 1786              		.loc 1 229 17 is_stmt 0 view .LVU468
+ 1787 001a 2A78     		ldrb	r2, [r5]	@ zero_extendqisi2
+ 229:Core/Src/uds.c ****         {
+ 1788              		.loc 1 229 43 view .LVU469
+ 1789 001c 04EB8403 		add	r3, r4, r4, lsl #2
+ 1790 0020 1F49     		ldr	r1, .L118+4
+ 1791 0022 11F82330 		ldrb	r3, [r1, r3, lsl #2]	@ zero_extendqisi2
+ 229:Core/Src/uds.c ****         {
+ 1792              		.loc 1 229 12 view .LVU470
+ 1793 0026 9A42     		cmp	r2, r3
+ 1794 0028 02D0     		beq	.L116
+ 227:Core/Src/uds.c ****     {
+ 1795              		.loc 1 227 84 is_stmt 1 discriminator 2 view .LVU471
+ 1796 002a 0134     		adds	r4, r4, #1
+ 1797              	.LVL167:
+ 227:Core/Src/uds.c ****     {
+ 1798              		.loc 1 227 84 is_stmt 0 discriminator 2 view .LVU472
+ 1799 002c E4B2     		uxtb	r4, r4
+ 1800              	.LVL168:
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 52
+
+
+ 227:Core/Src/uds.c ****     {
+ 1801              		.loc 1 227 84 discriminator 2 view .LVU473
+ 1802 002e F2E7     		b	.L107
+ 1803              	.L116:
+ 231:Core/Src/uds.c ****             uart_printf(system_log, "recive data is ", data, (uint8_t)dataLen);
+ 1804              		.loc 1 231 13 is_stmt 1 view .LVU474
+ 231:Core/Src/uds.c ****             uart_printf(system_log, "recive data is ", data, (uint8_t)dataLen);
+ 1805              		.loc 1 231 56 is_stmt 0 view .LVU475
+ 1806 0030 4FEA8408 		lsl	r8, r4, #2
+ 1807 0034 04EB8402 		add	r2, r4, r4, lsl #2
+ 1808 0038 0F46     		mov	r7, r1
+ 231:Core/Src/uds.c ****             uart_printf(system_log, "recive data is ", data, (uint8_t)dataLen);
+ 1809              		.loc 1 231 13 view .LVU476
+ 1810 003a 0123     		movs	r3, #1
+ 1811 003c 01EB8202 		add	r2, r1, r2, lsl #2
+ 1812 0040 1849     		ldr	r1, .L118+8
+ 1813 0042 0820     		movs	r0, #8
+ 1814              	.LVL169:
+ 231:Core/Src/uds.c ****             uart_printf(system_log, "recive data is ", data, (uint8_t)dataLen);
+ 1815              		.loc 1 231 13 view .LVU477
+ 1816 0044 FFF7FEFF 		bl	uart_printf
+ 1817              	.LVL170:
+ 232:Core/Src/uds.c ****             service = &dcmServicesTable[i];
+ 1818              		.loc 1 232 13 is_stmt 1 view .LVU478
+ 1819 0048 F3B2     		uxtb	r3, r6
+ 1820 004a 2A46     		mov	r2, r5
+ 1821 004c 1649     		ldr	r1, .L118+12
+ 1822 004e 0820     		movs	r0, #8
+ 1823 0050 FFF7FEFF 		bl	uart_printf
+ 1824              	.LVL171:
+ 233:Core/Src/uds.c ****             break;
+ 1825              		.loc 1 233 13 view .LVU479
+ 233:Core/Src/uds.c ****             break;
+ 1826              		.loc 1 233 21 is_stmt 0 view .LVU480
+ 1827 0054 A044     		add	r8, r8, r4
+ 1828 0056 07EB8807 		add	r7, r7, r8, lsl #2
+ 1829              	.LVL172:
+ 234:Core/Src/uds.c ****         }
+ 1830              		.loc 1 234 13 is_stmt 1 view .LVU481
+ 234:Core/Src/uds.c ****         }
+ 1831              		.loc 1 234 13 is_stmt 0 view .LVU482
+ 1832              	.LBE15:
+ 239:Core/Src/uds.c ****     {
+ 1833              		.loc 1 239 5 is_stmt 1 view .LVU483
+ 246:Core/Src/uds.c ****     {
+ 1834              		.loc 1 246 10 view .LVU484
+ 246:Core/Src/uds.c ****     {
+ 1835              		.loc 1 246 21 is_stmt 0 view .LVU485
+ 1836 005a 7B68     		ldr	r3, [r7, #4]
+ 246:Core/Src/uds.c ****     {
+ 1837              		.loc 1 246 13 view .LVU486
+ 1838 005c 9BB1     		cbz	r3, .L117
+ 251:Core/Src/uds.c ****     {
+ 1839              		.loc 1 251 10 is_stmt 1 view .LVU487
+ 253:Core/Src/uds.c ****         service->serviceTrigger(&data[1], dataLen - 1);
+ 1840              		.loc 1 253 9 view .LVU488
+ 1841 005e 7820     		movs	r0, #120
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 53
+
+
+ 1842 0060 FFF7FEFF 		bl	uds_response
+ 1843              	.LVL173:
+ 254:Core/Src/uds.c ****     }
+ 1844              		.loc 1 254 9 view .LVU489
+ 254:Core/Src/uds.c ****     }
+ 1845              		.loc 1 254 16 is_stmt 0 view .LVU490
+ 1846 0064 7B68     		ldr	r3, [r7, #4]
+ 254:Core/Src/uds.c ****     }
+ 1847              		.loc 1 254 9 view .LVU491
+ 1848 0066 711E     		subs	r1, r6, #1
+ 1849 0068 89B2     		uxth	r1, r1
+ 1850 006a 681C     		adds	r0, r5, #1
+ 1851 006c 9847     		blx	r3
+ 1852              	.LVL174:
+ 256:Core/Src/uds.c **** 
+ 1853              		.loc 1 256 1 view .LVU492
+ 1854 006e 08E0     		b	.L104
+ 1855              	.LVL175:
+ 1856              	.L115:
+ 239:Core/Src/uds.c ****     {
+ 1857              		.loc 1 239 5 is_stmt 1 view .LVU493
+ 241:Core/Src/uds.c **** 
+ 1858              		.loc 1 241 9 view .LVU494
+ 1859 0070 0023     		movs	r3, #0
+ 1860 0072 1A46     		mov	r2, r3
+ 1861 0074 0D49     		ldr	r1, .L118+16
+ 1862 0076 0820     		movs	r0, #8
+ 1863              	.LVL176:
+ 241:Core/Src/uds.c **** 
+ 1864              		.loc 1 241 9 is_stmt 0 view .LVU495
+ 1865 0078 FFF7FEFF 		bl	uart_printf
+ 1866              	.LVL177:
+ 243:Core/Src/uds.c ****     }
+ 1867              		.loc 1 243 9 is_stmt 1 view .LVU496
+ 1868 007c 1120     		movs	r0, #17
+ 1869 007e FFF7FEFF 		bl	uds_response
+ 1870              	.LVL178:
+ 1871              	.L104:
+ 256:Core/Src/uds.c **** 
+ 1872              		.loc 1 256 1 is_stmt 0 view .LVU497
+ 1873 0082 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 1874              	.LVL179:
+ 1875              	.L117:
+ 248:Core/Src/uds.c ****         uds_response(SubFunctionNotSupported);
+ 1876              		.loc 1 248 9 is_stmt 1 view .LVU498
+ 1877 0086 0023     		movs	r3, #0
+ 1878 0088 1A46     		mov	r2, r3
+ 1879 008a 0949     		ldr	r1, .L118+20
+ 1880 008c 0820     		movs	r0, #8
+ 1881 008e FFF7FEFF 		bl	uart_printf
+ 1882              	.LVL180:
+ 249:Core/Src/uds.c ****     }
+ 1883              		.loc 1 249 9 view .LVU499
+ 1884 0092 1220     		movs	r0, #18
+ 1885 0094 FFF7FEFF 		bl	uds_response
+ 1886              	.LVL181:
+ 1887 0098 F3E7     		b	.L104
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 54
+
+
+ 1888              	.L119:
+ 1889 009a 00BF     		.align	2
+ 1890              	.L118:
+ 1891 009c 7FFC0A00 		.word	719999
+ 1892 00a0 00000000 		.word	dcmServicesTable
+ 1893 00a4 00000000 		.word	.LC17
+ 1894 00a8 10000000 		.word	.LC18
+ 1895 00ac 20000000 		.word	.LC19
+ 1896 00b0 40000000 		.word	.LC20
+ 1897              		.cfi_endproc
+ 1898              	.LFE4:
+ 1900              		.section	.text.can_service_entry,"ax",%progbits
+ 1901              		.align	1
+ 1902              		.global	can_service_entry
+ 1903              		.syntax unified
+ 1904              		.thumb
+ 1905              		.thumb_func
+ 1907              	can_service_entry:
+ 1908              	.LVL182:
+ 1909              	.LFB3:
+ 166:Core/Src/uds.c **** 
+ 1910              		.loc 1 166 1 view -0
+ 1911              		.cfi_startproc
+ 1912              		@ args = 0, pretend = 0, frame = 0
+ 1913              		@ frame_needed = 0, uses_anonymous_args = 0
+ 166:Core/Src/uds.c **** 
+ 1914              		.loc 1 166 1 is_stmt 0 view .LVU501
+ 1915 0000 70B5     		push	{r4, r5, r6, lr}
+ 1916              		.cfi_def_cfa_offset 16
+ 1917              		.cfi_offset 4, -16
+ 1918              		.cfi_offset 5, -12
+ 1919              		.cfi_offset 6, -8
+ 1920              		.cfi_offset 14, -4
+ 1921 0002 0446     		mov	r4, r0
+ 170:Core/Src/uds.c ****     {
+ 1922              		.loc 1 170 5 is_stmt 1 view .LVU502
+ 170:Core/Src/uds.c ****     {
+ 1923              		.loc 1 170 19 is_stmt 0 view .LVU503
+ 1924 0004 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 170:Core/Src/uds.c ****     {
+ 1925              		.loc 1 170 32 view .LVU504
+ 1926 0006 1B09     		lsrs	r3, r3, #4
+ 170:Core/Src/uds.c ****     {
+ 1927              		.loc 1 170 5 view .LVU505
+ 1928 0008 012B     		cmp	r3, #1
+ 1929 000a 19D0     		beq	.L121
+ 1930 000c 022B     		cmp	r3, #2
+ 1931 000e 36D0     		beq	.L122
+ 1932 0010 A3B9     		cbnz	r3, .L123
+ 174:Core/Src/uds.c ****         uds_frame.reqDataLength = data[0] & 0x0f;
+ 1933              		.loc 1 174 9 is_stmt 1 view .LVU506
+ 1934 0012 2E4D     		ldr	r5, .L126
+ 1935 0014 FF22     		movs	r2, #255
+ 1936 0016 0021     		movs	r1, #0
+ 1937 0018 2846     		mov	r0, r5
+ 1938              	.LVL183:
+ 174:Core/Src/uds.c ****         uds_frame.reqDataLength = data[0] & 0x0f;
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 55
+
+
+ 1939              		.loc 1 174 9 is_stmt 0 view .LVU507
+ 1940 001a FFF7FEFF 		bl	memset
+ 1941              	.LVL184:
+ 175:Core/Src/uds.c ****         memcpy(uds_frame.reqData, &data[1], uds_frame.reqDataLength);
+ 1942              		.loc 1 175 9 is_stmt 1 view .LVU508
+ 175:Core/Src/uds.c ****         memcpy(uds_frame.reqData, &data[1], uds_frame.reqDataLength);
+ 1943              		.loc 1 175 39 is_stmt 0 view .LVU509
+ 1944 001e 2146     		mov	r1, r4
+ 1945 0020 11F8012B 		ldrb	r2, [r1], #1	@ zero_extendqisi2
+ 1946 0024 02F00F02 		and	r2, r2, #15
+ 175:Core/Src/uds.c ****         memcpy(uds_frame.reqData, &data[1], uds_frame.reqDataLength);
+ 1947              		.loc 1 175 33 view .LVU510
+ 1948 0028 A5F8FF20 		strh	r2, [r5, #255]	@ movhi
+ 176:Core/Src/uds.c ****         uds_entry(uds_frame.reqData, uds_frame.reqDataLength);
+ 1949              		.loc 1 176 9 is_stmt 1 view .LVU511
+ 1950 002c 2846     		mov	r0, r5
+ 1951 002e FFF7FEFF 		bl	memcpy
+ 1952              	.LVL185:
+ 177:Core/Src/uds.c ****     }
+ 1953              		.loc 1 177 9 view .LVU512
+ 1954 0032 B5F8FF10 		ldrh	r1, [r5, #255]
+ 1955 0036 2846     		mov	r0, r5
+ 1956 0038 FFF7FEFF 		bl	uds_entry
+ 1957              	.LVL186:
+ 180:Core/Src/uds.c **** 
+ 1958              		.loc 1 180 5 view .LVU513
+ 1959              	.L123:
+ 214:Core/Src/uds.c **** }
+ 1960              		.loc 1 214 5 view .LVU514
+ 215:Core/Src/uds.c **** 
+ 1961              		.loc 1 215 1 is_stmt 0 view .LVU515
+ 1962 003c 0020     		movs	r0, #0
+ 1963 003e 70BD     		pop	{r4, r5, r6, pc}
+ 1964              	.LVL187:
+ 1965              	.L121:
+ 184:Core/Src/uds.c ****         memset(uds_frame.reqData, 0x00, 255);
+ 1966              		.loc 1 184 9 is_stmt 1 view .LVU516
+ 184:Core/Src/uds.c ****         memset(uds_frame.reqData, 0x00, 255);
+ 1967              		.loc 1 184 24 is_stmt 0 view .LVU517
+ 1968 0040 234E     		ldr	r6, .L126+4
+ 1969 0042 3546     		mov	r5, r6
+ 1970 0044 0123     		movs	r3, #1
+ 1971 0046 05F8013B 		strb	r3, [r5], #1
+ 185:Core/Src/uds.c ****         uds_frame.reqDataLength = ((data[0] & 0x0f) << 8) + data[1];
+ 1972              		.loc 1 185 9 is_stmt 1 view .LVU518
+ 1973 004a FF22     		movs	r2, #255
+ 1974 004c 0021     		movs	r1, #0
+ 1975 004e 2846     		mov	r0, r5
+ 1976              	.LVL188:
+ 185:Core/Src/uds.c ****         uds_frame.reqDataLength = ((data[0] & 0x0f) << 8) + data[1];
+ 1977              		.loc 1 185 9 is_stmt 0 view .LVU519
+ 1978 0050 FFF7FEFF 		bl	memset
+ 1979              	.LVL189:
+ 186:Core/Src/uds.c ****         uds_frame.receiveDataLength = 6;
+ 1980              		.loc 1 186 9 is_stmt 1 view .LVU520
+ 186:Core/Src/uds.c ****         uds_frame.receiveDataLength = 6;
+ 1981              		.loc 1 186 41 is_stmt 0 view .LVU521
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 56
+
+
+ 1982 0054 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ 186:Core/Src/uds.c ****         uds_frame.receiveDataLength = 6;
+ 1983              		.loc 1 186 53 view .LVU522
+ 1984 0056 1B02     		lsls	r3, r3, #8
+ 1985 0058 03F47063 		and	r3, r3, #3840
+ 186:Core/Src/uds.c ****         uds_frame.receiveDataLength = 6;
+ 1986              		.loc 1 186 65 view .LVU523
+ 1987 005c 6278     		ldrb	r2, [r4, #1]	@ zero_extendqisi2
+ 186:Core/Src/uds.c ****         uds_frame.receiveDataLength = 6;
+ 1988              		.loc 1 186 59 view .LVU524
+ 1989 005e 1344     		add	r3, r3, r2
+ 186:Core/Src/uds.c ****         uds_frame.receiveDataLength = 6;
+ 1990              		.loc 1 186 33 view .LVU525
+ 1991 0060 A6F80031 		strh	r3, [r6, #256]	@ movhi
+ 187:Core/Src/uds.c ****         memcpy(&uds_frame.reqData[0], &data[2], 6);
+ 1992              		.loc 1 187 9 is_stmt 1 view .LVU526
+ 187:Core/Src/uds.c ****         memcpy(&uds_frame.reqData[0], &data[2], 6);
+ 1993              		.loc 1 187 37 is_stmt 0 view .LVU527
+ 1994 0064 0623     		movs	r3, #6
+ 1995 0066 A6F80231 		strh	r3, [r6, #258]	@ movhi
+ 188:Core/Src/uds.c ****         {
+ 1996              		.loc 1 188 9 is_stmt 1 view .LVU528
+ 1997 006a D4F80230 		ldr	r3, [r4, #2]	@ unaligned
+ 1998 006e C6F80130 		str	r3, [r6, #1]	@ unaligned
+ 1999 0072 E388     		ldrh	r3, [r4, #6]	@ unaligned
+ 2000 0074 AB80     		strh	r3, [r5, #4]	@ unaligned
+ 191:Core/Src/uds.c ****         uds_response(FirstFrameResponse);
+ 2001              		.loc 1 191 9 view .LVU529
+ 192:Core/Src/uds.c ****     }
+ 2002              		.loc 1 192 9 view .LVU530
+ 2003 0076 2520     		movs	r0, #37
+ 2004 0078 FFF7FEFF 		bl	uds_response
+ 2005              	.LVL190:
+ 194:Core/Src/uds.c ****     case 2: // 连续帧
+ 2006              		.loc 1 194 5 view .LVU531
+ 2007 007c DEE7     		b	.L123
+ 2008              	.LVL191:
+ 2009              	.L122:
+ 197:Core/Src/uds.c ****         {
+ 2010              		.loc 1 197 9 view .LVU532
+ 197:Core/Src/uds.c ****         {
+ 2011              		.loc 1 197 23 is_stmt 0 view .LVU533
+ 2012 007e 144A     		ldr	r2, .L126+4
+ 2013 0080 B2F80231 		ldrh	r3, [r2, #258]
+ 197:Core/Src/uds.c ****         {
+ 2014              		.loc 1 197 42 view .LVU534
+ 2015 0084 D91D     		adds	r1, r3, #7
+ 197:Core/Src/uds.c ****         {
+ 2016              		.loc 1 197 59 view .LVU535
+ 2017 0086 B2F80021 		ldrh	r2, [r2, #256]
+ 197:Core/Src/uds.c ****         {
+ 2018              		.loc 1 197 12 view .LVU536
+ 2019 008a 9142     		cmp	r1, r2
+ 2020 008c 0CDB     		blt	.L124
+ 200:Core/Src/uds.c ****             uds_entry(uds_frame.reqData, uds_frame.reqDataLength);
+ 2021              		.loc 1 200 13 is_stmt 1 view .LVU537
+ 200:Core/Src/uds.c ****             uds_entry(uds_frame.reqData, uds_frame.reqDataLength);
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 57
+
+
+ 2022              		.loc 1 200 20 is_stmt 0 view .LVU538
+ 2023 008e 104D     		ldr	r5, .L126+4
+ 2024 0090 5819     		adds	r0, r3, r5
+ 2025              	.LVL192:
+ 200:Core/Src/uds.c ****             uds_entry(uds_frame.reqData, uds_frame.reqDataLength);
+ 2026              		.loc 1 200 13 view .LVU539
+ 2027 0092 D21A     		subs	r2, r2, r3
+ 2028 0094 611C     		adds	r1, r4, #1
+ 2029 0096 0130     		adds	r0, r0, #1
+ 2030 0098 FFF7FEFF 		bl	memcpy
+ 2031              	.LVL193:
+ 201:Core/Src/uds.c ****         }
+ 2032              		.loc 1 201 13 is_stmt 1 view .LVU540
+ 2033 009c B5F80011 		ldrh	r1, [r5, #256]
+ 2034 00a0 681C     		adds	r0, r5, #1
+ 2035 00a2 FFF7FEFF 		bl	uds_entry
+ 2036              	.LVL194:
+ 2037 00a6 C9E7     		b	.L123
+ 2038              	.LVL195:
+ 2039              	.L124:
+ 206:Core/Src/uds.c ****             uds_frame.receiveDataLength += 7;
+ 2040              		.loc 1 206 13 view .LVU541
+ 206:Core/Src/uds.c ****             uds_frame.receiveDataLength += 7;
+ 2041              		.loc 1 206 20 is_stmt 0 view .LVU542
+ 2042 00a8 094A     		ldr	r2, .L126+4
+ 2043 00aa 1344     		add	r3, r3, r2
+ 206:Core/Src/uds.c ****             uds_frame.receiveDataLength += 7;
+ 2044              		.loc 1 206 13 view .LVU543
+ 2045 00ac D0F80110 		ldr	r1, [r0, #1]	@ unaligned
+ 2046 00b0 C3F80110 		str	r1, [r3, #1]	@ unaligned
+ 2047 00b4 B0F80500 		ldrh	r0, [r0, #5]	@ unaligned
+ 2048              	.LVL196:
+ 206:Core/Src/uds.c ****             uds_frame.receiveDataLength += 7;
+ 2049              		.loc 1 206 13 view .LVU544
+ 2050 00b8 E179     		ldrb	r1, [r4, #7]	@ zero_extendqisi2
+ 2051 00ba A3F80500 		strh	r0, [r3, #5]	@ unaligned
+ 2052 00be D971     		strb	r1, [r3, #7]
+ 207:Core/Src/uds.c ****         }
+ 2053              		.loc 1 207 13 is_stmt 1 view .LVU545
+ 207:Core/Src/uds.c ****         }
+ 2054              		.loc 1 207 22 is_stmt 0 view .LVU546
+ 2055 00c0 B2F80231 		ldrh	r3, [r2, #258]
+ 207:Core/Src/uds.c ****         }
+ 2056              		.loc 1 207 41 view .LVU547
+ 2057 00c4 0733     		adds	r3, r3, #7
+ 2058 00c6 A2F80231 		strh	r3, [r2, #258]	@ movhi
+ 2059 00ca B7E7     		b	.L123
+ 2060              	.L127:
+ 2061              		.align	2
+ 2062              	.L126:
+ 2063 00cc 01000000 		.word	uds_frame+1
+ 2064 00d0 00000000 		.word	uds_frame
+ 2065              		.cfi_endproc
+ 2066              	.LFE3:
+ 2068              		.global	ota_data
+ 2069              		.section	.bss.ota_data,"aw",%nobits
+ 2070              		.align	2
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 58
+
+
+ 2073              	ota_data:
+ 2074 0000 00000000 		.space	276
+ 2074      00000000 
+ 2074      00000000 
+ 2074      00000000 
+ 2074      00000000 
+ 2075              		.global	uds_frame
+ 2076              		.section	.bss.uds_frame,"aw",%nobits
+ 2077              		.align	2
+ 2080              	uds_frame:
+ 2081 0000 00000000 		.space	518
+ 2081      00000000 
+ 2081      00000000 
+ 2081      00000000 
+ 2081      00000000 
+ 2082              		.section	.rodata.dcmControlDids,"a"
+ 2083              		.align	2
+ 2086              	dcmControlDids:
+ 2087 0000 02020100 		.word	66050
+ 2088 0004 00000000 		.word	0
+ 2089 0008 00000000 		.word	0
+ 2090 000c 00000000 		.word	service0x31SubFunctionCRCValidate
+ 2091 0010 00FF0100 		.word	130816
+ 2092 0014 00000000 		.word	0
+ 2093 0018 00000000 		.word	0
+ 2094 001c 00000000 		.word	service0x31SubFunctionStartErase
+ 2095 0020 00FF0300 		.word	261888
+ 2096 0024 00000000 		.word	0
+ 2097 0028 00000000 		.word	0
+ 2098 002c 00000000 		.word	service0x31SubFunctionEraseResult
+ 2099 0030 03020100 		.word	66051
+ 2100 0034 00000000 		.word	0
+ 2101 0038 00000000 		.word	0
+ 2102 003c 00000000 		.word	service0x31SubFunctionUpdateProgram
+ 2103 0040 05020100 		.word	66053
+ 2104 0044 00000000 		.word	0
+ 2105 0048 00000000 		.word	0
+ 2106 004c 00000000 		.word	service0x31SubFunctionDownFinishCRCValidate
+ 2107 0050 05FF0100 		.word	130821
+ 2108 0054 00000000 		.word	0
+ 2109 0058 00000000 		.space	8
+ 2109      00000000 
+ 2110              		.global	dcmServicesTable
+ 2111              		.section	.data.dcmServicesTable,"aw"
+ 2112              		.align	2
+ 2115              	dcmServicesTable:
+ 2116 0000 10       		.byte	16
+ 2117 0001 000000   		.space	3
+ 2118 0004 00000000 		.word	0
+ 2119 0008 00000000 		.word	0
+ 2120 000c 00000000 		.word	0
+ 2121 0010 00000000 		.word	0
+ 2122 0014 11       		.byte	17
+ 2123 0015 000000   		.space	3
+ 2124 0018 00000000 		.word	0
+ 2125 001c 00000000 		.word	0
+ 2126 0020 00000000 		.word	0
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 59
+
+
+ 2127 0024 00000000 		.word	0
+ 2128 0028 22       		.byte	34
+ 2129 0029 000000   		.space	3
+ 2130 002c 00000000 		.word	0
+ 2131 0030 00000000 		.word	0
+ 2132 0034 00000000 		.word	0
+ 2133 0038 00000000 		.word	0
+ 2134 003c 2E       		.byte	46
+ 2135 003d 000000   		.space	3
+ 2136 0040 00000000 		.word	0
+ 2137 0044 00000000 		.word	0
+ 2138 0048 00000000 		.word	0
+ 2139 004c 00000000 		.word	0
+ 2140 0050 27       		.byte	39
+ 2141 0051 000000   		.space	3
+ 2142 0054 00000000 		.word	0
+ 2143 0058 00000000 		.word	0
+ 2144 005c 00000000 		.word	0
+ 2145 0060 00000000 		.word	0
+ 2146 0064 28       		.byte	40
+ 2147 0065 000000   		.space	3
+ 2148 0068 00000000 		.word	0
+ 2149 006c 00000000 		.word	0
+ 2150 0070 00000000 		.word	0
+ 2151 0074 00000000 		.word	0
+ 2152 0078 31       		.byte	49
+ 2153 0079 000000   		.space	3
+ 2154 007c 00000000 		.word	service0x31Trigger
+ 2155 0080 00000000 		.word	0
+ 2156 0084 00000000 		.word	0
+ 2157 0088 00000000 		.word	0
+ 2158 008c 34       		.byte	52
+ 2159 008d 000000   		.space	3
+ 2160 0090 00000000 		.word	service0x34Trigger
+ 2161 0094 00000000 		.word	0
+ 2162 0098 00000000 		.word	0
+ 2163 009c 00000000 		.word	0
+ 2164 00a0 36       		.byte	54
+ 2165 00a1 000000   		.space	3
+ 2166 00a4 00000000 		.word	service0x36Trigger
+ 2167 00a8 00000000 		.word	0
+ 2168 00ac 00000000 		.word	0
+ 2169 00b0 00000000 		.word	0
+ 2170 00b4 37       		.byte	55
+ 2171 00b5 000000   		.space	3
+ 2172 00b8 00000000 		.word	service0x37Trigger
+ 2173 00bc 00000000 		.word	0
+ 2174 00c0 00000000 		.word	0
+ 2175 00c4 00000000 		.word	0
+ 2176 00c8 38       		.byte	56
+ 2177 00c9 000000   		.space	3
+ 2178 00cc 00000000 		.word	0
+ 2179 00d0 00000000 		.word	0
+ 2180 00d4 00000000 		.word	0
+ 2181 00d8 00000000 		.word	0
+ 2182 00dc 3E       		.byte	62
+ 2183 00dd 000000   		.space	3
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 60
+
+
+ 2184 00e0 00000000 		.word	0
+ 2185 00e4 00000000 		.word	0
+ 2186 00e8 00000000 		.word	0
+ 2187 00ec 00000000 		.word	0
+ 2188 00f0 85       		.byte	-123
+ 2189 00f1 000000   		.space	3
+ 2190 00f4 00000000 		.word	0
+ 2191 00f8 00000000 		.word	0
+ 2192 00fc 00000000 		.word	0
+ 2193 0100 00000000 		.word	0
+ 2194              		.text
+ 2195              	.Letext0:
+ 2196              		.file 2 "Core/Inc/typedef_conf.h"
+ 2197              		.file 3 "Core/Inc/uds.h"
+ 2198              		.file 4 "Core/Inc/uart_printf.h"
+ 2199              		.file 5 "/Applications/ArmGNUToolchain/13.2.Rel1/arm-none-eabi/lib/gcc/arm-none-eabi/13.2.1/includ
+ 2200              		.file 6 "Core/Inc/command.h"
+ 2201              		.file 7 "/Applications/ArmGNUToolchain/13.2.Rel1/arm-none-eabi/arm-none-eabi/include/string.h"
+ 2202              		.file 8 "Core/Inc/crc.h"
+ 2203              		.file 9 "<built-in>"
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 61
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 uds.c
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:19     .rodata.service0x31Trigger.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:30     .text.service0x31Trigger:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:35     .text.service0x31Trigger:00000000 service0x31Trigger
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:165    .text.service0x31Trigger:00000080 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2086   .rodata.dcmControlDids:00000000 dcmControlDids
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:173    .rodata.can_service_response.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:180    .text.can_service_response:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:186    .text.can_service_response:00000000 can_service_response
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:424    .text.can_service_response:0000011c $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:431    .rodata.uds_response.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:435    .text.uds_response:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:441    .text.uds_response:00000000 uds_response
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:465    .text.uds_response:00000016 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:495    .text.uds_response:00000034 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:618    .text.uds_response:000000d4 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2080   .bss.uds_frame:00000000 uds_frame
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:624    .rodata.service0x37Trigger.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:628    .text.service0x37Trigger:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:633    .text.service0x37Trigger:00000000 service0x37Trigger
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:704    .text.service0x37Trigger:0000004c $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2073   .bss.ota_data:00000000 ota_data
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:711    .rodata.service0x36Trigger.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:715    .text.service0x36Trigger:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:720    .text.service0x36Trigger:00000000 service0x36Trigger
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:842    .text.service0x36Trigger:00000084 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:849    .rodata.service0x34Trigger.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:859    .text.service0x34Trigger:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:864    .text.service0x34Trigger:00000000 service0x34Trigger
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1048   .text.service0x34Trigger:000000dc $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1057   .text.service0x31SubFunctionDownFinishCRCValidate:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1062   .text.service0x31SubFunctionDownFinishCRCValidate:00000000 service0x31SubFunctionDownFinishCRCValidate
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1186   .rodata.service0x31SubFunctionUpdateProgram.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1190   .text.service0x31SubFunctionUpdateProgram:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1195   .text.service0x31SubFunctionUpdateProgram:00000000 service0x31SubFunctionUpdateProgram
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1273   .text.service0x31SubFunctionUpdateProgram:00000054 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1279   .rodata.service0x31SubFunctionEraseResult.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1286   .text.service0x31SubFunctionEraseResult:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1291   .text.service0x31SubFunctionEraseResult:00000000 service0x31SubFunctionEraseResult
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1466   .text.service0x31SubFunctionEraseResult:000000b0 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1474   .rodata.service0x31SubFunctionStartErase.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1478   .text.service0x31SubFunctionStartErase:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1483   .text.service0x31SubFunctionStartErase:00000000 service0x31SubFunctionStartErase
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1567   .text.service0x31SubFunctionStartErase:00000048 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1572   .rodata.service0x31SubFunctionCRCValidate.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1579   .text.service0x31SubFunctionCRCValidate:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1584   .text.service0x31SubFunctionCRCValidate:00000000 service0x31SubFunctionCRCValidate
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1713   .text.service0x31SubFunctionCRCValidate:00000094 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1720   .rodata.uds_entry.str1.4:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1733   .text.uds_entry:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1739   .text.uds_entry:00000000 uds_entry
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1891   .text.uds_entry:0000009c $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2115   .data.dcmServicesTable:00000000 dcmServicesTable
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1901   .text.can_service_entry:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:1907   .text.can_service_entry:00000000 can_service_entry
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2063   .text.can_service_entry:000000cc $d
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s 			page 62
+
+
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2070   .bss.ota_data:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2077   .bss.uds_frame:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2083   .rodata.dcmControlDids:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccDKE1fl.s:2112   .data.dcmServicesTable:00000000 $d
+
+UNDEFINED SYMBOLS
+uart_printf
+uart2_communicate_tx
+memcpy
+convert_uint8_t_to_uint32_t
+check_flash_address
+crc_reset
+crc_calculate
+memset
+flash_write
+convert_uint32_t_to_uint8_t
+flash_lock
+flash_erase
+crc_init

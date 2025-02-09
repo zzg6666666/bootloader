@@ -1,0 +1,499 @@
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"rcc.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/rcc.c"
+  18              		.section	.text.init_HSE_SYSCLK_72MHZ,"ax",%progbits
+  19              		.align	1
+  20              		.global	init_HSE_SYSCLK_72MHZ
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	init_HSE_SYSCLK_72MHZ:
+  26              	.LFB3:
+   1:Core/Src/rcc.c **** #include "rcc.h"
+   2:Core/Src/rcc.c **** #include "command.h"
+   3:Core/Src/rcc.c **** 
+   4:Core/Src/rcc.c **** RCC_TypeDef *MyRCC_BASS = (RCC_TypeDef *)0x40021000;
+   5:Core/Src/rcc.c **** 
+   6:Core/Src/rcc.c **** extern FLASH_TypeDef *FLASH_BASS;
+   7:Core/Src/rcc.c **** 
+   8:Core/Src/rcc.c **** uint8_t init_HSE_SYSCLK_72MHZ()
+   9:Core/Src/rcc.c **** {
+  27              		.loc 1 9 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              		@ link register save eliminated.
+  10:Core/Src/rcc.c ****     uint16_t i = 0;
+  32              		.loc 1 10 5 view .LVU1
+  33              	.LVL0:
+  11:Core/Src/rcc.c ****     // 打开RCC_HSE bit16
+  12:Core/Src/rcc.c ****     MyRCC_BASS->CR |= 1UL << 16;
+  34              		.loc 1 12 5 view .LVU2
+  35              		.loc 1 12 15 is_stmt 0 view .LVU3
+  36 0000 414B     		ldr	r3, .L21
+  37 0002 1A68     		ldr	r2, [r3]
+  38 0004 1368     		ldr	r3, [r2]
+  39              		.loc 1 12 20 view .LVU4
+  40 0006 43F48033 		orr	r3, r3, #65536
+  41 000a 1360     		str	r3, [r2]
+  13:Core/Src/rcc.c **** 
+  14:Core/Src/rcc.c ****     // 等待 RCC_HSE 就绪 bit17
+  15:Core/Src/rcc.c ****     for (i = 0; i < 0xffff; i++)
+  42              		.loc 1 15 5 is_stmt 1 view .LVU5
+  43              		.loc 1 15 12 is_stmt 0 view .LVU6
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 2
+
+
+  44 000c 0023     		movs	r3, #0
+  45              	.LVL1:
+  46              	.L2:
+  47              		.loc 1 15 19 is_stmt 1 discriminator 1 view .LVU7
+  48 000e 4FF6FF72 		movw	r2, #65535
+  49 0012 9342     		cmp	r3, r2
+  50 0014 08D0     		beq	.L3
+  16:Core/Src/rcc.c ****     {
+  17:Core/Src/rcc.c ****         if ((MyRCC_BASS->CR & 1UL << 17) == 1UL << 17)
+  51              		.loc 1 17 9 view .LVU8
+  52              		.loc 1 17 24 is_stmt 0 view .LVU9
+  53 0016 3C4A     		ldr	r2, .L21
+  54 0018 1268     		ldr	r2, [r2]
+  55 001a 1268     		ldr	r2, [r2]
+  56              		.loc 1 17 12 view .LVU10
+  57 001c 12F4003F 		tst	r2, #131072
+  58 0020 02D1     		bne	.L3
+  15:Core/Src/rcc.c ****     {
+  59              		.loc 1 15 30 is_stmt 1 discriminator 2 view .LVU11
+  60 0022 0133     		adds	r3, r3, #1
+  61              	.LVL2:
+  15:Core/Src/rcc.c ****     {
+  62              		.loc 1 15 30 is_stmt 0 discriminator 2 view .LVU12
+  63 0024 9BB2     		uxth	r3, r3
+  64              	.LVL3:
+  15:Core/Src/rcc.c ****     {
+  65              		.loc 1 15 30 discriminator 2 view .LVU13
+  66 0026 F2E7     		b	.L2
+  67              	.L3:
+  18:Core/Src/rcc.c ****         {
+  19:Core/Src/rcc.c ****             break;
+  20:Core/Src/rcc.c ****         }
+  21:Core/Src/rcc.c ****     }
+  22:Core/Src/rcc.c ****     if (i == 255)
+  68              		.loc 1 22 5 is_stmt 1 view .LVU14
+  69              		.loc 1 22 8 is_stmt 0 view .LVU15
+  70 0028 FF2B     		cmp	r3, #255
+  71 002a 63D0     		beq	.L15
+  23:Core/Src/rcc.c ****     {
+  24:Core/Src/rcc.c ****         return false;
+  25:Core/Src/rcc.c ****     };
+  72              		.loc 1 25 6 is_stmt 1 view .LVU16
+  26:Core/Src/rcc.c **** 
+  27:Core/Src/rcc.c ****     // 系统时钟不能为PLL,否则不能配置PLL
+  28:Core/Src/rcc.c ****     if ((MyRCC_BASS->CFGR & 1UL << 3) == 1UL << 3)
+  73              		.loc 1 28 5 view .LVU17
+  74              		.loc 1 28 20 is_stmt 0 view .LVU18
+  75 002c 364B     		ldr	r3, .L21
+  76              	.LVL4:
+  77              		.loc 1 28 20 view .LVU19
+  78 002e 1B68     		ldr	r3, [r3]
+  79 0030 5A68     		ldr	r2, [r3, #4]
+  80              		.loc 1 28 8 view .LVU20
+  81 0032 12F0080F 		tst	r2, #8
+  82 0036 5FD1     		bne	.L16
+  29:Core/Src/rcc.c ****     {
+  30:Core/Src/rcc.c ****         return false;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 3
+
+
+  31:Core/Src/rcc.c ****     }
+  32:Core/Src/rcc.c **** 
+  33:Core/Src/rcc.c ****     // 关闭PLL，等待配置PLL bit24
+  34:Core/Src/rcc.c ****     MyRCC_BASS->CR &= ~(1UL << 24);
+  83              		.loc 1 34 5 is_stmt 1 view .LVU21
+  84              		.loc 1 34 15 is_stmt 0 view .LVU22
+  85 0038 1A68     		ldr	r2, [r3]
+  86              		.loc 1 34 20 view .LVU23
+  87 003a 22F08072 		bic	r2, r2, #16777216
+  88 003e 1A60     		str	r2, [r3]
+  35:Core/Src/rcc.c **** 
+  36:Core/Src/rcc.c ****     // 等待PLL 处于解锁 bit25
+  37:Core/Src/rcc.c ****     for (i = 0; i < 0xffff; i++)
+  89              		.loc 1 37 5 is_stmt 1 view .LVU24
+  90              	.LVL5:
+  91              		.loc 1 37 12 is_stmt 0 view .LVU25
+  92 0040 0023     		movs	r3, #0
+  93              	.LVL6:
+  94              	.L6:
+  95              		.loc 1 37 19 is_stmt 1 discriminator 1 view .LVU26
+  96 0042 4FF6FF72 		movw	r2, #65535
+  97 0046 9342     		cmp	r3, r2
+  98 0048 08D0     		beq	.L7
+  38:Core/Src/rcc.c ****     {
+  39:Core/Src/rcc.c ****         if ((MyRCC_BASS->CR & 1UL << 25) != 1UL << 25)
+  99              		.loc 1 39 9 view .LVU27
+ 100              		.loc 1 39 24 is_stmt 0 view .LVU28
+ 101 004a 2F4A     		ldr	r2, .L21
+ 102 004c 1268     		ldr	r2, [r2]
+ 103 004e 1268     		ldr	r2, [r2]
+ 104              		.loc 1 39 12 view .LVU29
+ 105 0050 12F0007F 		tst	r2, #33554432
+ 106 0054 02D0     		beq	.L7
+  37:Core/Src/rcc.c ****     {
+ 107              		.loc 1 37 30 is_stmt 1 discriminator 2 view .LVU30
+ 108 0056 0133     		adds	r3, r3, #1
+ 109              	.LVL7:
+  37:Core/Src/rcc.c ****     {
+ 110              		.loc 1 37 30 is_stmt 0 discriminator 2 view .LVU31
+ 111 0058 9BB2     		uxth	r3, r3
+ 112              	.LVL8:
+  37:Core/Src/rcc.c ****     {
+ 113              		.loc 1 37 30 discriminator 2 view .LVU32
+ 114 005a F2E7     		b	.L6
+ 115              	.L7:
+  40:Core/Src/rcc.c ****         {
+  41:Core/Src/rcc.c ****             break;
+  42:Core/Src/rcc.c ****         }
+  43:Core/Src/rcc.c ****     }
+  44:Core/Src/rcc.c ****     if (i == 255)
+ 116              		.loc 1 44 5 is_stmt 1 view .LVU33
+ 117              		.loc 1 44 8 is_stmt 0 view .LVU34
+ 118 005c FF2B     		cmp	r3, #255
+ 119 005e 4DD0     		beq	.L17
+  45:Core/Src/rcc.c ****     {
+  46:Core/Src/rcc.c ****         return false;
+  47:Core/Src/rcc.c ****     };
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 4
+
+
+ 120              		.loc 1 47 6 is_stmt 1 view .LVU35
+  48:Core/Src/rcc.c ****     // 配置HSE不倍频 bit17
+  49:Core/Src/rcc.c ****     MyRCC_BASS->CFGR &= 1UL << 17;
+ 121              		.loc 1 49 5 view .LVU36
+ 122              		.loc 1 49 15 is_stmt 0 view .LVU37
+ 123 0060 294B     		ldr	r3, .L21
+ 124              	.LVL9:
+ 125              		.loc 1 49 15 view .LVU38
+ 126 0062 1B68     		ldr	r3, [r3]
+ 127 0064 5A68     		ldr	r2, [r3, #4]
+ 128              		.loc 1 49 22 view .LVU39
+ 129 0066 02F40032 		and	r2, r2, #131072
+ 130 006a 5A60     		str	r2, [r3, #4]
+  50:Core/Src/rcc.c **** 
+  51:Core/Src/rcc.c ****     // 配置HSE作为PLL时钟输入
+  52:Core/Src/rcc.c ****     MyRCC_BASS->CFGR |= 1UL << 16;
+ 131              		.loc 1 52 5 is_stmt 1 view .LVU40
+ 132              		.loc 1 52 15 is_stmt 0 view .LVU41
+ 133 006c 5A68     		ldr	r2, [r3, #4]
+ 134              		.loc 1 52 22 view .LVU42
+ 135 006e 42F48032 		orr	r2, r2, #65536
+ 136 0072 5A60     		str	r2, [r3, #4]
+  53:Core/Src/rcc.c **** 
+  54:Core/Src/rcc.c ****     // 配置PLL倍频率 21:18 为9倍  配置PLL来源为HSE
+  55:Core/Src/rcc.c ****     MyRCC_BASS->CFGR |= (0x07UL << 18 | 0x01UL << 2);
+ 137              		.loc 1 55 5 is_stmt 1 view .LVU43
+ 138              		.loc 1 55 15 is_stmt 0 view .LVU44
+ 139 0074 5A68     		ldr	r2, [r3, #4]
+ 140              		.loc 1 55 22 view .LVU45
+ 141 0076 42F4E012 		orr	r2, r2, #1835008
+ 142 007a 42F00402 		orr	r2, r2, #4
+ 143 007e 5A60     		str	r2, [r3, #4]
+  56:Core/Src/rcc.c **** 
+  57:Core/Src/rcc.c ****     // 使能PLL作为时钟来源
+  58:Core/Src/rcc.c ****     MyRCC_BASS->CR |= (1UL << 24);
+ 144              		.loc 1 58 5 is_stmt 1 view .LVU46
+ 145              		.loc 1 58 15 is_stmt 0 view .LVU47
+ 146 0080 1A68     		ldr	r2, [r3]
+ 147              		.loc 1 58 20 view .LVU48
+ 148 0082 42F08072 		orr	r2, r2, #16777216
+ 149 0086 1A60     		str	r2, [r3]
+  59:Core/Src/rcc.c **** 
+  60:Core/Src/rcc.c ****     // 等待PLL 处于上锁 bit25
+  61:Core/Src/rcc.c ****     for (i = 0; i < 0xffff; i++)
+ 150              		.loc 1 61 5 is_stmt 1 view .LVU49
+ 151              	.LVL10:
+ 152              		.loc 1 61 12 is_stmt 0 view .LVU50
+ 153 0088 0023     		movs	r3, #0
+ 154              		.loc 1 61 5 view .LVU51
+ 155 008a 01E0     		b	.L9
+ 156              	.LVL11:
+ 157              	.L20:
+ 158              		.loc 1 61 30 is_stmt 1 discriminator 2 view .LVU52
+ 159 008c 0133     		adds	r3, r3, #1
+ 160              	.LVL12:
+ 161              		.loc 1 61 30 is_stmt 0 discriminator 2 view .LVU53
+ 162 008e 9BB2     		uxth	r3, r3
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 5
+
+
+ 163              	.LVL13:
+ 164              	.L9:
+ 165              		.loc 1 61 19 is_stmt 1 discriminator 1 view .LVU54
+ 166 0090 4FF6FF72 		movw	r2, #65535
+ 167 0094 9342     		cmp	r3, r2
+ 168 0096 05D0     		beq	.L10
+  62:Core/Src/rcc.c ****     {
+  63:Core/Src/rcc.c ****         if ((MyRCC_BASS->CR & 1UL << 25) == 1UL << 25)
+ 169              		.loc 1 63 9 view .LVU55
+ 170              		.loc 1 63 24 is_stmt 0 view .LVU56
+ 171 0098 1B4A     		ldr	r2, .L21
+ 172 009a 1268     		ldr	r2, [r2]
+ 173 009c 1268     		ldr	r2, [r2]
+ 174              		.loc 1 63 12 view .LVU57
+ 175 009e 12F0007F 		tst	r2, #33554432
+ 176 00a2 F3D0     		beq	.L20
+ 177              	.L10:
+  64:Core/Src/rcc.c ****         {
+  65:Core/Src/rcc.c ****             break;
+  66:Core/Src/rcc.c ****         }
+  67:Core/Src/rcc.c ****     }
+  68:Core/Src/rcc.c ****     if (i == 255)
+ 178              		.loc 1 68 5 is_stmt 1 view .LVU58
+ 179              		.loc 1 68 8 is_stmt 0 view .LVU59
+ 180 00a4 FF2B     		cmp	r3, #255
+ 181 00a6 2BD0     		beq	.L18
+  69:Core/Src/rcc.c ****     {
+  70:Core/Src/rcc.c ****         return false;
+  71:Core/Src/rcc.c ****     };
+ 182              		.loc 1 71 6 is_stmt 1 view .LVU60
+  72:Core/Src/rcc.c **** 
+  73:Core/Src/rcc.c ****     // 启用指令预取
+  74:Core/Src/rcc.c ****     FLASH_BASS->ACR |= 0x01UL << 4;
+ 183              		.loc 1 74 5 view .LVU61
+ 184              		.loc 1 74 15 is_stmt 0 view .LVU62
+ 185 00a8 184B     		ldr	r3, .L21+4
+ 186              	.LVL14:
+ 187              		.loc 1 74 15 view .LVU63
+ 188 00aa 1968     		ldr	r1, [r3]
+ 189 00ac 0A68     		ldr	r2, [r1]
+ 190              		.loc 1 74 21 view .LVU64
+ 191 00ae 42F01002 		orr	r2, r2, #16
+ 192 00b2 0A60     		str	r2, [r1]
+  75:Core/Src/rcc.c **** 
+  76:Core/Src/rcc.c ****     // 启用指令预取功能为2个周期
+  77:Core/Src/rcc.c ****     FLASH_BASS->ACR &= ~0x07UL;
+ 193              		.loc 1 77 5 is_stmt 1 view .LVU65
+ 194              		.loc 1 77 15 is_stmt 0 view .LVU66
+ 195 00b4 1968     		ldr	r1, [r3]
+ 196 00b6 0A68     		ldr	r2, [r1]
+ 197              		.loc 1 77 21 view .LVU67
+ 198 00b8 22F00702 		bic	r2, r2, #7
+ 199 00bc 0A60     		str	r2, [r1]
+  78:Core/Src/rcc.c ****     FLASH_BASS->ACR |= 0x02UL;
+ 200              		.loc 1 78 5 is_stmt 1 view .LVU68
+ 201              		.loc 1 78 15 is_stmt 0 view .LVU69
+ 202 00be 1A68     		ldr	r2, [r3]
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 6
+
+
+ 203 00c0 1368     		ldr	r3, [r2]
+ 204              		.loc 1 78 21 view .LVU70
+ 205 00c2 43F00203 		orr	r3, r3, #2
+ 206 00c6 1360     		str	r3, [r2]
+  79:Core/Src/rcc.c **** 
+  80:Core/Src/rcc.c ****     // 设置SYSCLK 为 PLL
+  81:Core/Src/rcc.c ****     MyRCC_BASS->CFGR |= 0x02UL;
+ 207              		.loc 1 81 5 is_stmt 1 view .LVU71
+ 208              		.loc 1 81 15 is_stmt 0 view .LVU72
+ 209 00c8 0F4B     		ldr	r3, .L21
+ 210 00ca 1968     		ldr	r1, [r3]
+ 211 00cc 4B68     		ldr	r3, [r1, #4]
+ 212              		.loc 1 81 22 view .LVU73
+ 213 00ce 43F00203 		orr	r3, r3, #2
+ 214 00d2 4B60     		str	r3, [r1, #4]
+  82:Core/Src/rcc.c **** 
+  83:Core/Src/rcc.c ****     // 等待SYSCLK 为 PLL
+  84:Core/Src/rcc.c ****     for (i = 0; i < 0xffff; i++)
+ 215              		.loc 1 84 5 is_stmt 1 view .LVU74
+ 216              	.LVL15:
+ 217              		.loc 1 84 12 is_stmt 0 view .LVU75
+ 218 00d4 0023     		movs	r3, #0
+ 219              	.LVL16:
+ 220              	.L12:
+ 221              		.loc 1 84 19 is_stmt 1 discriminator 1 view .LVU76
+ 222 00d6 4FF6FF72 		movw	r2, #65535
+ 223 00da 9342     		cmp	r3, r2
+ 224 00dc 06D0     		beq	.L13
+  85:Core/Src/rcc.c ****     {
+  86:Core/Src/rcc.c ****         if ((MyRCC_BASS->CFGR & 0x02UL << 2) == 0x02UL << 2)
+ 225              		.loc 1 86 9 view .LVU77
+ 226              		.loc 1 86 24 is_stmt 0 view .LVU78
+ 227 00de 4A68     		ldr	r2, [r1, #4]
+ 228              		.loc 1 86 12 view .LVU79
+ 229 00e0 12F0080F 		tst	r2, #8
+ 230 00e4 02D1     		bne	.L13
+  84:Core/Src/rcc.c ****     {
+ 231              		.loc 1 84 30 is_stmt 1 discriminator 2 view .LVU80
+ 232 00e6 0133     		adds	r3, r3, #1
+ 233              	.LVL17:
+  84:Core/Src/rcc.c ****     {
+ 234              		.loc 1 84 30 is_stmt 0 discriminator 2 view .LVU81
+ 235 00e8 9BB2     		uxth	r3, r3
+ 236              	.LVL18:
+  84:Core/Src/rcc.c ****     {
+ 237              		.loc 1 84 30 discriminator 2 view .LVU82
+ 238 00ea F4E7     		b	.L12
+ 239              	.L13:
+  87:Core/Src/rcc.c ****         {
+  88:Core/Src/rcc.c ****             break;
+  89:Core/Src/rcc.c ****         }
+  90:Core/Src/rcc.c ****     }
+  91:Core/Src/rcc.c ****     if (i == 255)
+ 240              		.loc 1 91 5 is_stmt 1 view .LVU83
+ 241              		.loc 1 91 8 is_stmt 0 view .LVU84
+ 242 00ec FF2B     		cmp	r3, #255
+ 243 00ee 09D0     		beq	.L19
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 7
+
+
+  92:Core/Src/rcc.c ****     {
+  93:Core/Src/rcc.c ****         return false;
+  94:Core/Src/rcc.c ****     };
+  95:Core/Src/rcc.c ****     return true;
+ 244              		.loc 1 95 12 view .LVU85
+ 245 00f0 0120     		movs	r0, #1
+ 246 00f2 7047     		bx	lr
+ 247              	.L15:
+  24:Core/Src/rcc.c ****     };
+ 248              		.loc 1 24 16 view .LVU86
+ 249 00f4 0020     		movs	r0, #0
+ 250 00f6 7047     		bx	lr
+ 251              	.LVL19:
+ 252              	.L16:
+  30:Core/Src/rcc.c ****     }
+ 253              		.loc 1 30 16 view .LVU87
+ 254 00f8 0020     		movs	r0, #0
+ 255 00fa 7047     		bx	lr
+ 256              	.LVL20:
+ 257              	.L17:
+  46:Core/Src/rcc.c ****     };
+ 258              		.loc 1 46 16 view .LVU88
+ 259 00fc 0020     		movs	r0, #0
+ 260 00fe 7047     		bx	lr
+ 261              	.L18:
+  70:Core/Src/rcc.c ****     };
+ 262              		.loc 1 70 16 view .LVU89
+ 263 0100 0020     		movs	r0, #0
+ 264 0102 7047     		bx	lr
+ 265              	.L19:
+  93:Core/Src/rcc.c ****     };
+ 266              		.loc 1 93 16 view .LVU90
+ 267 0104 0020     		movs	r0, #0
+  96:Core/Src/rcc.c **** }
+ 268              		.loc 1 96 1 view .LVU91
+ 269 0106 7047     		bx	lr
+ 270              	.L22:
+ 271              		.align	2
+ 272              	.L21:
+ 273 0108 00000000 		.word	MyRCC_BASS
+ 274 010c 00000000 		.word	FLASH_BASS
+ 275              		.cfi_endproc
+ 276              	.LFE3:
+ 278              		.section	.text.init_AHB_APB1_APB2,"ax",%progbits
+ 279              		.align	1
+ 280              		.global	init_AHB_APB1_APB2
+ 281              		.syntax unified
+ 282              		.thumb
+ 283              		.thumb_func
+ 285              	init_AHB_APB1_APB2:
+ 286              	.LFB4:
+  97:Core/Src/rcc.c **** 
+  98:Core/Src/rcc.c **** void init_AHB_APB1_APB2()
+  99:Core/Src/rcc.c **** {
+ 287              		.loc 1 99 1 is_stmt 1 view -0
+ 288              		.cfi_startproc
+ 289              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 8
+
+
+ 290              		@ frame_needed = 0, uses_anonymous_args = 0
+ 291              		@ link register save eliminated.
+ 100:Core/Src/rcc.c **** 
+ 101:Core/Src/rcc.c ****     // AHB 不分频
+ 102:Core/Src/rcc.c ****     MyRCC_BASS->CFGR &= ~(0x0f << 4);
+ 292              		.loc 1 102 5 view .LVU93
+ 293              		.loc 1 102 15 is_stmt 0 view .LVU94
+ 294 0000 094B     		ldr	r3, .L24
+ 295 0002 1B68     		ldr	r3, [r3]
+ 296 0004 5A68     		ldr	r2, [r3, #4]
+ 297              		.loc 1 102 22 view .LVU95
+ 298 0006 22F0F002 		bic	r2, r2, #240
+ 299 000a 5A60     		str	r2, [r3, #4]
+ 103:Core/Src/rcc.c **** 
+ 104:Core/Src/rcc.c ****     // APB1 2分频(PCLK1)
+ 105:Core/Src/rcc.c ****     MyRCC_BASS->CFGR &= ~(0x07 << 8);
+ 300              		.loc 1 105 5 is_stmt 1 view .LVU96
+ 301              		.loc 1 105 15 is_stmt 0 view .LVU97
+ 302 000c 5A68     		ldr	r2, [r3, #4]
+ 303              		.loc 1 105 22 view .LVU98
+ 304 000e 22F4E062 		bic	r2, r2, #1792
+ 305 0012 5A60     		str	r2, [r3, #4]
+ 106:Core/Src/rcc.c ****     MyRCC_BASS->CFGR |= (0x04 << 8);
+ 306              		.loc 1 106 5 is_stmt 1 view .LVU99
+ 307              		.loc 1 106 15 is_stmt 0 view .LVU100
+ 308 0014 5A68     		ldr	r2, [r3, #4]
+ 309              		.loc 1 106 22 view .LVU101
+ 310 0016 42F48062 		orr	r2, r2, #1024
+ 311 001a 5A60     		str	r2, [r3, #4]
+ 107:Core/Src/rcc.c **** 
+ 108:Core/Src/rcc.c ****     // APB2 不分频
+ 109:Core/Src/rcc.c ****     MyRCC_BASS->CFGR &= ~(0x07 << 11);
+ 312              		.loc 1 109 5 is_stmt 1 view .LVU102
+ 313              		.loc 1 109 15 is_stmt 0 view .LVU103
+ 314 001c 5A68     		ldr	r2, [r3, #4]
+ 315              		.loc 1 109 22 view .LVU104
+ 316 001e 22F46052 		bic	r2, r2, #14336
+ 317 0022 5A60     		str	r2, [r3, #4]
+ 110:Core/Src/rcc.c **** }...
+ 318              		.loc 1 110 1 view .LVU105
+ 319 0024 7047     		bx	lr
+ 320              	.L25:
+ 321 0026 00BF     		.align	2
+ 322              	.L24:
+ 323 0028 00000000 		.word	MyRCC_BASS
+ 324              		.cfi_endproc
+ 325              	.LFE4:
+ 327              		.global	MyRCC_BASS
+ 328              		.section	.data.MyRCC_BASS,"aw"
+ 329              		.align	2
+ 332              	MyRCC_BASS:
+ 333 0000 00100240 		.word	1073876992
+ 334              		.text
+ 335              	.Letext0:
+ 336              		.file 2 "Core/Inc/typedef_conf.h"
+ 337              		.file 3 "Core/Inc/rcc.h"
+ 338              		.file 4 "Core/Inc/command.h"
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 9
+
+
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s 			page 10
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 rcc.c
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:19     .text.init_HSE_SYSCLK_72MHZ:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:25     .text.init_HSE_SYSCLK_72MHZ:00000000 init_HSE_SYSCLK_72MHZ
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:273    .text.init_HSE_SYSCLK_72MHZ:00000108 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:332    .data.MyRCC_BASS:00000000 MyRCC_BASS
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:279    .text.init_AHB_APB1_APB2:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:285    .text.init_AHB_APB1_APB2:00000000 init_AHB_APB1_APB2
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:323    .text.init_AHB_APB1_APB2:00000028 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccqoTuo3.s:329    .data.MyRCC_BASS:00000000 $d
+
+UNDEFINED SYMBOLS
+FLASH_BASS

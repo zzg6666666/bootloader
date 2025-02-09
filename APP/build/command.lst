@@ -1,0 +1,2942 @@
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"command.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/command.c"
+  18              		.section	.text.change_space_to_end,"ax",%progbits
+  19              		.align	1
+  20              		.syntax unified
+  21              		.thumb
+  22              		.thumb_func
+  24              	change_space_to_end:
+  25              	.LVL0:
+  26              	.LFB4:
+   1:Core/Src/command.c **** #include "command.h"
+   2:Core/Src/command.c **** #include "uart_printf.h"
+   3:Core/Src/command.c **** #include "string.h"
+   4:Core/Src/command.c **** #include "shell.h"
+   5:Core/Src/command.c **** #include "uds.h"
+   6:Core/Src/command.c **** #include "typedef_conf.h"
+   7:Core/Src/command.c **** #include "update_app.h"
+   8:Core/Src/command.c **** 
+   9:Core/Src/command.c **** // 执行命令
+  10:Core/Src/command.c **** void exec_command(char *command, uint8_t str_len);
+  11:Core/Src/command.c **** static void help(uint8_t argc, char *argv[]);
+  12:Core/Src/command.c **** static void change_space_to_end(char *str, uint8_t strlen);
+  13:Core/Src/command.c **** static void memory_read_write(uint8_t argc, char *argv[]);
+  14:Core/Src/command.c **** static void memory_flash_read(uint8_t argc, char *argv[]);
+  15:Core/Src/command.c **** static void memory_flash_write(uint8_t argc, char *argv[]);
+  16:Core/Src/command.c **** // extern void jump_to_app();
+  17:Core/Src/command.c **** 
+  18:Core/Src/command.c **** static void flash_write(uint32_t address, uint32_t *data, uint16_t dataLen);
+  19:Core/Src/command.c **** 
+  20:Core/Src/command.c **** static void flash_write_half_world(uint32_t address, uint16_t data);
+  21:Core/Src/command.c **** static void uds_port(uint8_t argc, char *argv[]);
+  22:Core/Src/command.c **** static void log_set_cancel(uint8_t argc, char *argv[]);
+  23:Core/Src/command.c **** static void log_set_commend(uint8_t argc, char *argv[]);
+  24:Core/Src/command.c **** static void log_cancel_commend(uint8_t argc, char *argv[]);
+  25:Core/Src/command.c **** 
+  26:Core/Src/command.c **** FLASH_TypeDef *FLASH_BASS = ((FLASH_TypeDef *)0x40022000UL);
+  27:Core/Src/command.c **** 
+  28:Core/Src/command.c **** // subfunc *memory_subfunctions[] = {&(subfunc){"read", memory_flash_read}, &(subfunc){"write", mem
+  29:Core/Src/command.c **** 
+  30:Core/Src/command.c **** static shell_function *shell_functions[] = {
+  31:Core/Src/command.c ****     &(shell_function){"help", help, {NULL}},
+  32:Core/Src/command.c ****     // &(shell_function){"jump_app", (shell_func)jump_to_app, {NULL}},
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 2
+
+
+  33:Core/Src/command.c ****     &(shell_function){"memory", memory_read_write, {&(subfunc){"read", memory_flash_read}, &(subfun
+  34:Core/Src/command.c ****     &(shell_function){"uds", uds_port, {NULL}},
+  35:Core/Src/command.c ****     &(shell_function){"update_app", (shell_func)update_app_start, {NULL}},
+  36:Core/Src/command.c ****     &(shell_function){"log", log_set_cancel, {&(subfunc){"set", log_set_commend}, &(subfunc){"cance
+  37:Core/Src/command.c ****     NULL};
+  38:Core/Src/command.c **** 
+  39:Core/Src/command.c **** /**
+  40:Core/Src/command.c ****  * @brief 分割传入的字符串为命令和命令参数，并尝试找到对应的命令去执�
+  41:Core/Src/command.c ****  * @param command 传入的命令
+  42:Core/Src/command.c ****  * @param str_len 传入的字符长度
+  43:Core/Src/command.c ****  */
+  44:Core/Src/command.c **** void exec_command(char *command, uint8_t str_len)
+  45:Core/Src/command.c **** {
+  46:Core/Src/command.c ****     // 迭代父命令
+  47:Core/Src/command.c ****     uint8_t i = 0;
+  48:Core/Src/command.c ****     uint8_t vaild_strlen = 0;
+  49:Core/Src/command.c ****     uint8_t find_sub_function = 0;
+  50:Core/Src/command.c ****     uint8_t argc = 0;
+  51:Core/Src/command.c ****     // 支持的命令条数 为3 条，过长的参数交给cmd命令自行处理
+  52:Core/Src/command.c ****     char *argv[3] = {NULL, NULL, NULL};
+  53:Core/Src/command.c **** 
+  54:Core/Src/command.c ****     // 将空格全部替换成'\0'
+  55:Core/Src/command.c ****     change_space_to_end(command, str_len);
+  56:Core/Src/command.c **** 
+  57:Core/Src/command.c ****     // 计算 输入字符前面的'\0'数量
+  58:Core/Src/command.c ****     uint8_t j = 0; // 迭代字符串
+  59:Core/Src/command.c ****     vaild_strlen = str_len;
+  60:Core/Src/command.c ****     while ((command[j] == '\0') & (j < str_len))
+  61:Core/Src/command.c ****     {
+  62:Core/Src/command.c ****         j++;
+  63:Core/Src/command.c ****         // 有效字符长度减少
+  64:Core/Src/command.c ****         vaild_strlen--;
+  65:Core/Src/command.c ****     }
+  66:Core/Src/command.c **** 
+  67:Core/Src/command.c ****     // 有效字符串为0
+  68:Core/Src/command.c ****     if (vaild_strlen == 0)
+  69:Core/Src/command.c ****     {
+  70:Core/Src/command.c ****         return;
+  71:Core/Src/command.c ****     }
+  72:Core/Src/command.c **** 
+  73:Core/Src/command.c ****     while (shell_functions[i] != NULL) // 遍历支持的shell_function
+  74:Core/Src/command.c ****     {
+  75:Core/Src/command.c **** 
+  76:Core/Src/command.c ****         // 尝试找到命令
+  77:Core/Src/command.c ****         if (memcmp(&command[j], shell_functions[i]->name, strlen(shell_functions[i]->name)) == 0)
+  78:Core/Src/command.c ****         {
+  79:Core/Src/command.c **** 
+  80:Core/Src/command.c ****             // 分割参数
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+  82:Core/Src/command.c ****             {
+  83:Core/Src/command.c **** 
+  84:Core/Src/command.c ****                 // 分割参数
+  85:Core/Src/command.c ****                 if ((command[j] == '\0') && (command[j + 1] != '\0'))
+  86:Core/Src/command.c ****                 {
+  87:Core/Src/command.c ****                     // 指向空格的后面一个
+  88:Core/Src/command.c ****                     argv[argc] = &command[j + 1];
+  89:Core/Src/command.c ****                     argc++;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 3
+
+
+  90:Core/Src/command.c ****                     // 已经分割出三条命令
+  91:Core/Src/command.c ****                     if (argc == 3)
+  92:Core/Src/command.c ****                     {
+  93:Core/Src/command.c ****                         break;
+  94:Core/Src/command.c ****                     }
+  95:Core/Src/command.c ****                 }
+  96:Core/Src/command.c ****             }
+  97:Core/Src/command.c **** 
+  98:Core/Src/command.c ****             // 分割出的命令条数不为0 尝试找到子命令
+  99:Core/Src/command.c ****             if (argc != 0)
+ 100:Core/Src/command.c ****             {
+ 101:Core/Src/command.c ****                 j = 0;
+ 102:Core/Src/command.c ****                 while (shell_functions[i]->subFuns[j] != NULL)
+ 103:Core/Src/command.c ****                 {
+ 104:Core/Src/command.c ****                     // 找到子命令
+ 105:Core/Src/command.c ****                     if (memcmp(shell_functions[i]->subFuns[j]->name, argv[0], strlen(shell_function
+ 106:Core/Src/command.c ****                     {
+ 107:Core/Src/command.c ****                         // 执行子命令 给子命令传入，参数数量-1，和参数[1]
+ 108:Core/Src/command.c ****                         shell_functions[i]->subFuns[j]->subFunction((argc - 1), &argv[1]);
+ 109:Core/Src/command.c ****                         find_sub_function = 1;
+ 110:Core/Src/command.c ****                         break;
+ 111:Core/Src/command.c ****                     }
+ 112:Core/Src/command.c ****                     j++;
+ 113:Core/Src/command.c ****                 }
+ 114:Core/Src/command.c ****             }
+ 115:Core/Src/command.c ****             // 未找到子命令，或者没有分割出子命令
+ 116:Core/Src/command.c **** 
+ 117:Core/Src/command.c ****             if (find_sub_function == 0)
+ 118:Core/Src/command.c ****             {
+ 119:Core/Src/command.c ****                 shell_functions[i]->function(argc, argv);
+ 120:Core/Src/command.c ****             }
+ 121:Core/Src/command.c **** 
+ 122:Core/Src/command.c ****             break;
+ 123:Core/Src/command.c ****         }
+ 124:Core/Src/command.c **** 
+ 125:Core/Src/command.c ****         i++;
+ 126:Core/Src/command.c ****     }
+ 127:Core/Src/command.c ****     // 是否找到了命令
+ 128:Core/Src/command.c ****     if (i == (sizeof(shell_functions) / sizeof(shell_functions[0]) - 1))
+ 129:Core/Src/command.c ****     {
+ 130:Core/Src/command.c ****         uart_printf(error_log, "command not found :", NULL, 0);
+ 131:Core/Src/command.c ****         uart_printf(error_log, command, NULL, 0);
+ 132:Core/Src/command.c ****         uart_printf(error_log, "\r\n", NULL, 0);
+ 133:Core/Src/command.c ****     }
+ 134:Core/Src/command.c **** }
+ 135:Core/Src/command.c **** 
+ 136:Core/Src/command.c **** static void change_space_to_end(char *str, uint8_t strlen)
+ 137:Core/Src/command.c **** {
+  27              		.loc 1 137 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              		@ link register save eliminated.
+ 138:Core/Src/command.c **** 
+ 139:Core/Src/command.c ****     for (uint8_t i = 0; i < strlen; i++)
+  32              		.loc 1 139 5 view .LVU1
+  33              	.LBB2:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 4
+
+
+  34              		.loc 1 139 10 view .LVU2
+  35              		.loc 1 139 18 is_stmt 0 view .LVU3
+  36 0000 0023     		movs	r3, #0
+  37              		.loc 1 139 5 view .LVU4
+  38 0002 02E0     		b	.L2
+  39              	.LVL1:
+  40              	.L3:
+ 140:Core/Src/command.c ****     {
+ 141:Core/Src/command.c ****         if (*str == ' ')
+ 142:Core/Src/command.c ****         {
+ 143:Core/Src/command.c ****             *str = '\0';
+ 144:Core/Src/command.c ****         }
+ 145:Core/Src/command.c ****         str++;
+  41              		.loc 1 145 9 is_stmt 1 view .LVU5
+  42              		.loc 1 145 12 is_stmt 0 view .LVU6
+  43 0004 0130     		adds	r0, r0, #1
+  44              	.LVL2:
+ 139:Core/Src/command.c ****     {
+  45              		.loc 1 139 38 is_stmt 1 discriminator 2 view .LVU7
+  46 0006 0133     		adds	r3, r3, #1
+  47              	.LVL3:
+ 139:Core/Src/command.c ****     {
+  48              		.loc 1 139 38 is_stmt 0 discriminator 2 view .LVU8
+  49 0008 DBB2     		uxtb	r3, r3
+  50              	.LVL4:
+  51              	.L2:
+ 139:Core/Src/command.c ****     {
+  52              		.loc 1 139 27 is_stmt 1 discriminator 1 view .LVU9
+  53 000a 8B42     		cmp	r3, r1
+  54 000c 05D2     		bcs	.L5
+ 141:Core/Src/command.c ****         {
+  55              		.loc 1 141 9 view .LVU10
+ 141:Core/Src/command.c ****         {
+  56              		.loc 1 141 13 is_stmt 0 view .LVU11
+  57 000e 0278     		ldrb	r2, [r0]	@ zero_extendqisi2
+ 141:Core/Src/command.c ****         {
+  58              		.loc 1 141 12 view .LVU12
+  59 0010 202A     		cmp	r2, #32
+  60 0012 F7D1     		bne	.L3
+ 143:Core/Src/command.c ****         }
+  61              		.loc 1 143 13 is_stmt 1 view .LVU13
+ 143:Core/Src/command.c ****         }
+  62              		.loc 1 143 18 is_stmt 0 view .LVU14
+  63 0014 0022     		movs	r2, #0
+  64 0016 0270     		strb	r2, [r0]
+  65 0018 F4E7     		b	.L3
+  66              	.L5:
+  67              	.LBE2:
+ 146:Core/Src/command.c ****     }
+ 147:Core/Src/command.c **** }
+  68              		.loc 1 147 1 view .LVU15
+  69 001a 7047     		bx	lr
+  70              		.cfi_endproc
+  71              	.LFE4:
+  73              		.section	.text.flash_write_half_world,"ax",%progbits
+  74              		.align	1
+  75              		.syntax unified
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 5
+
+
+  76              		.thumb
+  77              		.thumb_func
+  79              	flash_write_half_world:
+  80              	.LVL5:
+  81              	.LFB10:
+ 148:Core/Src/command.c **** 
+ 149:Core/Src/command.c **** static void help(uint8_t argc, char *argv[])
+ 150:Core/Src/command.c **** {
+ 151:Core/Src/command.c ****     uint8_t i = 0;
+ 152:Core/Src/command.c ****     uart_printf(system_log, "shell suppport commamnds:\r\n", NULL, 0);
+ 153:Core/Src/command.c ****     while (shell_functions[i] != NULL)
+ 154:Core/Src/command.c ****     {
+ 155:Core/Src/command.c **** 
+ 156:Core/Src/command.c ****         uart_printf(system_log, shell_functions[i]->name, NULL, 0);
+ 157:Core/Src/command.c ****         uart_printf(system_log, "    ", NULL, 0);
+ 158:Core/Src/command.c ****         uint8_t j = 0;
+ 159:Core/Src/command.c **** 
+ 160:Core/Src/command.c ****         while (shell_functions[i]->subFuns[j] != NULL)
+ 161:Core/Src/command.c ****         {
+ 162:Core/Src/command.c ****             if (j == 0)
+ 163:Core/Src/command.c ****             {
+ 164:Core/Src/command.c ****                 uart_printf(system_log, "sub command :", NULL, 0);
+ 165:Core/Src/command.c ****             }
+ 166:Core/Src/command.c ****             uart_printf(system_log, shell_functions[i]->subFuns[j]->name, NULL, 0);
+ 167:Core/Src/command.c ****             j++;
+ 168:Core/Src/command.c ****             uart_printf(system_log, "    ", NULL, 0);
+ 169:Core/Src/command.c ****             /* code */
+ 170:Core/Src/command.c ****         }
+ 171:Core/Src/command.c ****         i++;
+ 172:Core/Src/command.c ****         uart_printf(system_log, "\r\n", NULL, 0);
+ 173:Core/Src/command.c ****     }
+ 174:Core/Src/command.c **** }
+ 175:Core/Src/command.c **** 
+ 176:Core/Src/command.c **** static void memory_read_write(uint8_t argc, char *argv[])
+ 177:Core/Src/command.c **** {
+ 178:Core/Src/command.c ****     uart_printf(system_log, "use \"memory read FFFFFFFF\" to read memory, support 2 address\r\n", N
+ 179:Core/Src/command.c **** }
+ 180:Core/Src/command.c **** 
+ 181:Core/Src/command.c **** // 读内存和flash
+ 182:Core/Src/command.c **** static void memory_flash_read(uint8_t argc, char *argv[])
+ 183:Core/Src/command.c **** {
+ 184:Core/Src/command.c **** 
+ 185:Core/Src/command.c ****     uint8_t data[4] = {};
+ 186:Core/Src/command.c **** 
+ 187:Core/Src/command.c ****     // 迭代参数
+ 188:Core/Src/command.c ****     for (uint8_t i = 0; i < argc; i++)
+ 189:Core/Src/command.c ****     {
+ 190:Core/Src/command.c ****         // 设置第8位为0；防止溢出
+ 191:Core/Src/command.c ****         argv[i][8] = '\0';
+ 192:Core/Src/command.c ****         STR_TO_HEX(argv[i], data);
+ 193:Core/Src/command.c ****         uart_printf(system_log, "addres : ", &data[0], 4);
+ 194:Core/Src/command.c **** 
+ 195:Core/Src/command.c ****         // address 必须为0
+ 196:Core/Src/command.c ****         uint32_t temp, address = 0;
+ 197:Core/Src/command.c **** 
+ 198:Core/Src/command.c ****         // 将传回的16进制的数据转换成32位
+ 199:Core/Src/command.c ****         for (int j = 0; j < 4; j++)
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 6
+
+
+ 200:Core/Src/command.c ****         {
+ 201:Core/Src/command.c ****             temp = data[j];
+ 202:Core/Src/command.c ****             address |= temp << ((4 - j - 1) * 8);
+ 203:Core/Src/command.c ****         }
+ 204:Core/Src/command.c ****         // 检查地址合法性
+ 205:Core/Src/command.c ****         if (((address <= 0x20005000) && (address >= 0x20000000)) ||
+ 206:Core/Src/command.c ****             ((address <= 0x0000FFFF) && (address >= 0x00000000)) ||
+ 207:Core/Src/command.c ****             ((address <= 0x0800FFFF) && (address >= 0x08000000)))
+ 208:Core/Src/command.c ****         {
+ 209:Core/Src/command.c ****             // 读取出数据
+ 210:Core/Src/command.c ****             uint32_t memory_data = *(uint32_t *)address;
+ 211:Core/Src/command.c ****             // 将数据转成4个8位
+ 212:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 213:Core/Src/command.c ****             {
+ 214:Core/Src/command.c ****                 data[j] = (uint8_t)(memory_data >> (8 * (3 - j)));
+ 215:Core/Src/command.c ****             }
+ 216:Core/Src/command.c ****             uart_printf(system_log, "data : ", &data[0], 4);
+ 217:Core/Src/command.c ****         }
+ 218:Core/Src/command.c ****         else
+ 219:Core/Src/command.c ****         {
+ 220:Core/Src/command.c ****             uart_printf(system_log, "the address is not in flash or ram range ,try to use \"registe
+ 221:Core/Src/command.c ****         }
+ 222:Core/Src/command.c ****     }
+ 223:Core/Src/command.c **** }
+ 224:Core/Src/command.c **** 
+ 225:Core/Src/command.c **** static void memory_flash_write(uint8_t argc, char *argv[])
+ 226:Core/Src/command.c **** {
+ 227:Core/Src/command.c **** 
+ 228:Core/Src/command.c ****     if (argc != 3)
+ 229:Core/Src/command.c ****     {
+ 230:Core/Src/command.c ****         uart_printf(system_log, "write input is illegal\r\n", NULL, 0);
+ 231:Core/Src/command.c ****     }
+ 232:Core/Src/command.c ****     else
+ 233:Core/Src/command.c ****     {
+ 234:Core/Src/command.c ****         uint8_t return_value = true;
+ 235:Core/Src/command.c ****         uint8_t data[4];
+ 236:Core/Src/command.c ****         uint32_t address = 0, write_data = 0;
+ 237:Core/Src/command.c ****         for (uint8_t i = 1; i < argc; i++)
+ 238:Core/Src/command.c ****         {
+ 239:Core/Src/command.c ****             // 设置第8位为0；防止溢出
+ 240:Core/Src/command.c ****             argv[i][8] = '\0';
+ 241:Core/Src/command.c ****             STR_TO_HEX(argv[i], data);
+ 242:Core/Src/command.c ****             uint32_t temp = 0;
+ 243:Core/Src/command.c ****             // 将传回的16进制的数据转换成32位
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 245:Core/Src/command.c ****             {
+ 246:Core/Src/command.c ****                 temp = data[j];
+ 247:Core/Src/command.c ****                 if (i == 1)
+ 248:Core/Src/command.c ****                 {
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 250:Core/Src/command.c ****                 }
+ 251:Core/Src/command.c ****                 else
+ 252:Core/Src/command.c ****                 {
+ 253:Core/Src/command.c ****                     write_data |= temp << ((4 - j - 1) * 8);
+ 254:Core/Src/command.c ****                 }
+ 255:Core/Src/command.c ****             }
+ 256:Core/Src/command.c ****         }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 7
+
+
+ 257:Core/Src/command.c ****         // 强制进行4字节对齐
+ 258:Core/Src/command.c ****         address &= ~((uint32_t)0x03);
+ 259:Core/Src/command.c **** 
+ 260:Core/Src/command.c ****         // 检查写入是memory 还是 flash
+ 261:Core/Src/command.c ****         return_value = check_flash_address(address);
+ 262:Core/Src/command.c **** 
+ 263:Core/Src/command.c ****         if (return_value != true)
+ 264:Core/Src/command.c ****         {
+ 265:Core/Src/command.c ****             uart_printf(system_log, "the write address is illegal \r\n", NULL, 0);
+ 266:Core/Src/command.c ****             return;
+ 267:Core/Src/command.c ****         }
+ 268:Core/Src/command.c ****         else
+ 269:Core/Src/command.c ****         {
+ 270:Core/Src/command.c ****             // uart_printf("the write address is ", &address, 4);
+ 271:Core/Src/command.c **** 
+ 272:Core/Src/command.c ****             // 读取出数据
+ 273:Core/Src/command.c **** 
+ 274:Core/Src/command.c ****             // 解锁flash
+ 275:Core/Src/command.c ****             flash_lock(1);
+ 276:Core/Src/command.c **** 
+ 277:Core/Src/command.c ****             // 擦除
+ 278:Core/Src/command.c ****             return_value = flash_erase(address);
+ 279:Core/Src/command.c ****             if (return_value != true)
+ 280:Core/Src/command.c ****             {
+ 281:Core/Src/command.c ****                 uart_printf(system_log, "flash_erase fail \r\n", NULL, 0);
+ 282:Core/Src/command.c **** 
+ 283:Core/Src/command.c ****                 // 上锁flash
+ 284:Core/Src/command.c ****                 flash_lock(0);
+ 285:Core/Src/command.c ****                 return;
+ 286:Core/Src/command.c ****             }
+ 287:Core/Src/command.c **** 
+ 288:Core/Src/command.c ****             // 写数据
+ 289:Core/Src/command.c **** 
+ 290:Core/Src/command.c ****             uint32_t testdata[64] = {};
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ 292:Core/Src/command.c ****             {
+ 293:Core/Src/command.c ****                 // write_data += dd;
+ 294:Core/Src/command.c ****                 testdata[dd] = 0x12345600 + dd;
+ 295:Core/Src/command.c ****                 // flash_write(address, &write_data, 1);
+ 296:Core/Src/command.c ****             }
+ 297:Core/Src/command.c **** 
+ 298:Core/Src/command.c ****             flash_write(address, testdata, 64);
+ 299:Core/Src/command.c ****         }
+ 300:Core/Src/command.c ****     }
+ 301:Core/Src/command.c **** }
+ 302:Core/Src/command.c **** 
+ 303:Core/Src/command.c **** // 连续多次写入数据
+ 304:Core/Src/command.c **** static void flash_write(uint32_t address, uint32_t *data, uint16_t dataLen)
+ 305:Core/Src/command.c **** {
+ 306:Core/Src/command.c **** 
+ 307:Core/Src/command.c ****     uint8_t waitCount = 255;
+ 308:Core/Src/command.c ****     for (uint16_t index = 0; index < dataLen * 2; index++)
+ 309:Core/Src/command.c ****     {
+ 310:Core/Src/command.c ****         // 等待flash不在忙碌状态
+ 311:Core/Src/command.c ****         while (((FLASH_BASS->SR) & (1UL)) != 0)
+ 312:Core/Src/command.c ****         {
+ 313:Core/Src/command.c ****             waitCount--;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 8
+
+
+ 314:Core/Src/command.c ****         }
+ 315:Core/Src/command.c ****         if (waitCount == 0)
+ 316:Core/Src/command.c ****         {
+ 317:Core/Src/command.c ****             // do something
+ 318:Core/Src/command.c ****         }
+ 319:Core/Src/command.c **** 
+ 320:Core/Src/command.c ****         // 烧写数据的后16位
+ 321:Core/Src/command.c ****         if ((index % 2) == 0)
+ 322:Core/Src/command.c ****         {
+ 323:Core/Src/command.c ****             flash_write_half_world(address + 0x02 * index, (uint16_t)(data[index / 2]));
+ 324:Core/Src/command.c ****         }
+ 325:Core/Src/command.c ****         // 烧写数据的前16位
+ 326:Core/Src/command.c ****         else
+ 327:Core/Src/command.c ****         {
+ 328:Core/Src/command.c ****             flash_write_half_world(address + 0x02 * index, (uint16_t)((data[index / 2]) >> 16));
+ 329:Core/Src/command.c ****         }
+ 330:Core/Src/command.c **** 
+ 331:Core/Src/command.c ****         // 检查错误码
+ 332:Core/Src/command.c **** 
+ 333:Core/Src/command.c ****         if (((FLASH_BASS->CR & 1UL << 0x02) == (1UL << 0x02)) ||
+ 334:Core/Src/command.c ****             ((FLASH_BASS->CR & 1UL << 0x04) == (1UL << 0x04)))
+ 335:Core/Src/command.c ****         {
+ 336:Core/Src/command.c ****             // dosomthing
+ 337:Core/Src/command.c ****         }
+ 338:Core/Src/command.c ****     }
+ 339:Core/Src/command.c **** }
+ 340:Core/Src/command.c **** 
+ 341:Core/Src/command.c **** static void flash_write_half_world(uint32_t address, uint16_t data)
+ 342:Core/Src/command.c **** {
+  82              		.loc 1 342 1 is_stmt 1 view -0
+  83              		.cfi_startproc
+  84              		@ args = 0, pretend = 0, frame = 0
+  85              		@ frame_needed = 0, uses_anonymous_args = 0
+  86              		@ link register save eliminated.
+ 343:Core/Src/command.c ****     // 设置为编程模式
+ 344:Core/Src/command.c ****     FLASH_BASS->CR |= 0x01UL;
+  87              		.loc 1 344 5 view .LVU17
+  88              		.loc 1 344 15 is_stmt 0 view .LVU18
+  89 0000 084B     		ldr	r3, .L8
+  90 0002 1A68     		ldr	r2, [r3]
+  91 0004 1369     		ldr	r3, [r2, #16]
+  92              		.loc 1 344 20 view .LVU19
+  93 0006 43F00103 		orr	r3, r3, #1
+  94 000a 1361     		str	r3, [r2, #16]
+ 345:Core/Src/command.c ****     // flash 不在忙碌状态
+ 346:Core/Src/command.c ****     uint8_t waitCount = 255;
+  95              		.loc 1 346 5 is_stmt 1 view .LVU20
+  96              	.LVL6:
+ 347:Core/Src/command.c ****     while (((FLASH_BASS->SR) & (1UL)) != 0)
+  97              		.loc 1 347 5 view .LVU21
+  98              	.L7:
+  99              		.loc 1 347 39 view .LVU22
+ 100              		.loc 1 347 24 is_stmt 0 view .LVU23
+ 101 000c D368     		ldr	r3, [r2, #12]
+ 102              		.loc 1 347 39 view .LVU24
+ 103 000e 13F0010F 		tst	r3, #1
+ 104 0012 FBD1     		bne	.L7
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 9
+
+
+ 348:Core/Src/command.c ****     {
+ 349:Core/Src/command.c ****         waitCount--;
+ 350:Core/Src/command.c ****     }
+ 351:Core/Src/command.c ****     // 写入数据
+ 352:Core/Src/command.c ****     *(volatile uint16_t *)address = data;
+ 105              		.loc 1 352 5 is_stmt 1 view .LVU25
+ 106              		.loc 1 352 35 is_stmt 0 view .LVU26
+ 107 0014 0180     		strh	r1, [r0]	@ movhi
+ 353:Core/Src/command.c ****     // uart_printf("write address is ", &address, 4);
+ 354:Core/Src/command.c ****     // 关闭编程模式
+ 355:Core/Src/command.c ****     FLASH_BASS->CR &= ~0x01UL;
+ 108              		.loc 1 355 5 is_stmt 1 view .LVU27
+ 109              		.loc 1 355 15 is_stmt 0 view .LVU28
+ 110 0016 034B     		ldr	r3, .L8
+ 111 0018 1A68     		ldr	r2, [r3]
+ 112 001a 1369     		ldr	r3, [r2, #16]
+ 113              		.loc 1 355 20 view .LVU29
+ 114 001c 23F00103 		bic	r3, r3, #1
+ 115 0020 1361     		str	r3, [r2, #16]
+ 356:Core/Src/command.c **** }
+ 116              		.loc 1 356 1 view .LVU30
+ 117 0022 7047     		bx	lr
+ 118              	.L9:
+ 119              		.align	2
+ 120              	.L8:
+ 121 0024 00000000 		.word	FLASH_BASS
+ 122              		.cfi_endproc
+ 123              	.LFE10:
+ 125              		.section	.text.flash_write,"ax",%progbits
+ 126              		.align	1
+ 127              		.syntax unified
+ 128              		.thumb
+ 129              		.thumb_func
+ 131              	flash_write:
+ 132              	.LVL7:
+ 133              	.LFB9:
+ 305:Core/Src/command.c **** 
+ 134              		.loc 1 305 1 is_stmt 1 view -0
+ 135              		.cfi_startproc
+ 136              		@ args = 0, pretend = 0, frame = 0
+ 137              		@ frame_needed = 0, uses_anonymous_args = 0
+ 305:Core/Src/command.c **** 
+ 138              		.loc 1 305 1 is_stmt 0 view .LVU32
+ 139 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 140              		.cfi_def_cfa_offset 24
+ 141              		.cfi_offset 3, -24
+ 142              		.cfi_offset 4, -20
+ 143              		.cfi_offset 5, -16
+ 144              		.cfi_offset 6, -12
+ 145              		.cfi_offset 7, -8
+ 146              		.cfi_offset 14, -4
+ 147 0002 0746     		mov	r7, r0
+ 148 0004 0E46     		mov	r6, r1
+ 149 0006 1546     		mov	r5, r2
+ 307:Core/Src/command.c ****     for (uint16_t index = 0; index < dataLen * 2; index++)
+ 150              		.loc 1 307 5 is_stmt 1 view .LVU33
+ 151              	.LVL8:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 10
+
+
+ 308:Core/Src/command.c ****     {
+ 152              		.loc 1 308 5 view .LVU34
+ 153              	.LBB3:
+ 308:Core/Src/command.c ****     {
+ 154              		.loc 1 308 10 view .LVU35
+ 308:Core/Src/command.c ****     {
+ 155              		.loc 1 308 19 is_stmt 0 view .LVU36
+ 156 0008 0024     		movs	r4, #0
+ 308:Core/Src/command.c ****     {
+ 157              		.loc 1 308 5 view .LVU37
+ 158 000a 0AE0     		b	.L11
+ 159              	.LVL9:
+ 160              	.L13:
+ 328:Core/Src/command.c ****         }
+ 161              		.loc 1 328 13 is_stmt 1 view .LVU38
+ 328:Core/Src/command.c ****         }
+ 162              		.loc 1 328 83 is_stmt 0 view .LVU39
+ 163 000c 6308     		lsrs	r3, r4, #1
+ 328:Core/Src/command.c ****         }
+ 164              		.loc 1 328 76 view .LVU40
+ 165 000e 56F82310 		ldr	r1, [r6, r3, lsl #2]
+ 328:Core/Src/command.c ****         }
+ 166              		.loc 1 328 13 view .LVU41
+ 167 0012 090C     		lsrs	r1, r1, #16
+ 168 0014 07EB4000 		add	r0, r7, r0, lsl #1
+ 169 0018 FFF7FEFF 		bl	flash_write_half_world
+ 170              	.LVL10:
+ 171 001c 15E0     		b	.L14
+ 172              	.L15:
+ 337:Core/Src/command.c ****     }
+ 173              		.loc 1 337 9 is_stmt 1 view .LVU42
+ 308:Core/Src/command.c ****     {
+ 174              		.loc 1 308 56 discriminator 2 view .LVU43
+ 175 001e 0134     		adds	r4, r4, #1
+ 176              	.LVL11:
+ 308:Core/Src/command.c ****     {
+ 177              		.loc 1 308 56 is_stmt 0 discriminator 2 view .LVU44
+ 178 0020 A4B2     		uxth	r4, r4
+ 179              	.LVL12:
+ 180              	.L11:
+ 308:Core/Src/command.c ****     {
+ 181              		.loc 1 308 36 is_stmt 1 discriminator 1 view .LVU45
+ 182 0022 2046     		mov	r0, r4
+ 183 0024 B4EB450F 		cmp	r4, r5, lsl #1
+ 184 0028 17DA     		bge	.L17
+ 185              	.L12:
+ 311:Core/Src/command.c ****         {
+ 186              		.loc 1 311 43 view .LVU46
+ 311:Core/Src/command.c ****         {
+ 187              		.loc 1 311 28 is_stmt 0 view .LVU47
+ 188 002a 0C4B     		ldr	r3, .L18
+ 189 002c 1B68     		ldr	r3, [r3]
+ 190 002e DB68     		ldr	r3, [r3, #12]
+ 311:Core/Src/command.c ****         {
+ 191              		.loc 1 311 43 view .LVU48
+ 192 0030 13F0010F 		tst	r3, #1
+ 193 0034 F9D1     		bne	.L12
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 11
+
+
+ 315:Core/Src/command.c ****         {
+ 194              		.loc 1 315 9 is_stmt 1 view .LVU49
+ 318:Core/Src/command.c **** 
+ 195              		.loc 1 318 9 view .LVU50
+ 321:Core/Src/command.c ****         {
+ 196              		.loc 1 321 9 view .LVU51
+ 321:Core/Src/command.c ****         {
+ 197              		.loc 1 321 12 is_stmt 0 view .LVU52
+ 198 0036 14F0010F 		tst	r4, #1
+ 199 003a E7D1     		bne	.L13
+ 323:Core/Src/command.c ****         }
+ 200              		.loc 1 323 13 is_stmt 1 view .LVU53
+ 323:Core/Src/command.c ****         }
+ 201              		.loc 1 323 82 is_stmt 0 view .LVU54
+ 202 003c 6308     		lsrs	r3, r4, #1
+ 323:Core/Src/command.c ****         }
+ 203              		.loc 1 323 13 view .LVU55
+ 204 003e 36F82310 		ldrh	r1, [r6, r3, lsl #2]
+ 205 0042 07EB4000 		add	r0, r7, r0, lsl #1
+ 206 0046 FFF7FEFF 		bl	flash_write_half_world
+ 207              	.LVL13:
+ 208              	.L14:
+ 333:Core/Src/command.c ****             ((FLASH_BASS->CR & 1UL << 0x04) == (1UL << 0x04)))
+ 209              		.loc 1 333 9 is_stmt 1 view .LVU56
+ 333:Core/Src/command.c ****             ((FLASH_BASS->CR & 1UL << 0x04) == (1UL << 0x04)))
+ 210              		.loc 1 333 25 is_stmt 0 view .LVU57
+ 211 004a 044B     		ldr	r3, .L18
+ 212 004c 1B68     		ldr	r3, [r3]
+ 213 004e 1A69     		ldr	r2, [r3, #16]
+ 333:Core/Src/command.c ****             ((FLASH_BASS->CR & 1UL << 0x04) == (1UL << 0x04)))
+ 214              		.loc 1 333 12 view .LVU58
+ 215 0050 12F0040F 		tst	r2, #4
+ 216 0054 E3D1     		bne	.L15
+ 334:Core/Src/command.c ****         {
+ 217              		.loc 1 334 25 view .LVU59
+ 218 0056 1B69     		ldr	r3, [r3, #16]
+ 219 0058 E1E7     		b	.L15
+ 220              	.L17:
+ 221              	.LBE3:
+ 339:Core/Src/command.c **** 
+ 222              		.loc 1 339 1 view .LVU60
+ 223 005a F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 224              	.LVL14:
+ 225              	.L19:
+ 339:Core/Src/command.c **** 
+ 226              		.loc 1 339 1 view .LVU61
+ 227              		.align	2
+ 228              	.L18:
+ 229 005c 00000000 		.word	FLASH_BASS
+ 230              		.cfi_endproc
+ 231              	.LFE9:
+ 233              		.section	.rodata.log_set_cancel.str1.4,"aMS",%progbits,1
+ 234              		.align	2
+ 235              	.LC0:
+ 236 0000 75736520 		.ascii	"use \"log set/cancel xx\" to set log level\015\012\000"
+ 236      226C6F67 
+ 236      20736574 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 12
+
+
+ 236      2F63616E 
+ 236      63656C20 
+ 237              		.section	.text.log_set_cancel,"ax",%progbits
+ 238              		.align	1
+ 239              		.syntax unified
+ 240              		.thumb
+ 241              		.thumb_func
+ 243              	log_set_cancel:
+ 244              	.LVL15:
+ 245              	.LFB15:
+ 357:Core/Src/command.c **** 
+ 358:Core/Src/command.c **** void flash_lock(uint8_t lock_state)
+ 359:Core/Src/command.c **** {
+ 360:Core/Src/command.c ****     // lock
+ 361:Core/Src/command.c ****     if (lock_state == 0)
+ 362:Core/Src/command.c ****     {
+ 363:Core/Src/command.c ****         // lock
+ 364:Core/Src/command.c ****         FLASH_BASS->CR |= 0x01UL << 7;
+ 365:Core/Src/command.c ****     }
+ 366:Core/Src/command.c ****     // unlock
+ 367:Core/Src/command.c ****     else if (lock_state == 1)
+ 368:Core/Src/command.c ****     {
+ 369:Core/Src/command.c **** 
+ 370:Core/Src/command.c ****         FLASH_BASS->KEYR = 0x45670123UL;
+ 371:Core/Src/command.c **** 
+ 372:Core/Src/command.c ****         FLASH_BASS->KEYR = 0xCDEF89ABUL;
+ 373:Core/Src/command.c **** 
+ 374:Core/Src/command.c ****         // 检查锁定
+ 375:Core/Src/command.c ****         while (((FLASH_BASS->CR) & (1U << 7)) != 0)
+ 376:Core/Src/command.c ****         {
+ 377:Core/Src/command.c ****         }
+ 378:Core/Src/command.c ****     }
+ 379:Core/Src/command.c **** }
+ 380:Core/Src/command.c **** 
+ 381:Core/Src/command.c **** // 擦写flash
+ 382:Core/Src/command.c **** uint8_t flash_erase(uint32_t flash_erase_address)
+ 383:Core/Src/command.c **** {
+ 384:Core/Src/command.c **** 
+ 385:Core/Src/command.c ****     // flash的真实地址
+ 386:Core/Src/command.c ****     flash_erase_address &= 0x0000FFFF;
+ 387:Core/Src/command.c **** 
+ 388:Core/Src/command.c ****     // 页地址
+ 389:Core/Src/command.c ****     flash_erase_address = flash_erase_address - (flash_erase_address % 1024);
+ 390:Core/Src/command.c ****     flash_erase_address |= 0x08000000;
+ 391:Core/Src/command.c **** 
+ 392:Core/Src/command.c ****     uint8_t temp[4];
+ 393:Core/Src/command.c **** 
+ 394:Core/Src/command.c ****     temp[0] = flash_erase_address >> 24;
+ 395:Core/Src/command.c ****     temp[1] = flash_erase_address >> 16;
+ 396:Core/Src/command.c ****     temp[2] = flash_erase_address >> 8;
+ 397:Core/Src/command.c ****     temp[3] = flash_erase_address >> 0;
+ 398:Core/Src/command.c **** 
+ 399:Core/Src/command.c ****     uart_printf(system_log, "the page start address is ", temp, 4);
+ 400:Core/Src/command.c **** 
+ 401:Core/Src/command.c ****     // 设置擦写页
+ 402:Core/Src/command.c ****     {
+ 403:Core/Src/command.c ****         // 选择页擦除
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 13
+
+
+ 404:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 1;
+ 405:Core/Src/command.c ****         // 设置擦除寄存器 page地址
+ 406:Core/Src/command.c ****         FLASH_BASS->AR = flash_erase_address;
+ 407:Core/Src/command.c ****         // 开始页擦除
+ 408:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 6;
+ 409:Core/Src/command.c ****     }
+ 410:Core/Src/command.c **** 
+ 411:Core/Src/command.c ****     // 完成擦除页
+ 412:Core/Src/command.c ****     {
+ 413:Core/Src/command.c ****         uint8_t temp = 255;
+ 414:Core/Src/command.c ****         // 检查擦除结束
+ 415:Core/Src/command.c ****         while (((FLASH_BASS->SR) & (1UL << 5)) != 1UL << 5)
+ 416:Core/Src/command.c ****         {
+ 417:Core/Src/command.c ****             temp--;
+ 418:Core/Src/command.c ****             if (temp == 0)
+ 419:Core/Src/command.c ****             {
+ 420:Core/Src/command.c ****                 // 擦除失败
+ 421:Core/Src/command.c ****                 return false;
+ 422:Core/Src/command.c ****             }
+ 423:Core/Src/command.c ****         }
+ 424:Core/Src/command.c **** 
+ 425:Core/Src/command.c ****         // 结束擦除
+ 426:Core/Src/command.c ****         FLASH_BASS->CR &= ~(1UL << 1);
+ 427:Core/Src/command.c **** 
+ 428:Core/Src/command.c ****         return true;
+ 429:Core/Src/command.c ****     }
+ 430:Core/Src/command.c **** }
+ 431:Core/Src/command.c **** 
+ 432:Core/Src/command.c **** // 检查flash地址合法
+ 433:Core/Src/command.c **** uint8_t check_flash_address(uint32_t flashAddress)
+ 434:Core/Src/command.c **** {
+ 435:Core/Src/command.c **** 
+ 436:Core/Src/command.c ****     // 系统映射地址
+ 437:Core/Src/command.c ****     if ((flashAddress >= 0x00000000) && (flashAddress <= 0x0000FFFF))
+ 438:Core/Src/command.c ****     {
+ 439:Core/Src/command.c ****         return true;
+ 440:Core/Src/command.c ****     }
+ 441:Core/Src/command.c ****     // 真实地址
+ 442:Core/Src/command.c ****     else if ((flashAddress >= 0x08000000) && (flashAddress <= 0x0800FFFF))
+ 443:Core/Src/command.c ****     {
+ 444:Core/Src/command.c ****         return true;
+ 445:Core/Src/command.c ****     }
+ 446:Core/Src/command.c ****     else
+ 447:Core/Src/command.c ****     {
+ 448:Core/Src/command.c ****         return false;
+ 449:Core/Src/command.c ****     }
+ 450:Core/Src/command.c **** }
+ 451:Core/Src/command.c **** 
+ 452:Core/Src/command.c **** // 让uds 支持shell
+ 453:Core/Src/command.c **** static void uds_port(uint8_t argc, char *argv[])
+ 454:Core/Src/command.c **** {
+ 455:Core/Src/command.c **** 
+ 456:Core/Src/command.c ****     // 解析参数 ,shell 只解析三条
+ 457:Core/Src/command.c ****     uint8_t data[8] = {};
+ 458:Core/Src/command.c **** 
+ 459:Core/Src/command.c ****     for (uint8_t index = 0; index < 8; index++)
+ 460:Core/Src/command.c ****     {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 14
+
+
+ 461:Core/Src/command.c ****         STR_TO_HEX(&argv[0][index * 3], &data[index]);
+ 462:Core/Src/command.c ****     }
+ 463:Core/Src/command.c ****     can_service_entry(data);
+ 464:Core/Src/command.c **** }
+ 465:Core/Src/command.c **** 
+ 466:Core/Src/command.c **** static void log_set_cancel(uint8_t argc, char *argv[])
+ 467:Core/Src/command.c **** {
+ 246              		.loc 1 467 1 is_stmt 1 view -0
+ 247              		.cfi_startproc
+ 248              		@ args = 0, pretend = 0, frame = 0
+ 249              		@ frame_needed = 0, uses_anonymous_args = 0
+ 250              		.loc 1 467 1 is_stmt 0 view .LVU63
+ 251 0000 08B5     		push	{r3, lr}
+ 252              		.cfi_def_cfa_offset 8
+ 253              		.cfi_offset 3, -8
+ 254              		.cfi_offset 14, -4
+ 468:Core/Src/command.c ****     uart_printf(system_log, "use \"log set/cancel xx\" to set log level\r\n", NULL, 0);
+ 255              		.loc 1 468 5 is_stmt 1 view .LVU64
+ 256 0002 0023     		movs	r3, #0
+ 257 0004 1A46     		mov	r2, r3
+ 258 0006 0249     		ldr	r1, .L22
+ 259              	.LVL16:
+ 260              		.loc 1 468 5 is_stmt 0 view .LVU65
+ 261 0008 0820     		movs	r0, #8
+ 262              	.LVL17:
+ 263              		.loc 1 468 5 view .LVU66
+ 264 000a FFF7FEFF 		bl	uart_printf
+ 265              	.LVL18:
+ 469:Core/Src/command.c **** }
+ 266              		.loc 1 469 1 view .LVU67
+ 267 000e 08BD     		pop	{r3, pc}
+ 268              	.L23:
+ 269              		.align	2
+ 270              	.L22:
+ 271 0010 00000000 		.word	.LC0
+ 272              		.cfi_endproc
+ 273              	.LFE15:
+ 275              		.section	.rodata.memory_read_write.str1.4,"aMS",%progbits,1
+ 276              		.align	2
+ 277              	.LC1:
+ 278 0000 75736520 		.ascii	"use \"memory read FFFFFFFF\" to read memory, suppor"
+ 278      226D656D 
+ 278      6F727920 
+ 278      72656164 
+ 278      20464646 
+ 279 0031 74203220 		.ascii	"t 2 address\015\012\000"
+ 279      61646472 
+ 279      6573730D 
+ 279      0A00
+ 280              		.section	.text.memory_read_write,"ax",%progbits
+ 281              		.align	1
+ 282              		.syntax unified
+ 283              		.thumb
+ 284              		.thumb_func
+ 286              	memory_read_write:
+ 287              	.LVL19:
+ 288              	.LFB6:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 15
+
+
+ 177:Core/Src/command.c ****     uart_printf(system_log, "use \"memory read FFFFFFFF\" to read memory, support 2 address\r\n", N
+ 289              		.loc 1 177 1 is_stmt 1 view -0
+ 290              		.cfi_startproc
+ 291              		@ args = 0, pretend = 0, frame = 0
+ 292              		@ frame_needed = 0, uses_anonymous_args = 0
+ 177:Core/Src/command.c ****     uart_printf(system_log, "use \"memory read FFFFFFFF\" to read memory, support 2 address\r\n", N
+ 293              		.loc 1 177 1 is_stmt 0 view .LVU69
+ 294 0000 08B5     		push	{r3, lr}
+ 295              		.cfi_def_cfa_offset 8
+ 296              		.cfi_offset 3, -8
+ 297              		.cfi_offset 14, -4
+ 178:Core/Src/command.c **** }
+ 298              		.loc 1 178 5 is_stmt 1 view .LVU70
+ 299 0002 0023     		movs	r3, #0
+ 300 0004 1A46     		mov	r2, r3
+ 301 0006 0249     		ldr	r1, .L26
+ 302              	.LVL20:
+ 178:Core/Src/command.c **** }
+ 303              		.loc 1 178 5 is_stmt 0 view .LVU71
+ 304 0008 0820     		movs	r0, #8
+ 305              	.LVL21:
+ 178:Core/Src/command.c **** }
+ 306              		.loc 1 178 5 view .LVU72
+ 307 000a FFF7FEFF 		bl	uart_printf
+ 308              	.LVL22:
+ 179:Core/Src/command.c **** 
+ 309              		.loc 1 179 1 view .LVU73
+ 310 000e 08BD     		pop	{r3, pc}
+ 311              	.L27:
+ 312              		.align	2
+ 313              	.L26:
+ 314 0010 00000000 		.word	.LC1
+ 315              		.cfi_endproc
+ 316              	.LFE6:
+ 318              		.section	.rodata.help.str1.4,"aMS",%progbits,1
+ 319              		.align	2
+ 320              	.LC2:
+ 321 0000 7368656C 		.ascii	"shell suppport commamnds:\015\012\000"
+ 321      6C207375 
+ 321      7070706F 
+ 321      72742063 
+ 321      6F6D6D61 
+ 322              		.align	2
+ 323              	.LC3:
+ 324 001c 20202020 		.ascii	"    \000"
+ 324      00
+ 325 0021 000000   		.align	2
+ 326              	.LC4:
+ 327 0024 73756220 		.ascii	"sub command :\000"
+ 327      636F6D6D 
+ 327      616E6420 
+ 327      3A00
+ 328 0032 0000     		.align	2
+ 329              	.LC5:
+ 330 0034 0D0A00   		.ascii	"\015\012\000"
+ 331              		.section	.text.help,"ax",%progbits
+ 332              		.align	1
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 16
+
+
+ 333              		.syntax unified
+ 334              		.thumb
+ 335              		.thumb_func
+ 337              	help:
+ 338              	.LVL23:
+ 339              	.LFB5:
+ 150:Core/Src/command.c ****     uint8_t i = 0;
+ 340              		.loc 1 150 1 is_stmt 1 view -0
+ 341              		.cfi_startproc
+ 342              		@ args = 0, pretend = 0, frame = 0
+ 343              		@ frame_needed = 0, uses_anonymous_args = 0
+ 150:Core/Src/command.c ****     uint8_t i = 0;
+ 344              		.loc 1 150 1 is_stmt 0 view .LVU75
+ 345 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 346              		.cfi_def_cfa_offset 24
+ 347              		.cfi_offset 3, -24
+ 348              		.cfi_offset 4, -20
+ 349              		.cfi_offset 5, -16
+ 350              		.cfi_offset 6, -12
+ 351              		.cfi_offset 7, -8
+ 352              		.cfi_offset 14, -4
+ 151:Core/Src/command.c ****     uart_printf(system_log, "shell suppport commamnds:\r\n", NULL, 0);
+ 353              		.loc 1 151 5 is_stmt 1 view .LVU76
+ 354              	.LVL24:
+ 152:Core/Src/command.c ****     while (shell_functions[i] != NULL)
+ 355              		.loc 1 152 5 view .LVU77
+ 356 0002 0023     		movs	r3, #0
+ 357 0004 1A46     		mov	r2, r3
+ 358 0006 2349     		ldr	r1, .L37
+ 359              	.LVL25:
+ 152:Core/Src/command.c ****     while (shell_functions[i] != NULL)
+ 360              		.loc 1 152 5 is_stmt 0 view .LVU78
+ 361 0008 0820     		movs	r0, #8
+ 362              	.LVL26:
+ 152:Core/Src/command.c ****     while (shell_functions[i] != NULL)
+ 363              		.loc 1 152 5 view .LVU79
+ 364 000a FFF7FEFF 		bl	uart_printf
+ 365              	.LVL27:
+ 153:Core/Src/command.c ****     {
+ 366              		.loc 1 153 5 is_stmt 1 view .LVU80
+ 151:Core/Src/command.c ****     uart_printf(system_log, "shell suppport commamnds:\r\n", NULL, 0);
+ 367              		.loc 1 151 13 is_stmt 0 view .LVU81
+ 368 000e 0027     		movs	r7, #0
+ 153:Core/Src/command.c ****     {
+ 369              		.loc 1 153 11 view .LVU82
+ 370 0010 2BE0     		b	.L29
+ 371              	.LVL28:
+ 372              	.L31:
+ 373              	.LBB4:
+ 166:Core/Src/command.c ****             j++;
+ 374              		.loc 1 166 13 is_stmt 1 view .LVU83
+ 166:Core/Src/command.c ****             j++;
+ 375              		.loc 1 166 52 is_stmt 0 view .LVU84
+ 376 0012 214B     		ldr	r3, .L37+4
+ 377 0014 53F82630 		ldr	r3, [r3, r6, lsl #2]
+ 166:Core/Src/command.c ****             j++;
+ 378              		.loc 1 166 64 view .LVU85
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 17
+
+
+ 379 0018 0235     		adds	r5, r5, #2
+ 380 001a 53F82510 		ldr	r1, [r3, r5, lsl #2]
+ 166:Core/Src/command.c ****             j++;
+ 381              		.loc 1 166 13 view .LVU86
+ 382 001e 0023     		movs	r3, #0
+ 383 0020 1A46     		mov	r2, r3
+ 384 0022 0968     		ldr	r1, [r1]
+ 385 0024 0820     		movs	r0, #8
+ 386 0026 FFF7FEFF 		bl	uart_printf
+ 387              	.LVL29:
+ 167:Core/Src/command.c ****             uart_printf(system_log, "    ", NULL, 0);
+ 388              		.loc 1 167 13 is_stmt 1 view .LVU87
+ 167:Core/Src/command.c ****             uart_printf(system_log, "    ", NULL, 0);
+ 389              		.loc 1 167 14 is_stmt 0 view .LVU88
+ 390 002a 0134     		adds	r4, r4, #1
+ 391              	.LVL30:
+ 167:Core/Src/command.c ****             uart_printf(system_log, "    ", NULL, 0);
+ 392              		.loc 1 167 14 view .LVU89
+ 393 002c E4B2     		uxtb	r4, r4
+ 394              	.LVL31:
+ 168:Core/Src/command.c ****             /* code */
+ 395              		.loc 1 168 13 is_stmt 1 view .LVU90
+ 396 002e 0023     		movs	r3, #0
+ 397 0030 1A46     		mov	r2, r3
+ 398 0032 1A49     		ldr	r1, .L37+8
+ 399 0034 0820     		movs	r0, #8
+ 400 0036 FFF7FEFF 		bl	uart_printf
+ 401              	.LVL32:
+ 402              	.L30:
+ 160:Core/Src/command.c ****         {
+ 403              		.loc 1 160 47 view .LVU91
+ 160:Core/Src/command.c ****         {
+ 404              		.loc 1 160 31 is_stmt 0 view .LVU92
+ 405 003a 174B     		ldr	r3, .L37+4
+ 406 003c 53F82630 		ldr	r3, [r3, r6, lsl #2]
+ 160:Core/Src/command.c ****         {
+ 407              		.loc 1 160 43 view .LVU93
+ 408 0040 2546     		mov	r5, r4
+ 409 0042 A21C     		adds	r2, r4, #2
+ 410 0044 53F82230 		ldr	r3, [r3, r2, lsl #2]
+ 160:Core/Src/command.c ****         {
+ 411              		.loc 1 160 47 view .LVU94
+ 412 0048 43B1     		cbz	r3, .L35
+ 162:Core/Src/command.c ****             {
+ 413              		.loc 1 162 13 is_stmt 1 view .LVU95
+ 162:Core/Src/command.c ****             {
+ 414              		.loc 1 162 16 is_stmt 0 view .LVU96
+ 415 004a 002C     		cmp	r4, #0
+ 416 004c E1D1     		bne	.L31
+ 164:Core/Src/command.c ****             }
+ 417              		.loc 1 164 17 is_stmt 1 view .LVU97
+ 418 004e 0023     		movs	r3, #0
+ 419 0050 1A46     		mov	r2, r3
+ 420 0052 1349     		ldr	r1, .L37+12
+ 421 0054 0820     		movs	r0, #8
+ 422 0056 FFF7FEFF 		bl	uart_printf
+ 423              	.LVL33:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 18
+
+
+ 424 005a DAE7     		b	.L31
+ 425              	.L35:
+ 171:Core/Src/command.c ****         uart_printf(system_log, "\r\n", NULL, 0);
+ 426              		.loc 1 171 9 view .LVU98
+ 171:Core/Src/command.c ****         uart_printf(system_log, "\r\n", NULL, 0);
+ 427              		.loc 1 171 10 is_stmt 0 view .LVU99
+ 428 005c 0137     		adds	r7, r7, #1
+ 429              	.LVL34:
+ 171:Core/Src/command.c ****         uart_printf(system_log, "\r\n", NULL, 0);
+ 430              		.loc 1 171 10 view .LVU100
+ 431 005e FFB2     		uxtb	r7, r7
+ 432              	.LVL35:
+ 172:Core/Src/command.c ****     }
+ 433              		.loc 1 172 9 is_stmt 1 view .LVU101
+ 434 0060 1A46     		mov	r2, r3
+ 435 0062 1049     		ldr	r1, .L37+16
+ 436 0064 0820     		movs	r0, #8
+ 437 0066 FFF7FEFF 		bl	uart_printf
+ 438              	.LVL36:
+ 439              	.L29:
+ 172:Core/Src/command.c ****     }
+ 440              		.loc 1 172 9 is_stmt 0 view .LVU102
+ 441              	.LBE4:
+ 153:Core/Src/command.c ****     {
+ 442              		.loc 1 153 31 is_stmt 1 view .LVU103
+ 153:Core/Src/command.c ****     {
+ 443              		.loc 1 153 27 is_stmt 0 view .LVU104
+ 444 006a 3E46     		mov	r6, r7
+ 445 006c 0A4B     		ldr	r3, .L37+4
+ 446 006e 53F82710 		ldr	r1, [r3, r7, lsl #2]
+ 153:Core/Src/command.c ****     {
+ 447              		.loc 1 153 31 view .LVU105
+ 448 0072 69B1     		cbz	r1, .L36
+ 449              	.LBB5:
+ 156:Core/Src/command.c ****         uart_printf(system_log, "    ", NULL, 0);
+ 450              		.loc 1 156 9 is_stmt 1 view .LVU106
+ 451 0074 0023     		movs	r3, #0
+ 452 0076 1A46     		mov	r2, r3
+ 453 0078 0968     		ldr	r1, [r1]
+ 454 007a 0820     		movs	r0, #8
+ 455 007c FFF7FEFF 		bl	uart_printf
+ 456              	.LVL37:
+ 157:Core/Src/command.c ****         uint8_t j = 0;
+ 457              		.loc 1 157 9 view .LVU107
+ 458 0080 0023     		movs	r3, #0
+ 459 0082 1A46     		mov	r2, r3
+ 460 0084 0549     		ldr	r1, .L37+8
+ 461 0086 0820     		movs	r0, #8
+ 462 0088 FFF7FEFF 		bl	uart_printf
+ 463              	.LVL38:
+ 158:Core/Src/command.c **** 
+ 464              		.loc 1 158 9 view .LVU108
+ 160:Core/Src/command.c ****         {
+ 465              		.loc 1 160 9 view .LVU109
+ 158:Core/Src/command.c **** 
+ 466              		.loc 1 158 17 is_stmt 0 view .LVU110
+ 467 008c 0024     		movs	r4, #0
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 19
+
+
+ 160:Core/Src/command.c ****         {
+ 468              		.loc 1 160 15 view .LVU111
+ 469 008e D4E7     		b	.L30
+ 470              	.LVL39:
+ 471              	.L36:
+ 160:Core/Src/command.c ****         {
+ 472              		.loc 1 160 15 view .LVU112
+ 473              	.LBE5:
+ 174:Core/Src/command.c **** 
+ 474              		.loc 1 174 1 view .LVU113
+ 475 0090 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 476              	.LVL40:
+ 477              	.L38:
+ 174:Core/Src/command.c **** 
+ 478              		.loc 1 174 1 view .LVU114
+ 479 0092 00BF     		.align	2
+ 480              	.L37:
+ 481 0094 00000000 		.word	.LC2
+ 482 0098 00000000 		.word	shell_functions
+ 483 009c 1C000000 		.word	.LC3
+ 484 00a0 24000000 		.word	.LC4
+ 485 00a4 34000000 		.word	.LC5
+ 486              		.cfi_endproc
+ 487              	.LFE5:
+ 489              		.section	.rodata.memory_flash_read.str1.4,"aMS",%progbits,1
+ 490              		.align	2
+ 491              	.LC6:
+ 492 0000 61646472 		.ascii	"addres : \000"
+ 492      6573203A 
+ 492      2000
+ 493 000a 0000     		.align	2
+ 494              	.LC7:
+ 495 000c 64617461 		.ascii	"data : \000"
+ 495      203A2000 
+ 496              		.align	2
+ 497              	.LC8:
+ 498 0014 74686520 		.ascii	"the address is not in flash or ram range ,try to us"
+ 498      61646472 
+ 498      65737320 
+ 498      6973206E 
+ 498      6F742069 
+ 499 0047 65202272 		.ascii	"e \"register read\" \015\012\000"
+ 499      65676973 
+ 499      74657220 
+ 499      72656164 
+ 499      22200D0A 
+ 500              		.section	.text.memory_flash_read,"ax",%progbits
+ 501              		.align	1
+ 502              		.syntax unified
+ 503              		.thumb
+ 504              		.thumb_func
+ 506              	memory_flash_read:
+ 507              	.LVL41:
+ 508              	.LFB7:
+ 183:Core/Src/command.c **** 
+ 509              		.loc 1 183 1 is_stmt 1 view -0
+ 510              		.cfi_startproc
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 20
+
+
+ 511              		@ args = 0, pretend = 0, frame = 8
+ 512              		@ frame_needed = 0, uses_anonymous_args = 0
+ 183:Core/Src/command.c **** 
+ 513              		.loc 1 183 1 is_stmt 0 view .LVU116
+ 514 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 515              		.cfi_def_cfa_offset 20
+ 516              		.cfi_offset 4, -20
+ 517              		.cfi_offset 5, -16
+ 518              		.cfi_offset 6, -12
+ 519              		.cfi_offset 7, -8
+ 520              		.cfi_offset 14, -4
+ 521 0002 83B0     		sub	sp, sp, #12
+ 522              		.cfi_def_cfa_offset 32
+ 523 0004 0646     		mov	r6, r0
+ 524 0006 0D46     		mov	r5, r1
+ 185:Core/Src/command.c **** 
+ 525              		.loc 1 185 5 is_stmt 1 view .LVU117
+ 185:Core/Src/command.c **** 
+ 526              		.loc 1 185 13 is_stmt 0 view .LVU118
+ 527 0008 0024     		movs	r4, #0
+ 528 000a 0194     		str	r4, [sp, #4]
+ 188:Core/Src/command.c ****     {
+ 529              		.loc 1 188 5 is_stmt 1 view .LVU119
+ 530              	.LBB6:
+ 188:Core/Src/command.c ****     {
+ 531              		.loc 1 188 10 view .LVU120
+ 532              	.LVL42:
+ 188:Core/Src/command.c ****     {
+ 533              		.loc 1 188 5 is_stmt 0 view .LVU121
+ 534 000c 39E0     		b	.L40
+ 535              	.LVL43:
+ 536              	.L42:
+ 537              	.LBB7:
+ 538              	.LBB8:
+ 201:Core/Src/command.c ****             address |= temp << ((4 - j - 1) * 8);
+ 539              		.loc 1 201 13 is_stmt 1 view .LVU122
+ 201:Core/Src/command.c ****             address |= temp << ((4 - j - 1) * 8);
+ 540              		.loc 1 201 24 is_stmt 0 view .LVU123
+ 541 000e 03F10802 		add	r2, r3, #8
+ 542 0012 6A44     		add	r2, sp, r2
+ 543 0014 12F8042C 		ldrb	r2, [r2, #-4]	@ zero_extendqisi2
+ 544              	.LVL44:
+ 202:Core/Src/command.c ****         }
+ 545              		.loc 1 202 13 is_stmt 1 view .LVU124
+ 202:Core/Src/command.c ****         }
+ 546              		.loc 1 202 40 is_stmt 0 view .LVU125
+ 547 0018 C3F10301 		rsb	r1, r3, #3
+ 202:Core/Src/command.c ****         }
+ 548              		.loc 1 202 45 view .LVU126
+ 549 001c C900     		lsls	r1, r1, #3
+ 202:Core/Src/command.c ****         }
+ 550              		.loc 1 202 29 view .LVU127
+ 551 001e 8A40     		lsls	r2, r2, r1
+ 552              	.LVL45:
+ 202:Core/Src/command.c ****         }
+ 553              		.loc 1 202 21 view .LVU128
+ 554 0020 1043     		orrs	r0, r0, r2
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 21
+
+
+ 555              	.LVL46:
+ 199:Core/Src/command.c ****         {
+ 556              		.loc 1 199 33 is_stmt 1 discriminator 3 view .LVU129
+ 557 0022 0133     		adds	r3, r3, #1
+ 558              	.LVL47:
+ 559              	.L41:
+ 199:Core/Src/command.c ****         {
+ 560              		.loc 1 199 27 discriminator 1 view .LVU130
+ 561 0024 032B     		cmp	r3, #3
+ 562 0026 F2DD     		ble	.L42
+ 563              	.LBE8:
+ 205:Core/Src/command.c ****             ((address <= 0x0000FFFF) && (address >= 0x00000000)) ||
+ 564              		.loc 1 205 9 view .LVU131
+ 205:Core/Src/command.c ****             ((address <= 0x0000FFFF) && (address >= 0x00000000)) ||
+ 565              		.loc 1 205 38 is_stmt 0 view .LVU132
+ 566 0028 00F16043 		add	r3, r0, #-536870912
+ 567              	.LVL48:
+ 205:Core/Src/command.c ****             ((address <= 0x0000FFFF) && (address >= 0x00000000)) ||
+ 568              		.loc 1 205 12 view .LVU133
+ 569 002c B3F5A04F 		cmp	r3, #20480
+ 570 0030 0ED9     		bls	.L43
+ 205:Core/Src/command.c ****             ((address <= 0x0000FFFF) && (address >= 0x00000000)) ||
+ 571              		.loc 1 205 66 discriminator 1 view .LVU134
+ 572 0032 B0F5803F 		cmp	r0, #65536
+ 573 0036 0BD3     		bcc	.L43
+ 207:Core/Src/command.c ****         {
+ 574              		.loc 1 207 38 view .LVU135
+ 575 0038 00F17843 		add	r3, r0, #-134217728
+ 206:Core/Src/command.c ****             ((address <= 0x0800FFFF) && (address >= 0x08000000)))
+ 576              		.loc 1 206 66 view .LVU136
+ 577 003c B3F5803F 		cmp	r3, #65536
+ 578 0040 06D3     		bcc	.L43
+ 220:Core/Src/command.c ****         }
+ 579              		.loc 1 220 13 is_stmt 1 view .LVU137
+ 580 0042 0023     		movs	r3, #0
+ 581 0044 1A46     		mov	r2, r3
+ 582 0046 1A49     		ldr	r1, .L51
+ 583 0048 0820     		movs	r0, #8
+ 584              	.LVL49:
+ 220:Core/Src/command.c ****         }
+ 585              		.loc 1 220 13 is_stmt 0 view .LVU138
+ 586 004a FFF7FEFF 		bl	uart_printf
+ 587              	.LVL50:
+ 588 004e 16E0     		b	.L47
+ 589              	.LVL51:
+ 590              	.L43:
+ 591              	.LBB9:
+ 210:Core/Src/command.c ****             // 将数据转成4个8位
+ 592              		.loc 1 210 13 is_stmt 1 view .LVU139
+ 210:Core/Src/command.c ****             // 将数据转成4个8位
+ 593              		.loc 1 210 22 is_stmt 0 view .LVU140
+ 594 0050 0068     		ldr	r0, [r0]
+ 595              	.LVL52:
+ 212:Core/Src/command.c ****             {
+ 596              		.loc 1 212 13 is_stmt 1 view .LVU141
+ 597              	.LBB10:
+ 212:Core/Src/command.c ****             {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 22
+
+
+ 598              		.loc 1 212 18 view .LVU142
+ 212:Core/Src/command.c ****             {
+ 599              		.loc 1 212 22 is_stmt 0 view .LVU143
+ 600 0052 0022     		movs	r2, #0
+ 212:Core/Src/command.c ****             {
+ 601              		.loc 1 212 13 view .LVU144
+ 602 0054 0AE0     		b	.L45
+ 603              	.LVL53:
+ 604              	.L46:
+ 214:Core/Src/command.c ****             }
+ 605              		.loc 1 214 17 is_stmt 1 view .LVU145
+ 214:Core/Src/command.c ****             }
+ 606              		.loc 1 214 60 is_stmt 0 view .LVU146
+ 607 0056 C2F10303 		rsb	r3, r2, #3
+ 214:Core/Src/command.c ****             }
+ 608              		.loc 1 214 55 view .LVU147
+ 609 005a DB00     		lsls	r3, r3, #3
+ 214:Core/Src/command.c ****             }
+ 610              		.loc 1 214 49 view .LVU148
+ 611 005c 20FA03F3 		lsr	r3, r0, r3
+ 214:Core/Src/command.c ****             }
+ 612              		.loc 1 214 25 view .LVU149
+ 613 0060 02F10801 		add	r1, r2, #8
+ 614 0064 6944     		add	r1, sp, r1
+ 615 0066 01F8043C 		strb	r3, [r1, #-4]
+ 212:Core/Src/command.c ****             {
+ 616              		.loc 1 212 37 is_stmt 1 discriminator 3 view .LVU150
+ 617 006a 0132     		adds	r2, r2, #1
+ 618              	.LVL54:
+ 619              	.L45:
+ 212:Core/Src/command.c ****             {
+ 620              		.loc 1 212 31 discriminator 1 view .LVU151
+ 621 006c 032A     		cmp	r2, #3
+ 622 006e F2DD     		ble	.L46
+ 623              	.LBE10:
+ 216:Core/Src/command.c ****         }
+ 624              		.loc 1 216 13 view .LVU152
+ 625 0070 0423     		movs	r3, #4
+ 626 0072 0DEB0302 		add	r2, sp, r3
+ 627              	.LVL55:
+ 216:Core/Src/command.c ****         }
+ 628              		.loc 1 216 13 is_stmt 0 view .LVU153
+ 629 0076 0F49     		ldr	r1, .L51+4
+ 630 0078 0820     		movs	r0, #8
+ 631              	.LVL56:
+ 216:Core/Src/command.c ****         }
+ 632              		.loc 1 216 13 view .LVU154
+ 633 007a FFF7FEFF 		bl	uart_printf
+ 634              	.LVL57:
+ 635              	.L47:
+ 216:Core/Src/command.c ****         }
+ 636              		.loc 1 216 13 view .LVU155
+ 637              	.LBE9:
+ 638              	.LBE7:
+ 188:Core/Src/command.c ****     {
+ 639              		.loc 1 188 36 is_stmt 1 discriminator 2 view .LVU156
+ 640 007e 0134     		adds	r4, r4, #1
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 23
+
+
+ 641              	.LVL58:
+ 188:Core/Src/command.c ****     {
+ 642              		.loc 1 188 36 is_stmt 0 discriminator 2 view .LVU157
+ 643 0080 E4B2     		uxtb	r4, r4
+ 644              	.LVL59:
+ 645              	.L40:
+ 188:Core/Src/command.c ****     {
+ 646              		.loc 1 188 27 is_stmt 1 discriminator 1 view .LVU158
+ 647 0082 B442     		cmp	r4, r6
+ 648 0084 12D2     		bcs	.L50
+ 649              	.LBB13:
+ 191:Core/Src/command.c ****         STR_TO_HEX(argv[i], data);
+ 650              		.loc 1 191 9 view .LVU159
+ 191:Core/Src/command.c ****         STR_TO_HEX(argv[i], data);
+ 651              		.loc 1 191 13 is_stmt 0 view .LVU160
+ 652 0086 55F82430 		ldr	r3, [r5, r4, lsl #2]
+ 191:Core/Src/command.c ****         STR_TO_HEX(argv[i], data);
+ 653              		.loc 1 191 20 view .LVU161
+ 654 008a 0027     		movs	r7, #0
+ 655 008c 1F72     		strb	r7, [r3, #8]
+ 192:Core/Src/command.c ****         uart_printf(system_log, "addres : ", &data[0], 4);
+ 656              		.loc 1 192 9 is_stmt 1 view .LVU162
+ 657 008e 01A9     		add	r1, sp, #4
+ 658 0090 55F82400 		ldr	r0, [r5, r4, lsl #2]
+ 659 0094 FFF7FEFF 		bl	STR_TO_HEX
+ 660              	.LVL60:
+ 193:Core/Src/command.c **** 
+ 661              		.loc 1 193 9 view .LVU163
+ 662 0098 0423     		movs	r3, #4
+ 663 009a 0DEB0302 		add	r2, sp, r3
+ 664 009e 0649     		ldr	r1, .L51+8
+ 665 00a0 0820     		movs	r0, #8
+ 666 00a2 FFF7FEFF 		bl	uart_printf
+ 667              	.LVL61:
+ 196:Core/Src/command.c **** 
+ 668              		.loc 1 196 9 view .LVU164
+ 199:Core/Src/command.c ****         {
+ 669              		.loc 1 199 9 view .LVU165
+ 670              	.LBB11:
+ 199:Core/Src/command.c ****         {
+ 671              		.loc 1 199 14 view .LVU166
+ 199:Core/Src/command.c ****         {
+ 672              		.loc 1 199 18 is_stmt 0 view .LVU167
+ 673 00a6 3B46     		mov	r3, r7
+ 674              	.LBE11:
+ 196:Core/Src/command.c **** 
+ 675              		.loc 1 196 24 view .LVU168
+ 676 00a8 3846     		mov	r0, r7
+ 677              	.LBB12:
+ 199:Core/Src/command.c ****         {
+ 678              		.loc 1 199 9 view .LVU169
+ 679 00aa BBE7     		b	.L41
+ 680              	.LVL62:
+ 681              	.L50:
+ 199:Core/Src/command.c ****         {
+ 682              		.loc 1 199 9 view .LVU170
+ 683              	.LBE12:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 24
+
+
+ 684              	.LBE13:
+ 685              	.LBE6:
+ 223:Core/Src/command.c **** 
+ 686              		.loc 1 223 1 view .LVU171
+ 687 00ac 03B0     		add	sp, sp, #12
+ 688              		.cfi_def_cfa_offset 20
+ 689              		@ sp needed
+ 690 00ae F0BD     		pop	{r4, r5, r6, r7, pc}
+ 691              	.LVL63:
+ 692              	.L52:
+ 223:Core/Src/command.c **** 
+ 693              		.loc 1 223 1 view .LVU172
+ 694              		.align	2
+ 695              	.L51:
+ 696 00b0 14000000 		.word	.LC8
+ 697 00b4 0C000000 		.word	.LC7
+ 698 00b8 00000000 		.word	.LC6
+ 699              		.cfi_endproc
+ 700              	.LFE7:
+ 702              		.section	.text.log_cancel_commend,"ax",%progbits
+ 703              		.align	1
+ 704              		.syntax unified
+ 705              		.thumb
+ 706              		.thumb_func
+ 708              	log_cancel_commend:
+ 709              	.LVL64:
+ 710              	.LFB17:
+ 470:Core/Src/command.c **** 
+ 471:Core/Src/command.c **** static void log_set_commend(uint8_t argc, char *argv[])
+ 472:Core/Src/command.c **** {
+ 473:Core/Src/command.c ****     uint8_t data;
+ 474:Core/Src/command.c **** 
+ 475:Core/Src/command.c ****     // 防止溢出
+ 476:Core/Src/command.c ****     argv[0][3] = '\0';
+ 477:Core/Src/command.c ****     STR_TO_HEX(argv[0], &data);
+ 478:Core/Src/command.c ****     set_log_level(data);
+ 479:Core/Src/command.c **** }
+ 480:Core/Src/command.c **** static void log_cancel_commend(uint8_t argc, char *argv[])
+ 481:Core/Src/command.c **** {
+ 711              		.loc 1 481 1 is_stmt 1 view -0
+ 712              		.cfi_startproc
+ 713              		@ args = 0, pretend = 0, frame = 8
+ 714              		@ frame_needed = 0, uses_anonymous_args = 0
+ 715              		.loc 1 481 1 is_stmt 0 view .LVU174
+ 716 0000 00B5     		push	{lr}
+ 717              		.cfi_def_cfa_offset 4
+ 718              		.cfi_offset 14, -4
+ 719 0002 83B0     		sub	sp, sp, #12
+ 720              		.cfi_def_cfa_offset 16
+ 721 0004 0B46     		mov	r3, r1
+ 482:Core/Src/command.c ****     uint8_t data;
+ 722              		.loc 1 482 5 is_stmt 1 view .LVU175
+ 483:Core/Src/command.c ****     argv[0][3] = '\0';
+ 723              		.loc 1 483 5 view .LVU176
+ 724              		.loc 1 483 9 is_stmt 0 view .LVU177
+ 725 0006 0A68     		ldr	r2, [r1]
+ 726              		.loc 1 483 16 view .LVU178
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 25
+
+
+ 727 0008 0021     		movs	r1, #0
+ 728              	.LVL65:
+ 729              		.loc 1 483 16 view .LVU179
+ 730 000a D170     		strb	r1, [r2, #3]
+ 484:Core/Src/command.c ****     STR_TO_HEX(argv[0], &data);
+ 731              		.loc 1 484 5 is_stmt 1 view .LVU180
+ 732 000c 0DF10701 		add	r1, sp, #7
+ 733 0010 1868     		ldr	r0, [r3]
+ 734              	.LVL66:
+ 735              		.loc 1 484 5 is_stmt 0 view .LVU181
+ 736 0012 FFF7FEFF 		bl	STR_TO_HEX
+ 737              	.LVL67:
+ 485:Core/Src/command.c ****     cancel_log_level(data);
+ 738              		.loc 1 485 5 is_stmt 1 view .LVU182
+ 739 0016 9DF80700 		ldrb	r0, [sp, #7]	@ zero_extendqisi2
+ 740 001a FFF7FEFF 		bl	cancel_log_level
+ 741              	.LVL68:
+ 486:Core/Src/command.c **** }...
+ 742              		.loc 1 486 1 is_stmt 0 view .LVU183
+ 743 001e 03B0     		add	sp, sp, #12
+ 744              		.cfi_def_cfa_offset 4
+ 745              		@ sp needed
+ 746 0020 5DF804FB 		ldr	pc, [sp], #4
+ 747              		.cfi_endproc
+ 748              	.LFE17:
+ 750              		.section	.text.log_set_commend,"ax",%progbits
+ 751              		.align	1
+ 752              		.syntax unified
+ 753              		.thumb
+ 754              		.thumb_func
+ 756              	log_set_commend:
+ 757              	.LVL69:
+ 758              	.LFB16:
+ 472:Core/Src/command.c **** {
+ 759              		.loc 1 472 1 is_stmt 1 view -0
+ 760              		.cfi_startproc
+ 761              		@ args = 0, pretend = 0, frame = 8
+ 762              		@ frame_needed = 0, uses_anonymous_args = 0
+ 472:Core/Src/command.c **** {
+ 763              		.loc 1 472 1 is_stmt 0 view .LVU185
+ 764 0000 00B5     		push	{lr}
+ 765              		.cfi_def_cfa_offset 4
+ 766              		.cfi_offset 14, -4
+ 767 0002 83B0     		sub	sp, sp, #12
+ 768              		.cfi_def_cfa_offset 16
+ 769 0004 0B46     		mov	r3, r1
+ 473:Core/Src/command.c ****     uint8_t data;
+ 770              		.loc 1 473 5 is_stmt 1 view .LVU186
+ 476:Core/Src/command.c ****     argv[0][3] = '\0';
+ 771              		.loc 1 476 5 view .LVU187
+ 476:Core/Src/command.c ****     argv[0][3] = '\0';
+ 772              		.loc 1 476 9 is_stmt 0 view .LVU188
+ 773 0006 0A68     		ldr	r2, [r1]
+ 476:Core/Src/command.c ****     argv[0][3] = '\0';
+ 774              		.loc 1 476 16 view .LVU189
+ 775 0008 0021     		movs	r1, #0
+ 776              	.LVL70:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 26
+
+
+ 476:Core/Src/command.c ****     argv[0][3] = '\0';
+ 777              		.loc 1 476 16 view .LVU190
+ 778 000a D170     		strb	r1, [r2, #3]
+ 477:Core/Src/command.c ****     STR_TO_HEX(argv[0], &data);
+ 779              		.loc 1 477 5 is_stmt 1 view .LVU191
+ 780 000c 0DF10701 		add	r1, sp, #7
+ 781 0010 1868     		ldr	r0, [r3]
+ 782              	.LVL71:
+ 477:Core/Src/command.c ****     STR_TO_HEX(argv[0], &data);
+ 783              		.loc 1 477 5 is_stmt 0 view .LVU192
+ 784 0012 FFF7FEFF 		bl	STR_TO_HEX
+ 785              	.LVL72:
+ 478:Core/Src/command.c ****     set_log_level(data);
+ 786              		.loc 1 478 5 is_stmt 1 view .LVU193
+ 787 0016 9DF80700 		ldrb	r0, [sp, #7]	@ zero_extendqisi2
+ 788 001a FFF7FEFF 		bl	set_log_level
+ 789              	.LVL73:
+ 479:Core/Src/command.c **** }
+ 790              		.loc 1 479 1 is_stmt 0 view .LVU194
+ 791 001e 03B0     		add	sp, sp, #12
+ 792              		.cfi_def_cfa_offset 4
+ 793              		@ sp needed
+ 794 0020 5DF804FB 		ldr	pc, [sp], #4
+ 795              		.cfi_endproc
+ 796              	.LFE16:
+ 798              		.section	.text.uds_port,"ax",%progbits
+ 799              		.align	1
+ 800              		.syntax unified
+ 801              		.thumb
+ 802              		.thumb_func
+ 804              	uds_port:
+ 805              	.LVL74:
+ 806              	.LFB14:
+ 454:Core/Src/command.c **** {
+ 807              		.loc 1 454 1 is_stmt 1 view -0
+ 808              		.cfi_startproc
+ 809              		@ args = 0, pretend = 0, frame = 8
+ 810              		@ frame_needed = 0, uses_anonymous_args = 0
+ 454:Core/Src/command.c **** {
+ 811              		.loc 1 454 1 is_stmt 0 view .LVU196
+ 812 0000 30B5     		push	{r4, r5, lr}
+ 813              		.cfi_def_cfa_offset 12
+ 814              		.cfi_offset 4, -12
+ 815              		.cfi_offset 5, -8
+ 816              		.cfi_offset 14, -4
+ 817 0002 83B0     		sub	sp, sp, #12
+ 818              		.cfi_def_cfa_offset 24
+ 819 0004 0D46     		mov	r5, r1
+ 457:Core/Src/command.c ****     uint8_t data[8] = {};
+ 820              		.loc 1 457 5 is_stmt 1 view .LVU197
+ 457:Core/Src/command.c ****     uint8_t data[8] = {};
+ 821              		.loc 1 457 13 is_stmt 0 view .LVU198
+ 822 0006 0024     		movs	r4, #0
+ 823 0008 0094     		str	r4, [sp]
+ 824 000a 0194     		str	r4, [sp, #4]
+ 459:Core/Src/command.c ****     for (uint8_t index = 0; index < 8; index++)
+ 825              		.loc 1 459 5 is_stmt 1 view .LVU199
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 27
+
+
+ 826              	.LBB14:
+ 459:Core/Src/command.c ****     for (uint8_t index = 0; index < 8; index++)
+ 827              		.loc 1 459 10 view .LVU200
+ 828              	.LVL75:
+ 459:Core/Src/command.c ****     for (uint8_t index = 0; index < 8; index++)
+ 829              		.loc 1 459 5 is_stmt 0 view .LVU201
+ 830 000c 09E0     		b	.L58
+ 831              	.LVL76:
+ 832              	.L59:
+ 461:Core/Src/command.c ****         STR_TO_HEX(&argv[0][index * 3], &data[index]);
+ 833              		.loc 1 461 9 is_stmt 1 view .LVU202
+ 461:Core/Src/command.c ****         STR_TO_HEX(&argv[0][index * 3], &data[index]);
+ 834              		.loc 1 461 25 is_stmt 0 view .LVU203
+ 835 000e 2868     		ldr	r0, [r5]
+ 461:Core/Src/command.c ****         STR_TO_HEX(&argv[0][index * 3], &data[index]);
+ 836              		.loc 1 461 35 view .LVU204
+ 837 0010 04EB4403 		add	r3, r4, r4, lsl #1
+ 461:Core/Src/command.c ****         STR_TO_HEX(&argv[0][index * 3], &data[index]);
+ 838              		.loc 1 461 9 view .LVU205
+ 839 0014 0DEB0401 		add	r1, sp, r4
+ 840 0018 1844     		add	r0, r0, r3
+ 841 001a FFF7FEFF 		bl	STR_TO_HEX
+ 842              	.LVL77:
+ 459:Core/Src/command.c ****     for (uint8_t index = 0; index < 8; index++)
+ 843              		.loc 1 459 45 is_stmt 1 discriminator 3 view .LVU206
+ 844 001e 0134     		adds	r4, r4, #1
+ 845              	.LVL78:
+ 459:Core/Src/command.c ****     for (uint8_t index = 0; index < 8; index++)
+ 846              		.loc 1 459 45 is_stmt 0 discriminator 3 view .LVU207
+ 847 0020 E4B2     		uxtb	r4, r4
+ 848              	.LVL79:
+ 849              	.L58:
+ 459:Core/Src/command.c ****     for (uint8_t index = 0; index < 8; index++)
+ 850              		.loc 1 459 35 is_stmt 1 discriminator 1 view .LVU208
+ 851 0022 072C     		cmp	r4, #7
+ 852 0024 F3D9     		bls	.L59
+ 853              	.LBE14:
+ 463:Core/Src/command.c ****     can_service_entry(data);
+ 854              		.loc 1 463 5 view .LVU209
+ 855 0026 6846     		mov	r0, sp
+ 856 0028 FFF7FEFF 		bl	can_service_entry
+ 857              	.LVL80:
+ 464:Core/Src/command.c **** }
+ 858              		.loc 1 464 1 is_stmt 0 view .LVU210
+ 859 002c 03B0     		add	sp, sp, #12
+ 860              		.cfi_def_cfa_offset 12
+ 861              		@ sp needed
+ 862 002e 30BD     		pop	{r4, r5, pc}
+ 464:Core/Src/command.c **** }
+ 863              		.loc 1 464 1 view .LVU211
+ 864              		.cfi_endproc
+ 865              	.LFE14:
+ 867              		.section	.rodata.exec_command.str1.4,"aMS",%progbits,1
+ 868              		.align	2
+ 869              	.LC9:
+ 870 0000 636F6D6D 		.ascii	"command not found :\000"
+ 870      616E6420 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 28
+
+
+ 870      6E6F7420 
+ 870      666F756E 
+ 870      64203A00 
+ 871              		.section	.text.exec_command,"ax",%progbits
+ 872              		.align	1
+ 873              		.global	exec_command
+ 874              		.syntax unified
+ 875              		.thumb
+ 876              		.thumb_func
+ 878              	exec_command:
+ 879              	.LVL81:
+ 880              	.LFB3:
+  45:Core/Src/command.c **** {
+ 881              		.loc 1 45 1 is_stmt 1 view -0
+ 882              		.cfi_startproc
+ 883              		@ args = 0, pretend = 0, frame = 16
+ 884              		@ frame_needed = 0, uses_anonymous_args = 0
+  45:Core/Src/command.c **** {
+ 885              		.loc 1 45 1 is_stmt 0 view .LVU213
+ 886 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 887              		.cfi_def_cfa_offset 36
+ 888              		.cfi_offset 4, -36
+ 889              		.cfi_offset 5, -32
+ 890              		.cfi_offset 6, -28
+ 891              		.cfi_offset 7, -24
+ 892              		.cfi_offset 8, -20
+ 893              		.cfi_offset 9, -16
+ 894              		.cfi_offset 10, -12
+ 895              		.cfi_offset 11, -8
+ 896              		.cfi_offset 14, -4
+ 897 0004 85B0     		sub	sp, sp, #20
+ 898              		.cfi_def_cfa_offset 56
+ 899 0006 0746     		mov	r7, r0
+ 900 0008 0D46     		mov	r5, r1
+  47:Core/Src/command.c ****     uint8_t i = 0;
+ 901              		.loc 1 47 5 is_stmt 1 view .LVU214
+ 902              	.LVL82:
+  48:Core/Src/command.c ****     uint8_t vaild_strlen = 0;
+ 903              		.loc 1 48 5 view .LVU215
+  49:Core/Src/command.c ****     uint8_t find_sub_function = 0;
+ 904              		.loc 1 49 5 view .LVU216
+  50:Core/Src/command.c ****     uint8_t argc = 0;
+ 905              		.loc 1 50 5 view .LVU217
+  52:Core/Src/command.c ****     char *argv[3] = {NULL, NULL, NULL};
+ 906              		.loc 1 52 5 view .LVU218
+  52:Core/Src/command.c ****     char *argv[3] = {NULL, NULL, NULL};
+ 907              		.loc 1 52 11 is_stmt 0 view .LVU219
+ 908 000a 0024     		movs	r4, #0
+ 909 000c 0194     		str	r4, [sp, #4]
+ 910 000e 0294     		str	r4, [sp, #8]
+ 911 0010 0394     		str	r4, [sp, #12]
+  55:Core/Src/command.c ****     change_space_to_end(command, str_len);
+ 912              		.loc 1 55 5 is_stmt 1 view .LVU220
+ 913 0012 FFF7FEFF 		bl	change_space_to_end
+ 914              	.LVL83:
+  58:Core/Src/command.c ****     uint8_t j = 0; // 迭代字符串
+ 915              		.loc 1 58 5 view .LVU221
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 29
+
+
+  59:Core/Src/command.c ****     vaild_strlen = str_len;
+ 916              		.loc 1 59 5 view .LVU222
+  60:Core/Src/command.c ****     while ((command[j] == '\0') & (j < str_len))
+ 917              		.loc 1 60 5 view .LVU223
+  59:Core/Src/command.c ****     vaild_strlen = str_len;
+ 918              		.loc 1 59 18 is_stmt 0 view .LVU224
+ 919 0016 2E46     		mov	r6, r5
+  60:Core/Src/command.c ****     while ((command[j] == '\0') & (j < str_len))
+ 920              		.loc 1 60 11 view .LVU225
+ 921 0018 03E0     		b	.L62
+ 922              	.LVL84:
+ 923              	.L63:
+  62:Core/Src/command.c ****         j++;
+ 924              		.loc 1 62 9 is_stmt 1 view .LVU226
+  62:Core/Src/command.c ****         j++;
+ 925              		.loc 1 62 10 is_stmt 0 view .LVU227
+ 926 001a 0134     		adds	r4, r4, #1
+ 927              	.LVL85:
+  62:Core/Src/command.c ****         j++;
+ 928              		.loc 1 62 10 view .LVU228
+ 929 001c E4B2     		uxtb	r4, r4
+ 930              	.LVL86:
+  64:Core/Src/command.c ****         vaild_strlen--;
+ 931              		.loc 1 64 9 is_stmt 1 view .LVU229
+  64:Core/Src/command.c ****         vaild_strlen--;
+ 932              		.loc 1 64 21 is_stmt 0 view .LVU230
+ 933 001e 013E     		subs	r6, r6, #1
+ 934              	.LVL87:
+  64:Core/Src/command.c ****         vaild_strlen--;
+ 935              		.loc 1 64 21 view .LVU231
+ 936 0020 F6B2     		uxtb	r6, r6
+ 937              	.LVL88:
+ 938              	.L62:
+  60:Core/Src/command.c ****     while ((command[j] == '\0') & (j < str_len))
+ 939              		.loc 1 60 12 is_stmt 1 view .LVU232
+  60:Core/Src/command.c ****     while ((command[j] == '\0') & (j < str_len))
+ 940              		.loc 1 60 20 is_stmt 0 view .LVU233
+ 941 0022 07EB040A 		add	r10, r7, r4
+ 942 0026 3B5D     		ldrb	r3, [r7, r4]	@ zero_extendqisi2
+  60:Core/Src/command.c ****     while ((command[j] == '\0') & (j < str_len))
+ 943              		.loc 1 60 33 view .LVU234
+ 944 0028 B3FA83F3 		clz	r3, r3
+ 945 002c 5B09     		lsrs	r3, r3, #5
+ 946 002e AC42     		cmp	r4, r5
+ 947 0030 28BF     		it	cs
+ 948 0032 0023     		movcs	r3, #0
+  60:Core/Src/command.c ****     while ((command[j] == '\0') & (j < str_len))
+ 949              		.loc 1 60 12 view .LVU235
+ 950 0034 002B     		cmp	r3, #0
+ 951 0036 F0D1     		bne	.L63
+  68:Core/Src/command.c ****     if (vaild_strlen == 0)
+ 952              		.loc 1 68 5 is_stmt 1 view .LVU236
+  68:Core/Src/command.c ****     if (vaild_strlen == 0)
+ 953              		.loc 1 68 8 is_stmt 0 view .LVU237
+ 954 0038 002E     		cmp	r6, #0
+ 955 003a 3BD0     		beq	.L61
+  47:Core/Src/command.c ****     uint8_t i = 0;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 30
+
+
+ 956              		.loc 1 47 13 view .LVU238
+ 957 003c 4FF00008 		mov	r8, #0
+ 958              	.LVL89:
+ 959              	.L64:
+  73:Core/Src/command.c ****     while (shell_functions[i] != NULL) // 遍历支持的shell_function
+ 960              		.loc 1 73 31 is_stmt 1 view .LVU239
+  73:Core/Src/command.c ****     while (shell_functions[i] != NULL) // 遍历支持的shell_function
+ 961              		.loc 1 73 27 is_stmt 0 view .LVU240
+ 962 0040 354B     		ldr	r3, .L83
+ 963 0042 53F82890 		ldr	r9, [r3, r8, lsl #2]
+  73:Core/Src/command.c ****     while (shell_functions[i] != NULL) // 遍历支持的shell_function
+ 964              		.loc 1 73 31 view .LVU241
+ 965 0046 B9F1000F 		cmp	r9, #0
+ 966 004a 30D0     		beq	.L74
+  77:Core/Src/command.c ****         if (memcmp(&command[j], shell_functions[i]->name, strlen(shell_functions[i]->name)) == 0)
+ 967              		.loc 1 77 9 is_stmt 1 view .LVU242
+  77:Core/Src/command.c ****         if (memcmp(&command[j], shell_functions[i]->name, strlen(shell_functions[i]->name)) == 0)
+ 968              		.loc 1 77 51 is_stmt 0 view .LVU243
+ 969 004c D9F800B0 		ldr	fp, [r9]
+  77:Core/Src/command.c ****         if (memcmp(&command[j], shell_functions[i]->name, strlen(shell_functions[i]->name)) == 0)
+ 970              		.loc 1 77 13 view .LVU244
+ 971 0050 5846     		mov	r0, fp
+ 972 0052 FFF7FEFF 		bl	strlen
+ 973              	.LVL90:
+ 974 0056 0546     		mov	r5, r0
+  77:Core/Src/command.c ****         if (memcmp(&command[j], shell_functions[i]->name, strlen(shell_functions[i]->name)) == 0)
+ 975              		.loc 1 77 13 discriminator 1 view .LVU245
+ 976 0058 0246     		mov	r2, r0
+ 977 005a 5946     		mov	r1, fp
+ 978 005c 5046     		mov	r0, r10
+ 979 005e FFF7FEFF 		bl	memcmp
+ 980              	.LVL91:
+  77:Core/Src/command.c ****         if (memcmp(&command[j], shell_functions[i]->name, strlen(shell_functions[i]->name)) == 0)
+ 981              		.loc 1 77 12 discriminator 2 view .LVU246
+ 982 0062 20B1     		cbz	r0, .L81
+ 125:Core/Src/command.c ****         i++;
+ 983              		.loc 1 125 9 is_stmt 1 view .LVU247
+ 125:Core/Src/command.c ****         i++;
+ 984              		.loc 1 125 10 is_stmt 0 view .LVU248
+ 985 0064 08F10108 		add	r8, r8, #1
+ 986              	.LVL92:
+ 125:Core/Src/command.c ****         i++;
+ 987              		.loc 1 125 10 view .LVU249
+ 988 0068 5FFA88F8 		uxtb	r8, r8
+ 989              	.LVL93:
+ 125:Core/Src/command.c ****         i++;
+ 990              		.loc 1 125 10 view .LVU250
+ 991 006c E8E7     		b	.L64
+ 992              	.L81:
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 993              		.loc 1 81 13 is_stmt 1 view .LVU251
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 994              		.loc 1 81 20 is_stmt 0 discriminator 1 view .LVU252
+ 995 006e 6319     		adds	r3, r4, r5
+ 996 0070 DBB2     		uxtb	r3, r3
+ 997              	.LVL94:
+  50:Core/Src/command.c ****     uint8_t argc = 0;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 31
+
+
+ 998              		.loc 1 50 13 view .LVU253
+ 999 0072 0024     		movs	r4, #0
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 1000              		.loc 1 81 13 view .LVU254
+ 1001 0074 01E0     		b	.L67
+ 1002              	.LVL95:
+ 1003              	.L68:
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 1004              		.loc 1 81 80 is_stmt 1 discriminator 2 view .LVU255
+ 1005 0076 0133     		adds	r3, r3, #1
+ 1006              	.LVL96:
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 1007              		.loc 1 81 80 is_stmt 0 discriminator 2 view .LVU256
+ 1008 0078 DBB2     		uxtb	r3, r3
+ 1009              	.LVL97:
+ 1010              	.L67:
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 1011              		.loc 1 81 59 is_stmt 1 discriminator 1 view .LVU257
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 1012              		.loc 1 81 74 is_stmt 0 discriminator 1 view .LVU258
+ 1013 007a 721E     		subs	r2, r6, #1
+  81:Core/Src/command.c ****             for (j += strlen(shell_functions[i]->name); j < vaild_strlen - 1; j++)
+ 1014              		.loc 1 81 59 discriminator 1 view .LVU259
+ 1015 007c 9342     		cmp	r3, r2
+ 1016 007e 10DA     		bge	.L69
+  85:Core/Src/command.c ****                 if ((command[j] == '\0') && (command[j + 1] != '\0'))
+ 1017              		.loc 1 85 17 is_stmt 1 view .LVU260
+  85:Core/Src/command.c ****                 if ((command[j] == '\0') && (command[j + 1] != '\0'))
+ 1018              		.loc 1 85 29 is_stmt 0 view .LVU261
+ 1019 0080 FA5C     		ldrb	r2, [r7, r3]	@ zero_extendqisi2
+  85:Core/Src/command.c ****                 if ((command[j] == '\0') && (command[j + 1] != '\0'))
+ 1020              		.loc 1 85 20 view .LVU262
+ 1021 0082 002A     		cmp	r2, #0
+ 1022 0084 F7D1     		bne	.L68
+  85:Core/Src/command.c ****                 if ((command[j] == '\0') && (command[j + 1] != '\0'))
+ 1023              		.loc 1 85 53 discriminator 1 view .LVU263
+ 1024 0086 5A1C     		adds	r2, r3, #1
+ 1025 0088 B918     		adds	r1, r7, r2
+ 1026 008a BA5C     		ldrb	r2, [r7, r2]	@ zero_extendqisi2
+  85:Core/Src/command.c ****                 if ((command[j] == '\0') && (command[j + 1] != '\0'))
+ 1027              		.loc 1 85 42 discriminator 1 view .LVU264
+ 1028 008c 002A     		cmp	r2, #0
+ 1029 008e F2D0     		beq	.L68
+  88:Core/Src/command.c ****                     argv[argc] = &command[j + 1];
+ 1030              		.loc 1 88 21 is_stmt 1 view .LVU265
+  88:Core/Src/command.c ****                     argv[argc] = &command[j + 1];
+ 1031              		.loc 1 88 32 is_stmt 0 view .LVU266
+ 1032 0090 04AA     		add	r2, sp, #16
+ 1033 0092 02EB8402 		add	r2, r2, r4, lsl #2
+ 1034 0096 42F80C1C 		str	r1, [r2, #-12]
+  89:Core/Src/command.c ****                     argc++;
+ 1035              		.loc 1 89 21 is_stmt 1 view .LVU267
+  89:Core/Src/command.c ****                     argc++;
+ 1036              		.loc 1 89 25 is_stmt 0 view .LVU268
+ 1037 009a 0134     		adds	r4, r4, #1
+ 1038              	.LVL98:
+  89:Core/Src/command.c ****                     argc++;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 32
+
+
+ 1039              		.loc 1 89 25 view .LVU269
+ 1040 009c E4B2     		uxtb	r4, r4
+ 1041              	.LVL99:
+  91:Core/Src/command.c ****                     if (argc == 3)
+ 1042              		.loc 1 91 21 is_stmt 1 view .LVU270
+  91:Core/Src/command.c ****                     if (argc == 3)
+ 1043              		.loc 1 91 24 is_stmt 0 view .LVU271
+ 1044 009e 032C     		cmp	r4, #3
+ 1045 00a0 E9D1     		bne	.L68
+ 1046              	.L69:
+  99:Core/Src/command.c ****             if (argc != 0)
+ 1047              		.loc 1 99 13 is_stmt 1 view .LVU272
+  99:Core/Src/command.c ****             if (argc != 0)
+ 1048              		.loc 1 99 16 is_stmt 0 view .LVU273
+ 1049 00a2 1CBB     		cbnz	r4, .L79
+ 1050              	.LVL100:
+ 1051              	.L72:
+ 119:Core/Src/command.c ****                 shell_functions[i]->function(argc, argv);
+ 1052              		.loc 1 119 17 is_stmt 1 view .LVU274
+ 119:Core/Src/command.c ****                 shell_functions[i]->function(argc, argv);
+ 1053              		.loc 1 119 35 is_stmt 0 view .LVU275
+ 1054 00a4 D9F80430 		ldr	r3, [r9, #4]
+ 119:Core/Src/command.c ****                 shell_functions[i]->function(argc, argv);
+ 1055              		.loc 1 119 17 view .LVU276
+ 1056 00a8 01A9     		add	r1, sp, #4
+ 1057 00aa 2046     		mov	r0, r4
+ 1058 00ac 9847     		blx	r3
+ 1059              	.LVL101:
+ 1060              	.L74:
+ 128:Core/Src/command.c ****     if (i == (sizeof(shell_functions) / sizeof(shell_functions[0]) - 1))
+ 1061              		.loc 1 128 5 is_stmt 1 view .LVU277
+ 128:Core/Src/command.c ****     if (i == (sizeof(shell_functions) / sizeof(shell_functions[0]) - 1))
+ 1062              		.loc 1 128 8 is_stmt 0 view .LVU278
+ 1063 00ae B8F1050F 		cmp	r8, #5
+ 1064 00b2 1DD0     		beq	.L82
+ 1065              	.LVL102:
+ 1066              	.L61:
+ 134:Core/Src/command.c **** }
+ 1067              		.loc 1 134 1 view .LVU279
+ 1068 00b4 05B0     		add	sp, sp, #20
+ 1069              		.cfi_remember_state
+ 1070              		.cfi_def_cfa_offset 36
+ 1071              		@ sp needed
+ 1072 00b6 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 1073              	.LVL103:
+ 1074              	.L73:
+ 1075              		.cfi_restore_state
+ 112:Core/Src/command.c ****                     j++;
+ 1076              		.loc 1 112 21 is_stmt 1 view .LVU280
+ 112:Core/Src/command.c ****                     j++;
+ 1077              		.loc 1 112 22 is_stmt 0 view .LVU281
+ 1078 00ba 0135     		adds	r5, r5, #1
+ 1079              	.LVL104:
+ 112:Core/Src/command.c ****                     j++;
+ 1080              		.loc 1 112 22 view .LVU282
+ 1081 00bc EDB2     		uxtb	r5, r5
+ 1082              	.LVL105:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 33
+
+
+ 1083              	.L71:
+ 102:Core/Src/command.c ****                 while (shell_functions[i]->subFuns[j] != NULL)
+ 1084              		.loc 1 102 55 is_stmt 1 view .LVU283
+ 102:Core/Src/command.c ****                 while (shell_functions[i]->subFuns[j] != NULL)
+ 1085              		.loc 1 102 51 is_stmt 0 view .LVU284
+ 1086 00be AB1C     		adds	r3, r5, #2
+ 1087 00c0 59F82360 		ldr	r6, [r9, r3, lsl #2]
+ 102:Core/Src/command.c ****                 while (shell_functions[i]->subFuns[j] != NULL)
+ 1088              		.loc 1 102 55 view .LVU285
+ 1089 00c4 002E     		cmp	r6, #0
+ 1090 00c6 EDD0     		beq	.L72
+ 105:Core/Src/command.c ****                     if (memcmp(shell_functions[i]->subFuns[j]->name, argv[0], strlen(shell_function
+ 1091              		.loc 1 105 21 is_stmt 1 view .LVU286
+ 105:Core/Src/command.c ****                     if (memcmp(shell_functions[i]->subFuns[j]->name, argv[0], strlen(shell_function
+ 1092              		.loc 1 105 62 is_stmt 0 view .LVU287
+ 1093 00c8 D6F800A0 		ldr	r10, [r6]
+ 105:Core/Src/command.c ****                     if (memcmp(shell_functions[i]->subFuns[j]->name, argv[0], strlen(shell_function
+ 1094              		.loc 1 105 25 view .LVU288
+ 1095 00cc 5046     		mov	r0, r10
+ 1096 00ce FFF7FEFF 		bl	strlen
+ 1097              	.LVL106:
+ 1098 00d2 0246     		mov	r2, r0
+ 105:Core/Src/command.c ****                     if (memcmp(shell_functions[i]->subFuns[j]->name, argv[0], strlen(shell_function
+ 1099              		.loc 1 105 25 discriminator 1 view .LVU289
+ 1100 00d4 0199     		ldr	r1, [sp, #4]
+ 1101 00d6 5046     		mov	r0, r10
+ 1102 00d8 FFF7FEFF 		bl	memcmp
+ 1103              	.LVL107:
+ 105:Core/Src/command.c ****                     if (memcmp(shell_functions[i]->subFuns[j]->name, argv[0], strlen(shell_function
+ 1104              		.loc 1 105 24 discriminator 2 view .LVU290
+ 1105 00dc 0028     		cmp	r0, #0
+ 1106 00de ECD1     		bne	.L73
+ 108:Core/Src/command.c ****                         shell_functions[i]->subFuns[j]->subFunction((argc - 1), &argv[1]);
+ 1107              		.loc 1 108 25 is_stmt 1 view .LVU291
+ 108:Core/Src/command.c ****                         shell_functions[i]->subFuns[j]->subFunction((argc - 1), &argv[1]);
+ 1108              		.loc 1 108 55 is_stmt 0 view .LVU292
+ 1109 00e0 7368     		ldr	r3, [r6, #4]
+ 108:Core/Src/command.c ****                         shell_functions[i]->subFuns[j]->subFunction((argc - 1), &argv[1]);
+ 1110              		.loc 1 108 25 view .LVU293
+ 1111 00e2 601E     		subs	r0, r4, #1
+ 1112 00e4 02A9     		add	r1, sp, #8
+ 1113 00e6 C0B2     		uxtb	r0, r0
+ 1114 00e8 9847     		blx	r3
+ 1115              	.LVL108:
+ 109:Core/Src/command.c ****                         find_sub_function = 1;
+ 1116              		.loc 1 109 25 is_stmt 1 view .LVU294
+ 110:Core/Src/command.c ****                         break;
+ 1117              		.loc 1 110 25 view .LVU295
+ 117:Core/Src/command.c ****             if (find_sub_function == 0)
+ 1118              		.loc 1 117 13 view .LVU296
+ 1119 00ea E0E7     		b	.L74
+ 1120              	.LVL109:
+ 1121              	.L79:
+ 101:Core/Src/command.c ****                 j = 0;
+ 1122              		.loc 1 101 19 is_stmt 0 view .LVU297
+ 1123 00ec 0025     		movs	r5, #0
+ 1124 00ee E6E7     		b	.L71
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 34
+
+
+ 1125              	.LVL110:
+ 1126              	.L82:
+ 130:Core/Src/command.c ****         uart_printf(error_log, "command not found :", NULL, 0);
+ 1127              		.loc 1 130 9 is_stmt 1 view .LVU298
+ 1128 00f0 0023     		movs	r3, #0
+ 1129 00f2 1A46     		mov	r2, r3
+ 1130 00f4 0949     		ldr	r1, .L83+4
+ 1131 00f6 0420     		movs	r0, #4
+ 1132 00f8 FFF7FEFF 		bl	uart_printf
+ 1133              	.LVL111:
+ 131:Core/Src/command.c ****         uart_printf(error_log, command, NULL, 0);
+ 1134              		.loc 1 131 9 view .LVU299
+ 1135 00fc 0023     		movs	r3, #0
+ 1136 00fe 1A46     		mov	r2, r3
+ 1137 0100 3946     		mov	r1, r7
+ 1138 0102 0420     		movs	r0, #4
+ 1139 0104 FFF7FEFF 		bl	uart_printf
+ 1140              	.LVL112:
+ 132:Core/Src/command.c ****         uart_printf(error_log, "\r\n", NULL, 0);
+ 1141              		.loc 1 132 9 view .LVU300
+ 1142 0108 0023     		movs	r3, #0
+ 1143 010a 1A46     		mov	r2, r3
+ 1144 010c 0449     		ldr	r1, .L83+8
+ 1145 010e 0420     		movs	r0, #4
+ 1146 0110 FFF7FEFF 		bl	uart_printf
+ 1147              	.LVL113:
+ 1148 0114 CEE7     		b	.L61
+ 1149              	.L84:
+ 1150 0116 00BF     		.align	2
+ 1151              	.L83:
+ 1152 0118 00000000 		.word	shell_functions
+ 1153 011c 00000000 		.word	.LC9
+ 1154 0120 34000000 		.word	.LC5
+ 1155              		.cfi_endproc
+ 1156              	.LFE3:
+ 1158              		.section	.text.flash_lock,"ax",%progbits
+ 1159              		.align	1
+ 1160              		.global	flash_lock
+ 1161              		.syntax unified
+ 1162              		.thumb
+ 1163              		.thumb_func
+ 1165              	flash_lock:
+ 1166              	.LVL114:
+ 1167              	.LFB11:
+ 359:Core/Src/command.c **** {
+ 1168              		.loc 1 359 1 view -0
+ 1169              		.cfi_startproc
+ 1170              		@ args = 0, pretend = 0, frame = 0
+ 1171              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1172              		@ link register save eliminated.
+ 361:Core/Src/command.c ****     if (lock_state == 0)
+ 1173              		.loc 1 361 5 view .LVU302
+ 361:Core/Src/command.c ****     if (lock_state == 0)
+ 1174              		.loc 1 361 8 is_stmt 0 view .LVU303
+ 1175 0000 30B9     		cbnz	r0, .L86
+ 364:Core/Src/command.c ****         FLASH_BASS->CR |= 0x01UL << 7;
+ 1176              		.loc 1 364 9 is_stmt 1 view .LVU304
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 35
+
+
+ 364:Core/Src/command.c ****         FLASH_BASS->CR |= 0x01UL << 7;
+ 1177              		.loc 1 364 19 is_stmt 0 view .LVU305
+ 1178 0002 0B4B     		ldr	r3, .L90
+ 1179 0004 1A68     		ldr	r2, [r3]
+ 1180 0006 1369     		ldr	r3, [r2, #16]
+ 364:Core/Src/command.c ****         FLASH_BASS->CR |= 0x01UL << 7;
+ 1181              		.loc 1 364 24 view .LVU306
+ 1182 0008 43F08003 		orr	r3, r3, #128
+ 1183 000c 1361     		str	r3, [r2, #16]
+ 1184 000e 7047     		bx	lr
+ 1185              	.L86:
+ 367:Core/Src/command.c ****     else if (lock_state == 1)
+ 1186              		.loc 1 367 10 is_stmt 1 view .LVU307
+ 367:Core/Src/command.c ****     else if (lock_state == 1)
+ 1187              		.loc 1 367 13 is_stmt 0 view .LVU308
+ 1188 0010 0128     		cmp	r0, #1
+ 1189 0012 00D0     		beq	.L89
+ 1190              	.L85:
+ 379:Core/Src/command.c **** }
+ 1191              		.loc 1 379 1 view .LVU309
+ 1192 0014 7047     		bx	lr
+ 1193              	.L89:
+ 370:Core/Src/command.c ****         FLASH_BASS->KEYR = 0x45670123UL;
+ 1194              		.loc 1 370 9 is_stmt 1 view .LVU310
+ 370:Core/Src/command.c ****         FLASH_BASS->KEYR = 0x45670123UL;
+ 1195              		.loc 1 370 19 is_stmt 0 view .LVU311
+ 1196 0016 064B     		ldr	r3, .L90
+ 1197 0018 1A68     		ldr	r2, [r3]
+ 370:Core/Src/command.c ****         FLASH_BASS->KEYR = 0x45670123UL;
+ 1198              		.loc 1 370 26 view .LVU312
+ 1199 001a 064B     		ldr	r3, .L90+4
+ 1200 001c 5360     		str	r3, [r2, #4]
+ 372:Core/Src/command.c ****         FLASH_BASS->KEYR = 0xCDEF89ABUL;
+ 1201              		.loc 1 372 9 is_stmt 1 view .LVU313
+ 372:Core/Src/command.c ****         FLASH_BASS->KEYR = 0xCDEF89ABUL;
+ 1202              		.loc 1 372 26 is_stmt 0 view .LVU314
+ 1203 001e 03F18833 		add	r3, r3, #-2004318072
+ 1204 0022 5360     		str	r3, [r2, #4]
+ 375:Core/Src/command.c ****         while (((FLASH_BASS->CR) & (1U << 7)) != 0)
+ 1205              		.loc 1 375 9 is_stmt 1 view .LVU315
+ 1206              	.L88:
+ 377:Core/Src/command.c ****         }
+ 1207              		.loc 1 377 9 view .LVU316
+ 375:Core/Src/command.c ****         while (((FLASH_BASS->CR) & (1U << 7)) != 0)
+ 1208              		.loc 1 375 47 discriminator 1 view .LVU317
+ 375:Core/Src/command.c ****         while (((FLASH_BASS->CR) & (1U << 7)) != 0)
+ 1209              		.loc 1 375 28 is_stmt 0 discriminator 1 view .LVU318
+ 1210 0024 1369     		ldr	r3, [r2, #16]
+ 375:Core/Src/command.c ****         while (((FLASH_BASS->CR) & (1U << 7)) != 0)
+ 1211              		.loc 1 375 47 discriminator 1 view .LVU319
+ 1212 0026 13F0800F 		tst	r3, #128
+ 1213 002a FBD1     		bne	.L88
+ 1214 002c F2E7     		b	.L85
+ 1215              	.L91:
+ 1216 002e 00BF     		.align	2
+ 1217              	.L90:
+ 1218 0030 00000000 		.word	FLASH_BASS
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 36
+
+
+ 1219 0034 23016745 		.word	1164378403
+ 1220              		.cfi_endproc
+ 1221              	.LFE11:
+ 1223              		.section	.rodata.flash_erase.str1.4,"aMS",%progbits,1
+ 1224              		.align	2
+ 1225              	.LC10:
+ 1226 0000 74686520 		.ascii	"the page start address is \000"
+ 1226      70616765 
+ 1226      20737461 
+ 1226      72742061 
+ 1226      64647265 
+ 1227              		.section	.text.flash_erase,"ax",%progbits
+ 1228              		.align	1
+ 1229              		.global	flash_erase
+ 1230              		.syntax unified
+ 1231              		.thumb
+ 1232              		.thumb_func
+ 1234              	flash_erase:
+ 1235              	.LVL115:
+ 1236              	.LFB12:
+ 383:Core/Src/command.c **** {
+ 1237              		.loc 1 383 1 is_stmt 1 view -0
+ 1238              		.cfi_startproc
+ 1239              		@ args = 0, pretend = 0, frame = 8
+ 1240              		@ frame_needed = 0, uses_anonymous_args = 0
+ 383:Core/Src/command.c **** {
+ 1241              		.loc 1 383 1 is_stmt 0 view .LVU321
+ 1242 0000 10B5     		push	{r4, lr}
+ 1243              		.cfi_def_cfa_offset 8
+ 1244              		.cfi_offset 4, -8
+ 1245              		.cfi_offset 14, -4
+ 1246 0002 82B0     		sub	sp, sp, #8
+ 1247              		.cfi_def_cfa_offset 16
+ 386:Core/Src/command.c ****     flash_erase_address &= 0x0000FFFF;
+ 1248              		.loc 1 386 5 is_stmt 1 view .LVU322
+ 1249              	.LVL116:
+ 389:Core/Src/command.c ****     flash_erase_address = flash_erase_address - (flash_erase_address % 1024);
+ 1250              		.loc 1 389 5 view .LVU323
+ 389:Core/Src/command.c ****     flash_erase_address = flash_erase_address - (flash_erase_address % 1024);
+ 1251              		.loc 1 389 25 is_stmt 0 view .LVU324
+ 1252 0004 00F47C44 		and	r4, r0, #64512
+ 1253              	.LVL117:
+ 390:Core/Src/command.c ****     flash_erase_address |= 0x08000000;
+ 1254              		.loc 1 390 5 is_stmt 1 view .LVU325
+ 390:Core/Src/command.c ****     flash_erase_address |= 0x08000000;
+ 1255              		.loc 1 390 25 is_stmt 0 view .LVU326
+ 1256 0008 44F00064 		orr	r4, r4, #134217728
+ 1257              	.LVL118:
+ 392:Core/Src/command.c ****     uint8_t temp[4];
+ 1258              		.loc 1 392 5 is_stmt 1 view .LVU327
+ 394:Core/Src/command.c ****     temp[0] = flash_erase_address >> 24;
+ 1259              		.loc 1 394 5 view .LVU328
+ 394:Core/Src/command.c ****     temp[0] = flash_erase_address >> 24;
+ 1260              		.loc 1 394 35 is_stmt 0 view .LVU329
+ 1261 000c 0823     		movs	r3, #8
+ 394:Core/Src/command.c ****     temp[0] = flash_erase_address >> 24;
+ 1262              		.loc 1 394 13 view .LVU330
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 37
+
+
+ 1263 000e 8DF80430 		strb	r3, [sp, #4]
+ 395:Core/Src/command.c ****     temp[1] = flash_erase_address >> 16;
+ 1264              		.loc 1 395 5 is_stmt 1 view .LVU331
+ 395:Core/Src/command.c ****     temp[1] = flash_erase_address >> 16;
+ 1265              		.loc 1 395 35 is_stmt 0 view .LVU332
+ 1266 0012 4FF40063 		mov	r3, #2048
+ 395:Core/Src/command.c ****     temp[1] = flash_erase_address >> 16;
+ 1267              		.loc 1 395 13 view .LVU333
+ 1268 0016 8DF80530 		strb	r3, [sp, #5]
+ 396:Core/Src/command.c ****     temp[2] = flash_erase_address >> 8;
+ 1269              		.loc 1 396 5 is_stmt 1 view .LVU334
+ 396:Core/Src/command.c ****     temp[2] = flash_erase_address >> 8;
+ 1270              		.loc 1 396 35 is_stmt 0 view .LVU335
+ 1271 001a 230A     		lsrs	r3, r4, #8
+ 396:Core/Src/command.c ****     temp[2] = flash_erase_address >> 8;
+ 1272              		.loc 1 396 13 view .LVU336
+ 1273 001c 8DF80630 		strb	r3, [sp, #6]
+ 397:Core/Src/command.c ****     temp[3] = flash_erase_address >> 0;
+ 1274              		.loc 1 397 5 is_stmt 1 view .LVU337
+ 397:Core/Src/command.c ****     temp[3] = flash_erase_address >> 0;
+ 1275              		.loc 1 397 13 is_stmt 0 view .LVU338
+ 1276 0020 8DF80740 		strb	r4, [sp, #7]
+ 399:Core/Src/command.c ****     uart_printf(system_log, "the page start address is ", temp, 4);
+ 1277              		.loc 1 399 5 is_stmt 1 view .LVU339
+ 1278 0024 0423     		movs	r3, #4
+ 1279 0026 0DEB0302 		add	r2, sp, r3
+ 1280 002a 1049     		ldr	r1, .L98
+ 1281 002c 0820     		movs	r0, #8
+ 1282 002e FFF7FEFF 		bl	uart_printf
+ 1283              	.LVL119:
+ 404:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 1;
+ 1284              		.loc 1 404 9 view .LVU340
+ 404:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 1;
+ 1285              		.loc 1 404 19 is_stmt 0 view .LVU341
+ 1286 0032 0F4B     		ldr	r3, .L98+4
+ 1287 0034 1A68     		ldr	r2, [r3]
+ 1288 0036 1369     		ldr	r3, [r2, #16]
+ 404:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 1;
+ 1289              		.loc 1 404 24 view .LVU342
+ 1290 0038 43F00203 		orr	r3, r3, #2
+ 1291 003c 1361     		str	r3, [r2, #16]
+ 406:Core/Src/command.c ****         FLASH_BASS->AR = flash_erase_address;
+ 1292              		.loc 1 406 9 is_stmt 1 view .LVU343
+ 406:Core/Src/command.c ****         FLASH_BASS->AR = flash_erase_address;
+ 1293              		.loc 1 406 24 is_stmt 0 view .LVU344
+ 1294 003e 5461     		str	r4, [r2, #20]
+ 408:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 6;
+ 1295              		.loc 1 408 9 is_stmt 1 view .LVU345
+ 408:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 6;
+ 1296              		.loc 1 408 19 is_stmt 0 view .LVU346
+ 1297 0040 1369     		ldr	r3, [r2, #16]
+ 408:Core/Src/command.c ****         FLASH_BASS->CR |= 1UL << 6;
+ 1298              		.loc 1 408 24 view .LVU347
+ 1299 0042 43F04003 		orr	r3, r3, #64
+ 1300 0046 1361     		str	r3, [r2, #16]
+ 1301              	.LBB15:
+ 413:Core/Src/command.c ****         uint8_t temp = 255;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 38
+
+
+ 1302              		.loc 1 413 9 is_stmt 1 view .LVU348
+ 1303              	.LVL120:
+ 415:Core/Src/command.c ****         while (((FLASH_BASS->SR) & (1UL << 5)) != 1UL << 5)
+ 1304              		.loc 1 415 9 view .LVU349
+ 413:Core/Src/command.c ****         uint8_t temp = 255;
+ 1305              		.loc 1 413 17 is_stmt 0 view .LVU350
+ 1306 0048 FF20     		movs	r0, #255
+ 1307              	.LVL121:
+ 1308              	.L93:
+ 415:Core/Src/command.c ****         while (((FLASH_BASS->SR) & (1UL << 5)) != 1UL << 5)
+ 1309              		.loc 1 415 48 is_stmt 1 view .LVU351
+ 415:Core/Src/command.c ****         while (((FLASH_BASS->SR) & (1UL << 5)) != 1UL << 5)
+ 1310              		.loc 1 415 28 is_stmt 0 view .LVU352
+ 1311 004a D368     		ldr	r3, [r2, #12]
+ 415:Core/Src/command.c ****         while (((FLASH_BASS->SR) & (1UL << 5)) != 1UL << 5)
+ 1312              		.loc 1 415 48 view .LVU353
+ 1313 004c 13F0200F 		tst	r3, #32
+ 1314 0050 04D1     		bne	.L97
+ 417:Core/Src/command.c ****             temp--;
+ 1315              		.loc 1 417 13 is_stmt 1 view .LVU354
+ 417:Core/Src/command.c ****             temp--;
+ 1316              		.loc 1 417 17 is_stmt 0 view .LVU355
+ 1317 0052 0138     		subs	r0, r0, #1
+ 1318              	.LVL122:
+ 418:Core/Src/command.c ****             if (temp == 0)
+ 1319              		.loc 1 418 13 is_stmt 1 view .LVU356
+ 418:Core/Src/command.c ****             if (temp == 0)
+ 1320              		.loc 1 418 16 is_stmt 0 view .LVU357
+ 1321 0054 10F0FF00 		ands	r0, r0, #255
+ 1322              	.LVL123:
+ 418:Core/Src/command.c ****             if (temp == 0)
+ 1323              		.loc 1 418 16 view .LVU358
+ 1324 0058 F7D1     		bne	.L93
+ 1325 005a 04E0     		b	.L94
+ 1326              	.LVL124:
+ 1327              	.L97:
+ 426:Core/Src/command.c ****         FLASH_BASS->CR &= ~(1UL << 1);
+ 1328              		.loc 1 426 9 is_stmt 1 view .LVU359
+ 426:Core/Src/command.c ****         FLASH_BASS->CR &= ~(1UL << 1);
+ 1329              		.loc 1 426 19 is_stmt 0 view .LVU360
+ 1330 005c 1369     		ldr	r3, [r2, #16]
+ 426:Core/Src/command.c ****         FLASH_BASS->CR &= ~(1UL << 1);
+ 1331              		.loc 1 426 24 view .LVU361
+ 1332 005e 23F00203 		bic	r3, r3, #2
+ 1333 0062 1361     		str	r3, [r2, #16]
+ 428:Core/Src/command.c ****         return true;
+ 1334              		.loc 1 428 9 is_stmt 1 view .LVU362
+ 428:Core/Src/command.c ****         return true;
+ 1335              		.loc 1 428 16 is_stmt 0 view .LVU363
+ 1336 0064 0120     		movs	r0, #1
+ 1337              	.LVL125:
+ 1338              	.L94:
+ 428:Core/Src/command.c ****         return true;
+ 1339              		.loc 1 428 16 view .LVU364
+ 1340              	.LBE15:
+ 430:Core/Src/command.c **** }
+ 1341              		.loc 1 430 1 view .LVU365
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 39
+
+
+ 1342 0066 02B0     		add	sp, sp, #8
+ 1343              		.cfi_def_cfa_offset 8
+ 1344              		@ sp needed
+ 1345 0068 10BD     		pop	{r4, pc}
+ 1346              	.LVL126:
+ 1347              	.L99:
+ 430:Core/Src/command.c **** }
+ 1348              		.loc 1 430 1 view .LVU366
+ 1349 006a 00BF     		.align	2
+ 1350              	.L98:
+ 1351 006c 00000000 		.word	.LC10
+ 1352 0070 00000000 		.word	FLASH_BASS
+ 1353              		.cfi_endproc
+ 1354              	.LFE12:
+ 1356              		.section	.text.check_flash_address,"ax",%progbits
+ 1357              		.align	1
+ 1358              		.global	check_flash_address
+ 1359              		.syntax unified
+ 1360              		.thumb
+ 1361              		.thumb_func
+ 1363              	check_flash_address:
+ 1364              	.LVL127:
+ 1365              	.LFB13:
+ 434:Core/Src/command.c **** {
+ 1366              		.loc 1 434 1 is_stmt 1 view -0
+ 1367              		.cfi_startproc
+ 1368              		@ args = 0, pretend = 0, frame = 0
+ 1369              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1370              		@ link register save eliminated.
+ 437:Core/Src/command.c ****     if ((flashAddress >= 0x00000000) && (flashAddress <= 0x0000FFFF))
+ 1371              		.loc 1 437 5 view .LVU368
+ 437:Core/Src/command.c ****     if ((flashAddress >= 0x00000000) && (flashAddress <= 0x0000FFFF))
+ 1372              		.loc 1 437 8 is_stmt 0 view .LVU369
+ 1373 0000 B0F5803F 		cmp	r0, #65536
+ 1374 0004 06D3     		bcc	.L102
+ 442:Core/Src/command.c ****     else if ((flashAddress >= 0x08000000) && (flashAddress <= 0x0800FFFF))
+ 1375              		.loc 1 442 10 is_stmt 1 view .LVU370
+ 442:Core/Src/command.c ****     else if ((flashAddress >= 0x08000000) && (flashAddress <= 0x0800FFFF))
+ 1376              		.loc 1 442 43 is_stmt 0 view .LVU371
+ 1377 0006 00F17840 		add	r0, r0, #-134217728
+ 1378              	.LVL128:
+ 442:Core/Src/command.c ****     else if ((flashAddress >= 0x08000000) && (flashAddress <= 0x0800FFFF))
+ 1379              		.loc 1 442 13 view .LVU372
+ 1380 000a B0F5803F 		cmp	r0, #65536
+ 1381 000e 03D2     		bcs	.L103
+ 444:Core/Src/command.c ****         return true;
+ 1382              		.loc 1 444 16 view .LVU373
+ 1383 0010 0120     		movs	r0, #1
+ 1384              	.LVL129:
+ 444:Core/Src/command.c ****         return true;
+ 1385              		.loc 1 444 16 view .LVU374
+ 1386 0012 7047     		bx	lr
+ 1387              	.LVL130:
+ 1388              	.L102:
+ 439:Core/Src/command.c ****         return true;
+ 1389              		.loc 1 439 16 view .LVU375
+ 1390 0014 0120     		movs	r0, #1
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 40
+
+
+ 1391              	.LVL131:
+ 439:Core/Src/command.c ****         return true;
+ 1392              		.loc 1 439 16 view .LVU376
+ 1393 0016 7047     		bx	lr
+ 1394              	.L103:
+ 448:Core/Src/command.c ****         return false;
+ 1395              		.loc 1 448 16 view .LVU377
+ 1396 0018 0020     		movs	r0, #0
+ 450:Core/Src/command.c **** }
+ 1397              		.loc 1 450 1 view .LVU378
+ 1398 001a 7047     		bx	lr
+ 1399              		.cfi_endproc
+ 1400              	.LFE13:
+ 1402              		.section	.rodata.memory_flash_write.str1.4,"aMS",%progbits,1
+ 1403              		.align	2
+ 1404              	.LC11:
+ 1405 0000 77726974 		.ascii	"write input is illegal\015\012\000"
+ 1405      6520696E 
+ 1405      70757420 
+ 1405      69732069 
+ 1405      6C6C6567 
+ 1406 0019 000000   		.align	2
+ 1407              	.LC12:
+ 1408 001c 74686520 		.ascii	"the write address is illegal \015\012\000"
+ 1408      77726974 
+ 1408      65206164 
+ 1408      64726573 
+ 1408      73206973 
+ 1409              		.align	2
+ 1410              	.LC13:
+ 1411 003c 666C6173 		.ascii	"flash_erase fail \015\012\000"
+ 1411      685F6572 
+ 1411      61736520 
+ 1411      6661696C 
+ 1411      200D0A00 
+ 1412              		.section	.text.memory_flash_write,"ax",%progbits
+ 1413              		.align	1
+ 1414              		.syntax unified
+ 1415              		.thumb
+ 1416              		.thumb_func
+ 1418              	memory_flash_write:
+ 1419              	.LVL132:
+ 1420              	.LFB8:
+ 226:Core/Src/command.c **** {
+ 1421              		.loc 1 226 1 is_stmt 1 view -0
+ 1422              		.cfi_startproc
+ 1423              		@ args = 0, pretend = 0, frame = 264
+ 1424              		@ frame_needed = 0, uses_anonymous_args = 0
+ 226:Core/Src/command.c **** {
+ 1425              		.loc 1 226 1 is_stmt 0 view .LVU380
+ 1426 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 1427              		.cfi_def_cfa_offset 24
+ 1428              		.cfi_offset 4, -24
+ 1429              		.cfi_offset 5, -20
+ 1430              		.cfi_offset 6, -16
+ 1431              		.cfi_offset 7, -12
+ 1432              		.cfi_offset 8, -8
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 41
+
+
+ 1433              		.cfi_offset 14, -4
+ 1434 0004 C2B0     		sub	sp, sp, #264
+ 1435              		.cfi_def_cfa_offset 288
+ 228:Core/Src/command.c ****     if (argc != 3)
+ 1436              		.loc 1 228 5 is_stmt 1 view .LVU381
+ 228:Core/Src/command.c ****     if (argc != 3)
+ 1437              		.loc 1 228 8 is_stmt 0 view .LVU382
+ 1438 0006 0328     		cmp	r0, #3
+ 1439 0008 04D1     		bne	.L118
+ 1440 000a 8046     		mov	r8, r0
+ 1441 000c 0E46     		mov	r6, r1
+ 1442              	.LBB16:
+ 1443              	.LBB17:
+ 237:Core/Src/command.c ****         for (uint8_t i = 1; i < argc; i++)
+ 1444              		.loc 1 237 22 view .LVU383
+ 1445 000e 0125     		movs	r5, #1
+ 1446              	.LBE17:
+ 236:Core/Src/command.c ****         uint32_t address = 0, write_data = 0;
+ 1447              		.loc 1 236 18 view .LVU384
+ 1448 0010 0027     		movs	r7, #0
+ 1449 0012 17E0     		b	.L105
+ 1450              	.L118:
+ 236:Core/Src/command.c ****         uint32_t address = 0, write_data = 0;
+ 1451              		.loc 1 236 18 view .LVU385
+ 1452              	.LBE16:
+ 230:Core/Src/command.c ****         uart_printf(system_log, "write input is illegal\r\n", NULL, 0);
+ 1453              		.loc 1 230 9 is_stmt 1 view .LVU386
+ 1454 0014 0023     		movs	r3, #0
+ 1455 0016 1A46     		mov	r2, r3
+ 1456 0018 2C49     		ldr	r1, .L122
+ 1457              	.LVL133:
+ 230:Core/Src/command.c ****         uart_printf(system_log, "write input is illegal\r\n", NULL, 0);
+ 1458              		.loc 1 230 9 is_stmt 0 view .LVU387
+ 1459 001a 0820     		movs	r0, #8
+ 1460              	.LVL134:
+ 230:Core/Src/command.c ****         uart_printf(system_log, "write input is illegal\r\n", NULL, 0);
+ 1461              		.loc 1 230 9 view .LVU388
+ 1462 001c FFF7FEFF 		bl	uart_printf
+ 1463              	.LVL135:
+ 1464              	.L104:
+ 301:Core/Src/command.c **** }
+ 1465              		.loc 1 301 1 view .LVU389
+ 1466 0020 42B0     		add	sp, sp, #264
+ 1467              		.cfi_remember_state
+ 1468              		.cfi_def_cfa_offset 24
+ 1469              		@ sp needed
+ 1470 0022 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 1471              	.LVL136:
+ 1472              	.L108:
+ 1473              		.cfi_restore_state
+ 1474              	.LBB26:
+ 1475              	.LBB22:
+ 1476              	.LBB18:
+ 1477              	.LBB19:
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 1478              		.loc 1 244 37 is_stmt 1 discriminator 2 view .LVU390
+ 1479 0026 0133     		adds	r3, r3, #1
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 42
+
+
+ 1480              	.LVL137:
+ 1481              	.L107:
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 1482              		.loc 1 244 31 discriminator 1 view .LVU391
+ 1483 0028 032B     		cmp	r3, #3
+ 1484 002a 09DC     		bgt	.L119
+ 246:Core/Src/command.c ****                 temp = data[j];
+ 1485              		.loc 1 246 17 view .LVU392
+ 246:Core/Src/command.c ****                 temp = data[j];
+ 1486              		.loc 1 246 28 is_stmt 0 view .LVU393
+ 1487 002c 01AA     		add	r2, sp, #4
+ 1488 002e D25C     		ldrb	r2, [r2, r3]	@ zero_extendqisi2
+ 1489              	.LVL138:
+ 247:Core/Src/command.c ****                 if (i == 1)
+ 1490              		.loc 1 247 17 is_stmt 1 view .LVU394
+ 247:Core/Src/command.c ****                 if (i == 1)
+ 1491              		.loc 1 247 20 is_stmt 0 view .LVU395
+ 1492 0030 012D     		cmp	r5, #1
+ 1493 0032 F8D1     		bne	.L108
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 1494              		.loc 1 249 21 is_stmt 1 view .LVU396
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 1495              		.loc 1 249 48 is_stmt 0 view .LVU397
+ 1496 0034 C3F10301 		rsb	r1, r3, #3
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 1497              		.loc 1 249 53 view .LVU398
+ 1498 0038 C900     		lsls	r1, r1, #3
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 1499              		.loc 1 249 37 view .LVU399
+ 1500 003a 8A40     		lsls	r2, r2, r1
+ 1501              	.LVL139:
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 1502              		.loc 1 249 29 view .LVU400
+ 1503 003c 1743     		orrs	r7, r7, r2
+ 1504              	.LVL140:
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 1505              		.loc 1 249 29 view .LVU401
+ 1506 003e F2E7     		b	.L108
+ 1507              	.LVL141:
+ 1508              	.L119:
+ 249:Core/Src/command.c ****                     address |= temp << ((4 - j - 1) * 8);
+ 1509              		.loc 1 249 29 view .LVU402
+ 1510              	.LBE19:
+ 1511              	.LBE18:
+ 237:Core/Src/command.c ****         for (uint8_t i = 1; i < argc; i++)
+ 1512              		.loc 1 237 40 is_stmt 1 discriminator 2 view .LVU403
+ 1513 0040 0135     		adds	r5, r5, #1
+ 1514              	.LVL142:
+ 237:Core/Src/command.c ****         for (uint8_t i = 1; i < argc; i++)
+ 1515              		.loc 1 237 40 is_stmt 0 discriminator 2 view .LVU404
+ 1516 0042 EDB2     		uxtb	r5, r5
+ 1517              	.LVL143:
+ 1518              	.L105:
+ 237:Core/Src/command.c ****         for (uint8_t i = 1; i < argc; i++)
+ 1519              		.loc 1 237 31 is_stmt 1 discriminator 1 view .LVU405
+ 1520 0044 4545     		cmp	r5, r8
+ 1521 0046 0AD2     		bcs	.L120
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 43
+
+
+ 1522              	.LBB21:
+ 240:Core/Src/command.c ****             argv[i][8] = '\0';
+ 1523              		.loc 1 240 13 view .LVU406
+ 240:Core/Src/command.c ****             argv[i][8] = '\0';
+ 1524              		.loc 1 240 17 is_stmt 0 view .LVU407
+ 1525 0048 56F82530 		ldr	r3, [r6, r5, lsl #2]
+ 240:Core/Src/command.c ****             argv[i][8] = '\0';
+ 1526              		.loc 1 240 24 view .LVU408
+ 1527 004c 0024     		movs	r4, #0
+ 1528 004e 1C72     		strb	r4, [r3, #8]
+ 241:Core/Src/command.c ****             STR_TO_HEX(argv[i], data);
+ 1529              		.loc 1 241 13 is_stmt 1 view .LVU409
+ 1530 0050 01A9     		add	r1, sp, #4
+ 1531 0052 56F82500 		ldr	r0, [r6, r5, lsl #2]
+ 1532 0056 FFF7FEFF 		bl	STR_TO_HEX
+ 1533              	.LVL144:
+ 242:Core/Src/command.c ****             uint32_t temp = 0;
+ 1534              		.loc 1 242 13 view .LVU410
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 1535              		.loc 1 244 13 view .LVU411
+ 1536              	.LBB20:
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 1537              		.loc 1 244 18 view .LVU412
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 1538              		.loc 1 244 22 is_stmt 0 view .LVU413
+ 1539 005a 2346     		mov	r3, r4
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 1540              		.loc 1 244 13 view .LVU414
+ 1541 005c E4E7     		b	.L107
+ 1542              	.LVL145:
+ 1543              	.L120:
+ 244:Core/Src/command.c ****             for (int j = 0; j < 4; j++)
+ 1544              		.loc 1 244 13 view .LVU415
+ 1545              	.LBE20:
+ 1546              	.LBE21:
+ 1547              	.LBE22:
+ 258:Core/Src/command.c ****         address &= ~((uint32_t)0x03);
+ 1548              		.loc 1 258 9 is_stmt 1 view .LVU416
+ 258:Core/Src/command.c ****         address &= ~((uint32_t)0x03);
+ 1549              		.loc 1 258 17 is_stmt 0 view .LVU417
+ 1550 005e 27F00307 		bic	r7, r7, #3
+ 1551              	.LVL146:
+ 261:Core/Src/command.c ****         return_value = check_flash_address(address);
+ 1552              		.loc 1 261 9 is_stmt 1 view .LVU418
+ 261:Core/Src/command.c ****         return_value = check_flash_address(address);
+ 1553              		.loc 1 261 24 is_stmt 0 view .LVU419
+ 1554 0062 3846     		mov	r0, r7
+ 1555 0064 FFF7FEFF 		bl	check_flash_address
+ 1556              	.LVL147:
+ 263:Core/Src/command.c ****         if (return_value != true)
+ 1557              		.loc 1 263 9 is_stmt 1 view .LVU420
+ 263:Core/Src/command.c ****         if (return_value != true)
+ 1558              		.loc 1 263 12 is_stmt 0 view .LVU421
+ 1559 0068 0128     		cmp	r0, #1
+ 1560 006a 06D0     		beq	.L111
+ 265:Core/Src/command.c ****             uart_printf(system_log, "the write address is illegal \r\n", NULL, 0);
+ 1561              		.loc 1 265 13 is_stmt 1 view .LVU422
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 44
+
+
+ 1562 006c 0023     		movs	r3, #0
+ 1563 006e 1A46     		mov	r2, r3
+ 1564 0070 1749     		ldr	r1, .L122+4
+ 1565 0072 0820     		movs	r0, #8
+ 1566              	.LVL148:
+ 265:Core/Src/command.c ****             uart_printf(system_log, "the write address is illegal \r\n", NULL, 0);
+ 1567              		.loc 1 265 13 is_stmt 0 view .LVU423
+ 1568 0074 FFF7FEFF 		bl	uart_printf
+ 1569              	.LVL149:
+ 266:Core/Src/command.c ****             return;
+ 1570              		.loc 1 266 13 is_stmt 1 view .LVU424
+ 1571 0078 D2E7     		b	.L104
+ 1572              	.LVL150:
+ 1573              	.L111:
+ 1574              	.LBB23:
+ 275:Core/Src/command.c ****             flash_lock(1);
+ 1575              		.loc 1 275 13 view .LVU425
+ 1576 007a 0120     		movs	r0, #1
+ 1577              	.LVL151:
+ 275:Core/Src/command.c ****             flash_lock(1);
+ 1578              		.loc 1 275 13 is_stmt 0 view .LVU426
+ 1579 007c FFF7FEFF 		bl	flash_lock
+ 1580              	.LVL152:
+ 278:Core/Src/command.c ****             return_value = flash_erase(address);
+ 1581              		.loc 1 278 13 is_stmt 1 view .LVU427
+ 278:Core/Src/command.c ****             return_value = flash_erase(address);
+ 1582              		.loc 1 278 28 is_stmt 0 view .LVU428
+ 1583 0080 3846     		mov	r0, r7
+ 1584 0082 FFF7FEFF 		bl	flash_erase
+ 1585              	.LVL153:
+ 279:Core/Src/command.c ****             if (return_value != true)
+ 1586              		.loc 1 279 13 is_stmt 1 view .LVU429
+ 279:Core/Src/command.c ****             if (return_value != true)
+ 1587              		.loc 1 279 16 is_stmt 0 view .LVU430
+ 1588 0086 0128     		cmp	r0, #1
+ 1589 0088 07D1     		bne	.L121
+ 290:Core/Src/command.c ****             uint32_t testdata[64] = {};
+ 1590              		.loc 1 290 13 is_stmt 1 view .LVU431
+ 290:Core/Src/command.c ****             uint32_t testdata[64] = {};
+ 1591              		.loc 1 290 22 is_stmt 0 view .LVU432
+ 1592 008a 4FF48072 		mov	r2, #256
+ 1593 008e 0021     		movs	r1, #0
+ 1594 0090 02A8     		add	r0, sp, #8
+ 1595              	.LVL154:
+ 290:Core/Src/command.c ****             uint32_t testdata[64] = {};
+ 1596              		.loc 1 290 22 view .LVU433
+ 1597 0092 FFF7FEFF 		bl	memset
+ 1598              	.LVL155:
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ 1599              		.loc 1 291 13 is_stmt 1 view .LVU434
+ 1600              	.LBB24:
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ 1601              		.loc 1 291 18 view .LVU435
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ 1602              		.loc 1 291 22 is_stmt 0 view .LVU436
+ 1603 0096 0023     		movs	r3, #0
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 45
+
+
+ 1604              		.loc 1 291 13 view .LVU437
+ 1605 0098 0FE0     		b	.L114
+ 1606              	.LVL156:
+ 1607              	.L121:
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ 1608              		.loc 1 291 13 view .LVU438
+ 1609              	.LBE24:
+ 281:Core/Src/command.c ****                 uart_printf(system_log, "flash_erase fail \r\n", NULL, 0);
+ 1610              		.loc 1 281 17 is_stmt 1 view .LVU439
+ 1611 009a 0023     		movs	r3, #0
+ 1612 009c 1A46     		mov	r2, r3
+ 1613 009e 0D49     		ldr	r1, .L122+8
+ 1614 00a0 0820     		movs	r0, #8
+ 1615              	.LVL157:
+ 281:Core/Src/command.c ****                 uart_printf(system_log, "flash_erase fail \r\n", NULL, 0);
+ 1616              		.loc 1 281 17 is_stmt 0 view .LVU440
+ 1617 00a2 FFF7FEFF 		bl	uart_printf
+ 1618              	.LVL158:
+ 284:Core/Src/command.c ****                 flash_lock(0);
+ 1619              		.loc 1 284 17 is_stmt 1 view .LVU441
+ 1620 00a6 0020     		movs	r0, #0
+ 1621 00a8 FFF7FEFF 		bl	flash_lock
+ 1622              	.LVL159:
+ 285:Core/Src/command.c ****                 return;
+ 1623              		.loc 1 285 17 view .LVU442
+ 1624 00ac B8E7     		b	.L104
+ 1625              	.LVL160:
+ 1626              	.L115:
+ 1627              	.LBB25:
+ 294:Core/Src/command.c ****                 testdata[dd] = 0x12345600 + dd;
+ 1628              		.loc 1 294 17 view .LVU443
+ 294:Core/Src/command.c ****                 testdata[dd] = 0x12345600 + dd;
+ 1629              		.loc 1 294 43 is_stmt 0 view .LVU444
+ 1630 00ae 0A4A     		ldr	r2, .L122+12
+ 1631 00b0 1A44     		add	r2, r2, r3
+ 294:Core/Src/command.c ****                 testdata[dd] = 0x12345600 + dd;
+ 1632              		.loc 1 294 30 view .LVU445
+ 1633 00b2 02A9     		add	r1, sp, #8
+ 1634 00b4 41F82320 		str	r2, [r1, r3, lsl #2]
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ 1635              		.loc 1 291 41 is_stmt 1 discriminator 3 view .LVU446
+ 1636 00b8 0133     		adds	r3, r3, #1
+ 1637              	.LVL161:
+ 1638              	.L114:
+ 291:Core/Src/command.c ****             for (int dd = 0; dd < 64; dd++)
+ 1639              		.loc 1 291 33 discriminator 1 view .LVU447
+ 1640 00ba 3F2B     		cmp	r3, #63
+ 1641 00bc F7DD     		ble	.L115
+ 1642              	.LBE25:
+ 298:Core/Src/command.c ****             flash_write(address, testdata, 64);
+ 1643              		.loc 1 298 13 view .LVU448
+ 1644 00be 4022     		movs	r2, #64
+ 1645 00c0 02A9     		add	r1, sp, #8
+ 1646 00c2 3846     		mov	r0, r7
+ 1647 00c4 FFF7FEFF 		bl	flash_write
+ 1648              	.LVL162:
+ 298:Core/Src/command.c ****             flash_write(address, testdata, 64);
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 46
+
+
+ 1649              		.loc 1 298 13 is_stmt 0 view .LVU449
+ 1650              	.LBE23:
+ 1651 00c8 AAE7     		b	.L104
+ 1652              	.L123:
+ 1653 00ca 00BF     		.align	2
+ 1654              	.L122:
+ 1655 00cc 00000000 		.word	.LC11
+ 1656 00d0 1C000000 		.word	.LC12
+ 1657 00d4 3C000000 		.word	.LC13
+ 1658 00d8 00563412 		.word	305419776
+ 1659              	.LBE26:
+ 1660              		.cfi_endproc
+ 1661              	.LFE8:
+ 1663              		.section	.rodata.shell_functions,"a"
+ 1664              		.align	2
+ 1667              	shell_functions:
+ 1668 0000 00000000 		.word	__compound_literal.0
+ 1669 0004 00000000 		.word	__compound_literal.3
+ 1670 0008 00000000 		.word	__compound_literal.4
+ 1671 000c 00000000 		.word	__compound_literal.5
+ 1672 0010 00000000 		.word	__compound_literal.8
+ 1673 0014 00000000 		.word	0
+ 1674              		.section	.rodata.str1.4,"aMS",%progbits,1
+ 1675              		.align	2
+ 1676              	.LC14:
+ 1677 0000 6C6F6700 		.ascii	"log\000"
+ 1678              		.section	.data.__compound_literal.8,"aw"
+ 1679              		.align	2
+ 1682              	__compound_literal.8:
+ 1683 0000 00000000 		.word	.LC14
+ 1684 0004 00000000 		.word	log_set_cancel
+ 1685 0008 00000000 		.word	__compound_literal.6
+ 1686 000c 00000000 		.word	__compound_literal.7
+ 1687 0010 00000000 		.word	0
+ 1688              		.space	-13
+ 1689 0014 00       		.space	1
+ 1690              		.section	.rodata.str1.4
+ 1691              		.align	2
+ 1692              	.LC15:
+ 1693 0004 63616E63 		.ascii	"cancel\000"
+ 1693      656C00
+ 1694              		.section	.data.__compound_literal.7,"aw"
+ 1695              		.align	2
+ 1698              	__compound_literal.7:
+ 1699 0000 04000000 		.word	.LC15
+ 1700 0004 00000000 		.word	log_cancel_commend
+ 1701              		.section	.rodata.str1.4
+ 1702 000b 00       		.align	2
+ 1703              	.LC16:
+ 1704 000c 73657400 		.ascii	"set\000"
+ 1705              		.section	.data.__compound_literal.6,"aw"
+ 1706              		.align	2
+ 1709              	__compound_literal.6:
+ 1710 0000 0C000000 		.word	.LC16
+ 1711 0004 00000000 		.word	log_set_commend
+ 1712              		.section	.rodata.str1.4
+ 1713              		.align	2
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 47
+
+
+ 1714              	.LC17:
+ 1715 0010 75706461 		.ascii	"update_app\000"
+ 1715      74655F61 
+ 1715      707000
+ 1716              		.section	.data.__compound_literal.5,"aw"
+ 1717              		.align	2
+ 1720              	__compound_literal.5:
+ 1721 0000 10000000 		.word	.LC17
+ 1722 0004 00000000 		.word	update_app_start
+ 1723 0008 00000000 		.word	0
+ 1724              		.space	-5
+ 1725 000c 00       		.space	1
+ 1726              		.section	.rodata.str1.4
+ 1727 001b 00       		.align	2
+ 1728              	.LC18:
+ 1729 001c 75647300 		.ascii	"uds\000"
+ 1730              		.section	.data.__compound_literal.4,"aw"
+ 1731              		.align	2
+ 1734              	__compound_literal.4:
+ 1735 0000 1C000000 		.word	.LC18
+ 1736 0004 00000000 		.word	uds_port
+ 1737 0008 00000000 		.word	0
+ 1738              		.space	-5
+ 1739 000c 00       		.space	1
+ 1740              		.section	.rodata.str1.4
+ 1741              		.align	2
+ 1742              	.LC19:
+ 1743 0020 6D656D6F 		.ascii	"memory\000"
+ 1743      727900
+ 1744              		.section	.data.__compound_literal.3,"aw"
+ 1745              		.align	2
+ 1748              	__compound_literal.3:
+ 1749 0000 20000000 		.word	.LC19
+ 1750 0004 00000000 		.word	memory_read_write
+ 1751 0008 00000000 		.word	__compound_literal.1
+ 1752 000c 00000000 		.word	__compound_literal.2
+ 1753 0010 00000000 		.word	0
+ 1754              		.space	-13
+ 1755 0014 00       		.space	1
+ 1756              		.section	.rodata.str1.4
+ 1757 0027 00       		.align	2
+ 1758              	.LC20:
+ 1759 0028 77726974 		.ascii	"write\000"
+ 1759      6500
+ 1760              		.section	.data.__compound_literal.2,"aw"
+ 1761              		.align	2
+ 1764              	__compound_literal.2:
+ 1765 0000 28000000 		.word	.LC20
+ 1766 0004 00000000 		.word	memory_flash_write
+ 1767              		.section	.rodata.str1.4
+ 1768 002e 0000     		.align	2
+ 1769              	.LC21:
+ 1770 0030 72656164 		.ascii	"read\000"
+ 1770      00
+ 1771              		.section	.data.__compound_literal.1,"aw"
+ 1772              		.align	2
+ 1775              	__compound_literal.1:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 48
+
+
+ 1776 0000 30000000 		.word	.LC21
+ 1777 0004 00000000 		.word	memory_flash_read
+ 1778              		.section	.rodata.str1.4
+ 1779 0035 000000   		.align	2
+ 1780              	.LC22:
+ 1781 0038 68656C70 		.ascii	"help\000"
+ 1781      00
+ 1782              		.section	.data.__compound_literal.0,"aw"
+ 1783              		.align	2
+ 1786              	__compound_literal.0:
+ 1787 0000 38000000 		.word	.LC22
+ 1788 0004 00000000 		.word	help
+ 1789 0008 00000000 		.word	0
+ 1790              		.space	-5
+ 1791 000c 00       		.space	1
+ 1792              		.global	FLASH_BASS
+ 1793              		.section	.data.FLASH_BASS,"aw"
+ 1794              		.align	2
+ 1797              	FLASH_BASS:
+ 1798 0000 00200240 		.word	1073881088
+ 1799              		.text
+ 1800              	.Letext0:
+ 1801              		.file 2 "C:/Users/YLAI2/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 1802              		.file 3 "Core/Inc/typedef_conf.h"
+ 1803              		.file 4 "Core/Inc/command.h"
+ 1804              		.file 5 "Core/Inc/uart_printf.h"
+ 1805              		.file 6 "Core/Inc/uds.h"
+ 1806              		.file 7 "C:/Users/YLAI2/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 1807              		.file 8 "Core/Inc/update_app.h"
+ 1808              		.file 9 "<built-in>"
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 49
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 command.c
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:19     .text.change_space_to_end:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:24     .text.change_space_to_end:00000000 change_space_to_end
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:74     .text.flash_write_half_world:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:79     .text.flash_write_half_world:00000000 flash_write_half_world
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:121    .text.flash_write_half_world:00000024 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1797   .data.FLASH_BASS:00000000 FLASH_BASS
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:126    .text.flash_write:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:131    .text.flash_write:00000000 flash_write
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:229    .text.flash_write:0000005c $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:234    .rodata.log_set_cancel.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:238    .text.log_set_cancel:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:243    .text.log_set_cancel:00000000 log_set_cancel
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:271    .text.log_set_cancel:00000010 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:276    .rodata.memory_read_write.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:281    .text.memory_read_write:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:286    .text.memory_read_write:00000000 memory_read_write
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:314    .text.memory_read_write:00000010 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:319    .rodata.help.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:332    .text.help:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:337    .text.help:00000000 help
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:481    .text.help:00000094 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1667   .rodata.shell_functions:00000000 shell_functions
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:490    .rodata.memory_flash_read.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:501    .text.memory_flash_read:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:506    .text.memory_flash_read:00000000 memory_flash_read
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:696    .text.memory_flash_read:000000b0 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:703    .text.log_cancel_commend:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:708    .text.log_cancel_commend:00000000 log_cancel_commend
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:751    .text.log_set_commend:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:756    .text.log_set_commend:00000000 log_set_commend
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:799    .text.uds_port:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:804    .text.uds_port:00000000 uds_port
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:868    .rodata.exec_command.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:872    .text.exec_command:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:878    .text.exec_command:00000000 exec_command
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1152   .text.exec_command:00000118 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1159   .text.flash_lock:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1165   .text.flash_lock:00000000 flash_lock
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1218   .text.flash_lock:00000030 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1224   .rodata.flash_erase.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1228   .text.flash_erase:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1234   .text.flash_erase:00000000 flash_erase
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1351   .text.flash_erase:0000006c $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1357   .text.check_flash_address:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1363   .text.check_flash_address:00000000 check_flash_address
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1403   .rodata.memory_flash_write.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1413   .text.memory_flash_write:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1418   .text.memory_flash_write:00000000 memory_flash_write
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1655   .text.memory_flash_write:000000cc $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1664   .rodata.shell_functions:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1786   .data.__compound_literal.0:00000000 __compound_literal.0
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1748   .data.__compound_literal.3:00000000 __compound_literal.3
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1734   .data.__compound_literal.4:00000000 __compound_literal.4
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1720   .data.__compound_literal.5:00000000 __compound_literal.5
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1682   .data.__compound_literal.8:00000000 __compound_literal.8
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s 			page 50
+
+
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1675   .rodata.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1679   .data.__compound_literal.8:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1709   .data.__compound_literal.6:00000000 __compound_literal.6
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1698   .data.__compound_literal.7:00000000 __compound_literal.7
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1695   .data.__compound_literal.7:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1706   .data.__compound_literal.6:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1717   .data.__compound_literal.5:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1731   .data.__compound_literal.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1745   .data.__compound_literal.3:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1775   .data.__compound_literal.1:00000000 __compound_literal.1
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1764   .data.__compound_literal.2:00000000 __compound_literal.2
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1761   .data.__compound_literal.2:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1772   .data.__compound_literal.1:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1783   .data.__compound_literal.0:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccOuDOjW.s:1794   .data.FLASH_BASS:00000000 $d
+
+UNDEFINED SYMBOLS
+uart_printf
+STR_TO_HEX
+cancel_log_level
+set_log_level
+can_service_entry
+strlen
+memcmp
+memset
+update_app_start

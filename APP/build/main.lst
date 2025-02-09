@@ -1,0 +1,233 @@
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"main.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/main.c"
+  18              		.section	.rodata.main.str1.4,"aMS",%progbits,1
+  19              		.align	2
+  20              	.LC0:
+  21 0000 696E6974 		.ascii	"init_HSE_SYSCLK_72MHZ fail......................\015"
+  21      5F485345 
+  21      5F535953 
+  21      434C4B5F 
+  21      37324D48 
+  22 0031 0A00     		.ascii	"\012\000"
+  23 0033 00       		.align	2
+  24              	.LC1:
+  25 0034 4E455720 		.ascii	"NEW APP running......................\015\012\000"
+  25      41505020 
+  25      72756E6E 
+  25      696E672E 
+  25      2E2E2E2E 
+  26              		.section	.text.main,"ax",%progbits
+  27              		.align	1
+  28              		.global	main
+  29              		.syntax unified
+  30              		.thumb
+  31              		.thumb_func
+  33              	main:
+  34              	.LFB3:
+   1:Core/Src/main.c **** #include "main.h"
+   2:Core/Src/main.c **** #include "uart_printf.h"
+   3:Core/Src/main.c **** #include "stdio.h" //NULL
+   4:Core/Src/main.c **** #include "shell.h"
+   5:Core/Src/main.c **** #include "rcc.h"
+   6:Core/Src/main.c **** #include "crc.h"
+   7:Core/Src/main.c **** uint32_t SystemCoreClock = 72000000; //bootloader 已经设置了系统时钟，暂不需要重设�
+   8:Core/Src/main.c **** 
+   9:Core/Src/main.c **** int main(void)
+  10:Core/Src/main.c **** {
+  35              		.loc 1 10 1 view -0
+  36              		.cfi_startproc
+  37              		@ Volatile: function does not return.
+  38              		@ args = 0, pretend = 0, frame = 8
+  39              		@ frame_needed = 0, uses_anonymous_args = 0
+  40 0000 00B5     		push	{lr}
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s 			page 2
+
+
+  41              		.cfi_def_cfa_offset 4
+  42              		.cfi_offset 14, -4
+  43 0002 83B0     		sub	sp, sp, #12
+  44              		.cfi_def_cfa_offset 16
+  11:Core/Src/main.c **** 
+  12:Core/Src/main.c ****   if (init_HSE_SYSCLK_72MHZ() == true)
+  45              		.loc 1 12 3 view .LVU1
+  46              		.loc 1 12 7 is_stmt 0 view .LVU2
+  47 0004 FFF7FEFF 		bl	init_HSE_SYSCLK_72MHZ
+  48              	.LVL0:
+  49              		.loc 1 12 6 discriminator 1 view .LVU3
+  50 0008 0128     		cmp	r0, #1
+  51 000a 22D0     		beq	.L8
+  13:Core/Src/main.c ****   {
+  14:Core/Src/main.c ****     init_AHB_APB1_APB2();
+  15:Core/Src/main.c ****     SystemCoreClock = 72000000;
+  16:Core/Src/main.c ****   }
+  17:Core/Src/main.c ****   else
+  18:Core/Src/main.c ****   {
+  19:Core/Src/main.c ****     uart_printf(standard_log, "init_HSE_SYSCLK_72MHZ fail......................\r\n", NULL, 0);
+  52              		.loc 1 19 5 is_stmt 1 view .LVU4
+  53 000c 0023     		movs	r3, #0
+  54 000e 1A46     		mov	r2, r3
+  55 0010 1749     		ldr	r1, .L10
+  56 0012 0120     		movs	r0, #1
+  57 0014 FFF7FEFF 		bl	uart_printf
+  58              	.LVL1:
+  59              	.L3:
+  20:Core/Src/main.c ****   }
+  21:Core/Src/main.c ****   // init_AHB_APB1_APB2();
+  22:Core/Src/main.c ****   uart_printf(standard_log, "NEW APP running......................\r\n", NULL, 0);
+  60              		.loc 1 22 3 view .LVU5
+  61 0018 0023     		movs	r3, #0
+  62 001a 1A46     		mov	r2, r3
+  63 001c 1549     		ldr	r1, .L10+4
+  64 001e 0120     		movs	r0, #1
+  65 0020 FFF7FEFF 		bl	uart_printf
+  66              	.LVL2:
+  23:Core/Src/main.c **** 
+  24:Core/Src/main.c ****   crc_init();
+  67              		.loc 1 24 3 view .LVU6
+  68 0024 FFF7FEFF 		bl	crc_init
+  69              	.LVL3:
+  25:Core/Src/main.c ****   shell_init();
+  70              		.loc 1 25 3 view .LVU7
+  71 0028 FFF7FEFF 		bl	shell_init
+  72              	.LVL4:
+  26:Core/Src/main.c ****   uart2_init();
+  73              		.loc 1 26 3 view .LVU8
+  74 002c FFF7FEFF 		bl	uart2_init
+  75              	.LVL5:
+  27:Core/Src/main.c ****   uint8_t shell_data = 0;
+  76              		.loc 1 27 3 view .LVU9
+  77              		.loc 1 27 11 is_stmt 0 view .LVU10
+  78 0030 0023     		movs	r3, #0
+  79 0032 8DF80730 		strb	r3, [sp, #7]
+  80              	.L5:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s 			page 3
+
+
+  28:Core/Src/main.c ****   while (1)
+  81              		.loc 1 28 3 is_stmt 1 view .LVU11
+  29:Core/Src/main.c ****   {
+  30:Core/Src/main.c **** 
+  31:Core/Src/main.c ****     if (get_frame_count() != 0)
+  82              		.loc 1 31 5 view .LVU12
+  83              		.loc 1 31 9 is_stmt 0 view .LVU13
+  84 0036 FFF7FEFF 		bl	get_frame_count
+  85              	.LVL6:
+  86              		.loc 1 31 8 discriminator 1 view .LVU14
+  87 003a 80B9     		cbnz	r0, .L9
+  88              	.L4:
+  32:Core/Src/main.c ****     {
+  33:Core/Src/main.c ****       uart2_communicate_rx();
+  34:Core/Src/main.c ****       set_frame_count(get_frame_count() - 1);
+  35:Core/Src/main.c ****     }
+  36:Core/Src/main.c ****     if (uart_get(&shell_data) != false)
+  89              		.loc 1 36 5 is_stmt 1 view .LVU15
+  90              		.loc 1 36 9 is_stmt 0 view .LVU16
+  91 003c 0DF10700 		add	r0, sp, #7
+  92 0040 FFF7FEFF 		bl	uart_get
+  93              	.LVL7:
+  94              		.loc 1 36 8 discriminator 1 view .LVU17
+  95 0044 0028     		cmp	r0, #0
+  96 0046 F6D0     		beq	.L5
+  37:Core/Src/main.c ****     {
+  38:Core/Src/main.c ****       shell_enter(shell_data);
+  97              		.loc 1 38 7 is_stmt 1 view .LVU18
+  98 0048 9DF80700 		ldrb	r0, [sp, #7]	@ zero_extendqisi2
+  99 004c FFF7FEFF 		bl	shell_enter
+ 100              	.LVL8:
+ 101 0050 F1E7     		b	.L5
+ 102              	.L8:
+  14:Core/Src/main.c ****     SystemCoreClock = 72000000;
+ 103              		.loc 1 14 5 view .LVU19
+ 104 0052 FFF7FEFF 		bl	init_AHB_APB1_APB2
+ 105              	.LVL9:
+  15:Core/Src/main.c ****   }
+ 106              		.loc 1 15 5 view .LVU20
+  15:Core/Src/main.c ****   }
+ 107              		.loc 1 15 21 is_stmt 0 view .LVU21
+ 108 0056 084B     		ldr	r3, .L10+8
+ 109 0058 084A     		ldr	r2, .L10+12
+ 110 005a 1A60     		str	r2, [r3]
+ 111 005c DCE7     		b	.L3
+ 112              	.L9:
+  33:Core/Src/main.c ****       set_frame_count(get_frame_count() - 1);
+ 113              		.loc 1 33 7 is_stmt 1 view .LVU22
+ 114 005e FFF7FEFF 		bl	uart2_communicate_rx
+ 115              	.LVL10:
+  34:Core/Src/main.c ****     }
+ 116              		.loc 1 34 7 view .LVU23
+  34:Core/Src/main.c ****     }
+ 117              		.loc 1 34 23 is_stmt 0 view .LVU24
+ 118 0062 FFF7FEFF 		bl	get_frame_count
+ 119              	.LVL11:
+  34:Core/Src/main.c ****     }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s 			page 4
+
+
+ 120              		.loc 1 34 7 discriminator 1 view .LVU25
+ 121 0066 0138     		subs	r0, r0, #1
+ 122 0068 C0B2     		uxtb	r0, r0
+ 123 006a FFF7FEFF 		bl	set_frame_count
+ 124              	.LVL12:
+ 125 006e E5E7     		b	.L4
+ 126              	.L11:
+ 127              		.align	2
+ 128              	.L10:
+ 129 0070 00000000 		.word	.LC0
+ 130 0074 34000000 		.word	.LC1
+ 131 0078 00000000 		.word	SystemCoreClock
+ 132 007c 00A24A04 		.word	72000000
+ 133              		.cfi_endproc
+ 134              	.LFE3:
+ 136              		.global	SystemCoreClock
+ 137              		.section	.data.SystemCoreClock,"aw"
+ 138              		.align	2
+ 141              	SystemCoreClock:
+ 142 0000 00A24A04 		.word	72000000
+ 143              		.text
+ 144              	.Letext0:
+ 145              		.file 2 "Core/Inc/uart_printf.h"
+ 146              		.file 3 "Core/Inc/shell.h"
+ 147              		.file 4 "Core/Inc/rcc.h"
+ 148              		.file 5 "Core/Inc/crc.h"
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s 			page 5
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 main.c
+C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s:19     .rodata.main.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s:27     .text.main:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s:33     .text.main:00000000 main
+C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s:129    .text.main:00000070 $d
+C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s:141    .data.SystemCoreClock:00000000 SystemCoreClock
+C:\Users\YLAI2\AppData\Local\Temp\cceSJDb1.s:138    .data.SystemCoreClock:00000000 $d
+
+UNDEFINED SYMBOLS
+init_HSE_SYSCLK_72MHZ
+uart_printf
+crc_init
+shell_init
+uart2_init
+get_frame_count
+uart_get
+shell_enter
+init_AHB_APB1_APB2
+uart2_communicate_rx
+set_frame_count

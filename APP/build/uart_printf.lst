@@ -1,0 +1,3844 @@
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"uart_printf.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/uart_printf.c"
+  18              		.section	.text.uart_printf_init,"ax",%progbits
+  19              		.align	1
+  20              		.syntax unified
+  21              		.thumb
+  22              		.thumb_func
+  24              	uart_printf_init:
+  25              	.LVL0:
+  26              	.LFB0:
+   1:Core/Src/uart_printf.c **** #include "uart_printf.h"
+   2:Core/Src/uart_printf.c **** #include "string.h"       //strlen
+   3:Core/Src/uart_printf.c **** #include "typedef_conf.h" //uint8_t ..
+   4:Core/Src/uart_printf.c **** #include "rcc.h"
+   5:Core/Src/uart_printf.c **** #include "crc.h"
+   6:Core/Src/uart_printf.c **** #include "uds.h"
+   7:Core/Src/uart_printf.c **** 
+   8:Core/Src/uart_printf.c **** // 系统时钟HCLK
+   9:Core/Src/uart_printf.c **** extern uint32_t SystemCoreClock;
+  10:Core/Src/uart_printf.c **** extern RCC_TypeDef *MyRCC_BASS;
+  11:Core/Src/uart_printf.c **** // fifo的句柄 uart1
+  12:Core/Src/uart_printf.c **** static HANDLE_LOG_FIFO log_fifo_handle = {.initFifo = false};
+  13:Core/Src/uart_printf.c **** // fifo的句柄 uart2
+  14:Core/Src/uart_printf.c **** static HANDLE_LOG_FIFO log_fifo_handle2 = {.initFifo = false};
+  15:Core/Src/uart_printf.c **** 
+  16:Core/Src/uart_printf.c **** // GPIOA 端口L配置寄存器
+  17:Core/Src/uart_printf.c **** static volatile uint32_t *GPIOA_CRL = (uint32_t *)(0x40010800);
+  18:Core/Src/uart_printf.c **** // GPIOA 端口h配置寄存器
+  19:Core/Src/uart_printf.c **** static volatile uint32_t *GPIOA_CRH = (uint32_t *)(0x40010800 + 0x04UL);
+  20:Core/Src/uart_printf.c **** 
+  21:Core/Src/uart_printf.c **** // // USART1 寄存器基地址
+  22:Core/Src/uart_printf.c **** // const uint32_t USART1_BASS = 0x40013800;
+  23:Core/Src/uart_printf.c **** 
+  24:Core/Src/uart_printf.c **** #if !uart_IT
+  25:Core/Src/uart_printf.c **** // USART1_SR寄存器
+  26:Core/Src/uart_printf.c **** // static volatile uint32_t *USART1_SR = (uint32_t *)0x40013800;
+  27:Core/Src/uart_printf.c **** #endif
+  28:Core/Src/uart_printf.c **** 
+  29:Core/Src/uart_printf.c **** // APB1、2 倍频倍数
+  30:Core/Src/uart_printf.c **** uint8_t APBPrescTable[8U] = {0, 0, 0, 0, 1, 2, 3, 4};
+  31:Core/Src/uart_printf.c **** MyUSART_tydef *USART1_BASS = (MyUSART_tydef *)0x40013800UL;
+  32:Core/Src/uart_printf.c **** MyUSART_tydef *USART2_BASS = (MyUSART_tydef *)0x40004400UL;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 2
+
+
+  33:Core/Src/uart_printf.c **** 
+  34:Core/Src/uart_printf.c **** /************ usart 1 中断*************/
+  35:Core/Src/uart_printf.c **** // 将data写到DR寄存器
+  36:Core/Src/uart_printf.c **** #define UART_SEND_DATA_DR(data) USART1_BASS->DR = (data & 0xFF)
+  37:Core/Src/uart_printf.c **** // 禁用DR寄存器空中断
+  38:Core/Src/uart_printf.c **** #define DISABLE_UART_TX_DR_IT() USART1_BASS->CR1 &= ~(1U << 7)
+  39:Core/Src/uart_printf.c **** // 启用DR寄存器空中断
+  40:Core/Src/uart_printf.c **** #define ENABLE_UART_TX_DR_IT() USART1_BASS->CR1 |= (1U << 7)
+  41:Core/Src/uart_printf.c **** // 禁用DR寄存器满中断
+  42:Core/Src/uart_printf.c **** #define DISABLE_UART_RX_DR_IT() USART1_BASS->CR1 &= ~(1U << 5)
+  43:Core/Src/uart_printf.c **** // 启用DR寄存器满中断
+  44:Core/Src/uart_printf.c **** #define ENABLE_UART_RX_DR_IT() USART1_BASS->CR1 |= (1U << 5)
+  45:Core/Src/uart_printf.c **** 
+  46:Core/Src/uart_printf.c **** /************ usart 2 中断*************/
+  47:Core/Src/uart_printf.c **** // 将data写到DR寄存器
+  48:Core/Src/uart_printf.c **** #define UART2_SEND_DATA_DR(data) USART2_BASS->DR = (data & 0xFF)
+  49:Core/Src/uart_printf.c **** // 禁用DR寄存器空中断
+  50:Core/Src/uart_printf.c **** #define DISABLE_UART2_TX_DR_IT() USART2_BASS->CR1 &= ~(1U << 7)
+  51:Core/Src/uart_printf.c **** // 启用DR寄存器空中断
+  52:Core/Src/uart_printf.c **** #define ENABLE_UART2_TX_DR_IT() USART2_BASS->CR1 |= (1U << 7)
+  53:Core/Src/uart_printf.c **** // 禁用DR寄存器满中断
+  54:Core/Src/uart_printf.c **** #define DISABLE_UART2_RX_DR_IT() USART2_BASS->CR1 &= ~(1U << 5)
+  55:Core/Src/uart_printf.c **** // 启用DR寄存器满中断
+  56:Core/Src/uart_printf.c **** #define ENABLE_UART2_RX_DR_IT() USART2_BASS->CR1 |= (1U << 5)
+  57:Core/Src/uart_printf.c **** 
+  58:Core/Src/uart_printf.c **** // 写数据到fifo
+  59:Core/Src/uart_printf.c **** static uint8_t uart_fifo_put(ST_FIFO_LOG *fifo, const void *data, const uint16_t dataLen);
+  60:Core/Src/uart_printf.c **** // 初始化FIFO
+  61:Core/Src/uart_printf.c **** static void uart_printf_init(HANDLE_LOG_FIFO *handle);
+  62:Core/Src/uart_printf.c **** // 初始化uart硬件
+  63:Core/Src/uart_printf.c **** static void uart_hardware_init();
+  64:Core/Src/uart_printf.c **** void uart2_hardware_init();
+  65:Core/Src/uart_printf.c **** // 从fifo出数据
+  66:Core/Src/uart_printf.c **** static uint8_t uart_fifo_get(ST_FIFO_LOG *fifo, uint8_t *data, const uint16_t dataLen);
+  67:Core/Src/uart_printf.c **** // 格式转换
+  68:Core/Src/uart_printf.c **** static void HEX_TO_STR(uint8_t data, char *str);
+  69:Core/Src/uart_printf.c **** // 从uart读取数据
+  70:Core/Src/uart_printf.c **** void uart_in(uint8_t *data);
+  71:Core/Src/uart_printf.c **** // 仅操作DR寄存器
+  72:Core/Src/uart_printf.c **** void uart_out(uint8_t data);
+  73:Core/Src/uart_printf.c **** 
+  74:Core/Src/uart_printf.c **** // 从uart读取数据
+  75:Core/Src/uart_printf.c **** void uart2_in(uint8_t *data);
+  76:Core/Src/uart_printf.c **** // 仅操作DR寄存器
+  77:Core/Src/uart_printf.c **** void uart2_out(uint8_t data);
+  78:Core/Src/uart_printf.c **** 
+  79:Core/Src/uart_printf.c **** // 初始化fifo
+  80:Core/Src/uart_printf.c **** static void uart_printf_init(HANDLE_LOG_FIFO *handle)
+  81:Core/Src/uart_printf.c **** {
+  27              		.loc 1 81 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              		@ link register save eliminated.
+  82:Core/Src/uart_printf.c ****     // handle->fifo_len = FIFO_LOG_LEN;
+  83:Core/Src/uart_printf.c ****     handle->initFifo = true;
+  32              		.loc 1 83 5 view .LVU1
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 3
+
+
+  33              		.loc 1 83 22 is_stmt 0 view .LVU2
+  34 0000 0123     		movs	r3, #1
+  35 0002 80F80F38 		strb	r3, [r0, #2063]
+  84:Core/Src/uart_printf.c ****     handle->uart_error_code = UART_TX_READY;
+  36              		.loc 1 84 5 is_stmt 1 view .LVU3
+  37              		.loc 1 84 29 is_stmt 0 view .LVU4
+  38 0006 0370     		strb	r3, [r0]
+  85:Core/Src/uart_printf.c **** 
+  86:Core/Src/uart_printf.c ****     handle->fifo_log.in = 0;
+  39              		.loc 1 86 5 is_stmt 1 view .LVU5
+  40              		.loc 1 86 25 is_stmt 0 view .LVU6
+  41 0008 0023     		movs	r3, #0
+  42 000a A0F80234 		strh	r3, [r0, #1026]	@ movhi
+  87:Core/Src/uart_printf.c ****     handle->fifo_log.out = 0;
+  43              		.loc 1 87 5 is_stmt 1 view .LVU7
+  44              		.loc 1 87 26 is_stmt 0 view .LVU8
+  45 000e A0F80434 		strh	r3, [r0, #1028]	@ movhi
+  88:Core/Src/uart_printf.c ****     handle->fifo_log.fifo_len = FIFO_LOG_LEN;
+  46              		.loc 1 88 5 is_stmt 1 view .LVU9
+  47              		.loc 1 88 31 is_stmt 0 view .LVU10
+  48 0012 4FF48063 		mov	r3, #1024
+  49 0016 A0F80634 		strh	r3, [r0, #1030]	@ movhi
+  89:Core/Src/uart_printf.c ****     if (handle == &log_fifo_handle2)
+  50              		.loc 1 89 5 is_stmt 1 view .LVU11
+  51              		.loc 1 89 8 is_stmt 0 view .LVU12
+  52 001a 0A4B     		ldr	r3, .L5
+  53 001c 9842     		cmp	r0, r3
+  54 001e 0CD0     		beq	.L4
+  90:Core/Src/uart_printf.c ****     {
+  91:Core/Src/uart_printf.c ****         handle->u.frame_count = 0;
+  92:Core/Src/uart_printf.c ****     }
+  93:Core/Src/uart_printf.c ****     else
+  94:Core/Src/uart_printf.c ****     {
+  95:Core/Src/uart_printf.c ****         handle->u.log_level = info_log | system_log | standard_log | error_log;
+  55              		.loc 1 95 9 is_stmt 1 view .LVU13
+  56              		.loc 1 95 29 is_stmt 0 view .LVU14
+  57 0020 0F23     		movs	r3, #15
+  58 0022 80F80E38 		strb	r3, [r0, #2062]
+  59              	.L3:
+  96:Core/Src/uart_printf.c ****     }
+  97:Core/Src/uart_printf.c **** 
+  98:Core/Src/uart_printf.c **** #if uart_IT
+  99:Core/Src/uart_printf.c ****     handle->fifo_log_in.in = 0;
+  60              		.loc 1 99 5 is_stmt 1 view .LVU15
+  61              		.loc 1 99 28 is_stmt 0 view .LVU16
+  62 0026 0023     		movs	r3, #0
+  63 0028 A0F80838 		strh	r3, [r0, #2056]	@ movhi
+ 100:Core/Src/uart_printf.c ****     handle->fifo_log_in.out = 0;
+  64              		.loc 1 100 5 is_stmt 1 view .LVU17
+  65              		.loc 1 100 29 is_stmt 0 view .LVU18
+  66 002c A0F80A38 		strh	r3, [r0, #2058]	@ movhi
+ 101:Core/Src/uart_printf.c ****     handle->fifo_log_in.fifo_len = FIFO_LOG_LEN;
+  67              		.loc 1 101 5 is_stmt 1 view .LVU19
+  68              		.loc 1 101 34 is_stmt 0 view .LVU20
+  69 0030 4FF48063 		mov	r3, #1024
+  70 0034 A0F80C38 		strh	r3, [r0, #2060]	@ movhi
+ 102:Core/Src/uart_printf.c **** #endif
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 4
+
+
+ 103:Core/Src/uart_printf.c **** }
+  71              		.loc 1 103 1 view .LVU21
+  72 0038 7047     		bx	lr
+  73              	.L4:
+  91:Core/Src/uart_printf.c ****     }
+  74              		.loc 1 91 9 is_stmt 1 view .LVU22
+  91:Core/Src/uart_printf.c ****     }
+  75              		.loc 1 91 31 is_stmt 0 view .LVU23
+  76 003a 0023     		movs	r3, #0
+  77 003c 80F80E38 		strb	r3, [r0, #2062]
+  78 0040 F1E7     		b	.L3
+  79              	.L6:
+  80 0042 00BF     		.align	2
+  81              	.L5:
+  82 0044 00000000 		.word	log_fifo_handle2
+  83              		.cfi_endproc
+  84              	.LFE0:
+  86              		.section	.text.uart_hardware_init,"ax",%progbits
+  87              		.align	1
+  88              		.syntax unified
+  89              		.thumb
+  90              		.thumb_func
+  92              	uart_hardware_init:
+  93              	.LFB15:
+ 104:Core/Src/uart_printf.c **** 
+ 105:Core/Src/uart_printf.c **** static uint8_t uart_fifo_put(ST_FIFO_LOG *fifo, const void *data, const uint16_t dataLen)
+ 106:Core/Src/uart_printf.c **** {
+ 107:Core/Src/uart_printf.c ****     // 此次写到fifo的长度
+ 108:Core/Src/uart_printf.c ****     uint16_t maxLength = 0;
+ 109:Core/Src/uart_printf.c ****     // fifo的剩余空间
+ 110:Core/Src/uart_printf.c ****     uint16_t buffSize = 0;
+ 111:Core/Src/uart_printf.c ****     // 从in到fifo_len的长度
+ 112:Core/Src/uart_printf.c ****     uint16_t forwardLength = 0;
+ 113:Core/Src/uart_printf.c ****     uint8_t *buff = NULL;
+ 114:Core/Src/uart_printf.c ****     // 下次写的位置
+ 115:Core/Src/uart_printf.c ****     uint16_t *in = NULL;
+ 116:Core/Src/uart_printf.c ****     // 下次读的位置
+ 117:Core/Src/uart_printf.c ****     uint16_t *out = NULL;
+ 118:Core/Src/uart_printf.c **** 
+ 119:Core/Src/uart_printf.c ****     // 初始化指针
+ 120:Core/Src/uart_printf.c ****     in = &(fifo->in);
+ 121:Core/Src/uart_printf.c ****     out = &(fifo->out);
+ 122:Core/Src/uart_printf.c ****     buff = &(fifo->buff[0]);
+ 123:Core/Src/uart_printf.c **** 
+ 124:Core/Src/uart_printf.c ****     // 检查buff是否已经满  w + 1 = r 时， buff就是满的状态
+ 125:Core/Src/uart_printf.c ****     // 检查缓冲区是否已满
+ 126:Core/Src/uart_printf.c **** 
+ 127:Core/Src/uart_printf.c ****     if ((*in == (fifo->fifo_len - 1) && *out == 0) || (*in + 1) == *out)
+ 128:Core/Src/uart_printf.c ****     {
+ 129:Core/Src/uart_printf.c ****         return FIFO_IN_FAIL;
+ 130:Core/Src/uart_printf.c ****     }
+ 131:Core/Src/uart_printf.c **** 
+ 132:Core/Src/uart_printf.c ****     // 计算出buff的容量
+ 133:Core/Src/uart_printf.c **** 
+ 134:Core/Src/uart_printf.c ****     // *in > *out时,能写的位置是 buff[in] 到 buff[len -1],  buff[0] 到 buff[out -1]
+ 135:Core/Src/uart_printf.c ****     if ((*in) > (*out))
+ 136:Core/Src/uart_printf.c ****     {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 5
+
+
+ 137:Core/Src/uart_printf.c ****         buffSize = (fifo->fifo_len - (*in)) + (*out);
+ 138:Core/Src/uart_printf.c ****     }
+ 139:Core/Src/uart_printf.c ****     // buff是空的，这个时候，能从buff[0] 写到 buff[len -1]
+ 140:Core/Src/uart_printf.c ****     else if ((*out) == (*in))
+ 141:Core/Src/uart_printf.c ****     {
+ 142:Core/Src/uart_printf.c ****         buffSize = fifo->fifo_len;
+ 143:Core/Src/uart_printf.c ****     }
+ 144:Core/Src/uart_printf.c ****     // *in < *out,此时能从buff[in] 写到 buff[out -1]
+ 145:Core/Src/uart_printf.c ****     else
+ 146:Core/Src/uart_printf.c ****     {
+ 147:Core/Src/uart_printf.c ****         buffSize = *out - *in;
+ 148:Core/Src/uart_printf.c ****     }
+ 149:Core/Src/uart_printf.c **** 
+ 150:Core/Src/uart_printf.c ****     /*计算出，此次写buff的数据长度
+ 151:Core/Src/uart_printf.c ****       当 *in > *out时,能从buff[*in],写到buff[bufflen -1],从buff[0]写到buff[buffsize - forw
+ 152:Core/Src/uart_printf.c ****       假如buff长度= 20,*in = 15，*out = 8, buffsize = 20-15+8=13,forwardLength=5,
+ 153:Core/Src/uart_printf.c ****       能从buff[15]写到buff[19],从buff[0]写到buff[7]，更新*in为8。但是*out=8,不符合
+ 154:Core/Src/uart_printf.c ****       设置maxLength为buffSize - 1 和 dataLen的最小值，maxLength = 12在写满buff的情况
+ 155:Core/Src/uart_printf.c ****       更新*in = maxLength - forwardLength = 7，符合判定满的规则
+ 156:Core/Src/uart_printf.c **** 
+ 157:Core/Src/uart_printf.c ****       假如buff长度= 20,*in = 8，*out = 15,buffSize =15-8=7,在写满的情况下，设置maxLe
+ 158:Core/Src/uart_printf.c ****       buff[14],更新*in为15,和*out =15冲突不满足判定满的情况，设置maxLength为buff
+ 159:Core/Src/uart_printf.c ****       maxLength = 6,从buff[8]到buff[13],更新*in为14,符合判定满的规则
+ 160:Core/Src/uart_printf.c ****     */
+ 161:Core/Src/uart_printf.c **** 
+ 162:Core/Src/uart_printf.c ****     maxLength = MIN(buffSize - 1, dataLen);
+ 163:Core/Src/uart_printf.c **** 
+ 164:Core/Src/uart_printf.c ****     // 当 *in > *out 时，计算出从fifo[in]到fifo[fifo_len - 1]的长度
+ 165:Core/Src/uart_printf.c ****     forwardLength = fifo->fifo_len - *in;
+ 166:Core/Src/uart_printf.c **** 
+ 167:Core/Src/uart_printf.c ****     // maxLength > forwardLength ,一定是*in > *out的情况,需要写 buff[*in] 到 buff[len -1]
+ 168:Core/Src/uart_printf.c ****     if (maxLength > forwardLength)
+ 169:Core/Src/uart_printf.c ****     {
+ 170:Core/Src/uart_printf.c **** 
+ 171:Core/Src/uart_printf.c ****         memcpy(&buff[*in], data, forwardLength);                                        // 复制�
+ 172:Core/Src/uart_printf.c ****         memcpy(&buff[0], &((uint8_t *)data)[forwardLength], maxLength - forwardLength); // 复制�
+ 173:Core/Src/uart_printf.c **** 
+ 174:Core/Src/uart_printf.c ****         // 更新 *in
+ 175:Core/Src/uart_printf.c ****         *in = maxLength - forwardLength; // 下次写入的位置是buff[maxLength - forwardLength]
+ 176:Core/Src/uart_printf.c ****     }
+ 177:Core/Src/uart_printf.c ****     //*in <= *out , maxLength =forwardLength  写入 buff[in] 到 buff[in-1] , 或是 *out < *in �
+ 178:Core/Src/uart_printf.c ****     else
+ 179:Core/Src/uart_printf.c ****     {
+ 180:Core/Src/uart_printf.c ****         memcpy(&buff[*in], data, maxLength);
+ 181:Core/Src/uart_printf.c ****         *in = *in + maxLength;
+ 182:Core/Src/uart_printf.c **** 
+ 183:Core/Src/uart_printf.c ****         // 防止*in溢出
+ 184:Core/Src/uart_printf.c ****         if (*in == fifo->fifo_len)
+ 185:Core/Src/uart_printf.c ****         {
+ 186:Core/Src/uart_printf.c ****             *in = 0;
+ 187:Core/Src/uart_printf.c ****         }
+ 188:Core/Src/uart_printf.c ****     }
+ 189:Core/Src/uart_printf.c **** 
+ 190:Core/Src/uart_printf.c ****     return FIFO_IN_OR_OUT_COMPLETE;
+ 191:Core/Src/uart_printf.c **** }
+ 192:Core/Src/uart_printf.c **** 
+ 193:Core/Src/uart_printf.c **** // 从fifo中获得数据
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 6
+
+
+ 194:Core/Src/uart_printf.c **** static uint8_t uart_fifo_get(ST_FIFO_LOG *fifo, uint8_t *data, const uint16_t dataLen)
+ 195:Core/Src/uart_printf.c **** {
+ 196:Core/Src/uart_printf.c ****     // 此次进fifo的最长长度
+ 197:Core/Src/uart_printf.c ****     uint16_t maxLength = 0;
+ 198:Core/Src/uart_printf.c ****     // 从in到fifo_len的长度
+ 199:Core/Src/uart_printf.c ****     uint16_t forwardLength = 0;
+ 200:Core/Src/uart_printf.c ****     uint8_t *buff;
+ 201:Core/Src/uart_printf.c ****     uint16_t *in = 0;
+ 202:Core/Src/uart_printf.c ****     uint16_t *out = 0;
+ 203:Core/Src/uart_printf.c **** 
+ 204:Core/Src/uart_printf.c ****     in = &(fifo->in);
+ 205:Core/Src/uart_printf.c ****     out = &(fifo->out);
+ 206:Core/Src/uart_printf.c ****     buff = &(fifo->buff[0]);
+ 207:Core/Src/uart_printf.c **** 
+ 208:Core/Src/uart_printf.c ****     // buf内是否有数据
+ 209:Core/Src/uart_printf.c ****     if (*in == *out)
+ 210:Core/Src/uart_printf.c ****     {
+ 211:Core/Src/uart_printf.c **** 
+ 212:Core/Src/uart_printf.c ****         return FIFO_OUT_FAIL;
+ 213:Core/Src/uart_printf.c ****     }
+ 214:Core/Src/uart_printf.c **** 
+ 215:Core/Src/uart_printf.c ****     // 计算已经入buff数据长度
+ 216:Core/Src/uart_printf.c ****     if (*in < *out)
+ 217:Core/Src/uart_printf.c ****     {
+ 218:Core/Src/uart_printf.c ****         // maxLength = log_fifo_handle.fifo_len - *out + *in;
+ 219:Core/Src/uart_printf.c ****         maxLength = fifo->fifo_len - *out + *in;
+ 220:Core/Src/uart_printf.c ****     }
+ 221:Core/Src/uart_printf.c ****     //*in > *out
+ 222:Core/Src/uart_printf.c ****     else
+ 223:Core/Src/uart_printf.c ****     {
+ 224:Core/Src/uart_printf.c ****         maxLength = *in - *out;
+ 225:Core/Src/uart_printf.c ****     }
+ 226:Core/Src/uart_printf.c **** 
+ 227:Core/Src/uart_printf.c ****     // 计算出从fifo[out]到fifo[fifo_len - 1]的长度
+ 228:Core/Src/uart_printf.c ****     forwardLength = fifo->fifo_len - *out;
+ 229:Core/Src/uart_printf.c **** 
+ 230:Core/Src/uart_printf.c ****     /* 此次出buff的长度,不能超过buff的长度*/
+ 231:Core/Src/uart_printf.c ****     maxLength = MIN(maxLength, dataLen);
+ 232:Core/Src/uart_printf.c ****     if (maxLength > forwardLength)
+ 233:Core/Src/uart_printf.c ****     {
+ 234:Core/Src/uart_printf.c ****         memcpy(data, &buff[*out], forwardLength);
+ 235:Core/Src/uart_printf.c ****         memcpy(&data[forwardLength], buff, maxLength - forwardLength);
+ 236:Core/Src/uart_printf.c ****         *out = maxLength - forwardLength;
+ 237:Core/Src/uart_printf.c ****     }
+ 238:Core/Src/uart_printf.c ****     else
+ 239:Core/Src/uart_printf.c ****     {
+ 240:Core/Src/uart_printf.c ****         memcpy(data, &buff[*out], maxLength);
+ 241:Core/Src/uart_printf.c ****         *out = *out + maxLength;
+ 242:Core/Src/uart_printf.c ****         if (*out == fifo->fifo_len)
+ 243:Core/Src/uart_printf.c ****         {
+ 244:Core/Src/uart_printf.c ****             *out = 0;
+ 245:Core/Src/uart_printf.c ****         }
+ 246:Core/Src/uart_printf.c ****     }
+ 247:Core/Src/uart_printf.c **** 
+ 248:Core/Src/uart_printf.c ****     if (*in == *out)
+ 249:Core/Src/uart_printf.c ****     {
+ 250:Core/Src/uart_printf.c ****         return FIFO_LAST_DATA;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 7
+
+
+ 251:Core/Src/uart_printf.c ****     }
+ 252:Core/Src/uart_printf.c **** 
+ 253:Core/Src/uart_printf.c ****     return FIFO_IN_OR_OUT_COMPLETE;
+ 254:Core/Src/uart_printf.c ****     // 开启os调度
+ 255:Core/Src/uart_printf.c **** }
+ 256:Core/Src/uart_printf.c **** 
+ 257:Core/Src/uart_printf.c **** uint8_t uart_printf(uint8_t logLevel, const void *strData, const uint8_t *data, const uint8_t len)
+ 258:Core/Src/uart_printf.c **** {
+ 259:Core/Src/uart_printf.c **** #if use_RTOS
+ 260:Core/Src/uart_printf.c ****     // 关闭中断
+ 261:Core/Src/uart_printf.c ****     portDISABLE_INTERRUPTS();
+ 262:Core/Src/uart_printf.c **** 
+ 263:Core/Src/uart_printf.c **** #endif
+ 264:Core/Src/uart_printf.c **** 
+ 265:Core/Src/uart_printf.c ****     // 初始化
+ 266:Core/Src/uart_printf.c ****     if (log_fifo_handle.initFifo == false)
+ 267:Core/Src/uart_printf.c ****     {
+ 268:Core/Src/uart_printf.c ****         uart_hardware_init();
+ 269:Core/Src/uart_printf.c ****         uart_printf_init(&log_fifo_handle);
+ 270:Core/Src/uart_printf.c ****     }
+ 271:Core/Src/uart_printf.c **** 
+ 272:Core/Src/uart_printf.c ****     // 检查当前log等级
+ 273:Core/Src/uart_printf.c **** 
+ 274:Core/Src/uart_printf.c ****     if ((logLevel & log_fifo_handle.u.log_level) == 0x00)
+ 275:Core/Src/uart_printf.c ****     {
+ 276:Core/Src/uart_printf.c ****         return 0;
+ 277:Core/Src/uart_printf.c ****     }
+ 278:Core/Src/uart_printf.c **** 
+ 279:Core/Src/uart_printf.c ****     // 将数据放入到FIFO中
+ 280:Core/Src/uart_printf.c ****     if (strData != NULL)
+ 281:Core/Src/uart_printf.c ****     {
+ 282:Core/Src/uart_printf.c ****         uart_fifo_put(&log_fifo_handle.fifo_log, strData, strlen((char *)strData));
+ 283:Core/Src/uart_printf.c ****     }
+ 284:Core/Src/uart_printf.c **** 
+ 285:Core/Src/uart_printf.c ****     if (data != NULL)
+ 286:Core/Src/uart_printf.c ****     {
+ 287:Core/Src/uart_printf.c ****         // uart_fifo_put(strData, strlen((char *)strData));
+ 288:Core/Src/uart_printf.c **** 
+ 289:Core/Src/uart_printf.c ****         // 储存HEX_TO_STR()的str,"-"，"ASCLl"，"ASCLl"
+ 290:Core/Src/uart_printf.c ****         char tempData[3] = "";
+ 291:Core/Src/uart_printf.c ****         for (uint8_t i = 0; i < len; i++)
+ 292:Core/Src/uart_printf.c ****         {
+ 293:Core/Src/uart_printf.c ****             HEX_TO_STR(*data, &tempData[0]);
+ 294:Core/Src/uart_printf.c ****             data++;
+ 295:Core/Src/uart_printf.c **** 
+ 296:Core/Src/uart_printf.c ****             // i == 1 删除 "-"
+ 297:Core/Src/uart_printf.c ****             if (i == 0)
+ 298:Core/Src/uart_printf.c ****             {
+ 299:Core/Src/uart_printf.c ****                 // 复制"ascll"、"ascll"
+ 300:Core/Src/uart_printf.c ****                 uart_fifo_put(&log_fifo_handle.fifo_log, &tempData[1], 2);
+ 301:Core/Src/uart_printf.c ****             }
+ 302:Core/Src/uart_printf.c ****             else
+ 303:Core/Src/uart_printf.c ****             {
+ 304:Core/Src/uart_printf.c ****                 // 复制"-"","ascll"、"ascll"
+ 305:Core/Src/uart_printf.c ****                 uart_fifo_put(&log_fifo_handle.fifo_log, &tempData[0], 3);
+ 306:Core/Src/uart_printf.c ****             }
+ 307:Core/Src/uart_printf.c ****         }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 8
+
+
+ 308:Core/Src/uart_printf.c ****         uart_fifo_put(&log_fifo_handle.fifo_log, "\r\n", 4);
+ 309:Core/Src/uart_printf.c ****     }
+ 310:Core/Src/uart_printf.c **** #if uart_IT
+ 311:Core/Src/uart_printf.c ****     // 使能串口中断
+ 312:Core/Src/uart_printf.c ****     if (log_fifo_handle.uart_error_code == UART_TX_READY)
+ 313:Core/Src/uart_printf.c ****     {
+ 314:Core/Src/uart_printf.c ****         // 打开串口中断 发送DR空中断
+ 315:Core/Src/uart_printf.c ****         log_fifo_handle.uart_error_code = UART_TX_BUSY;
+ 316:Core/Src/uart_printf.c ****         ENABLE_UART_TX_DR_IT();
+ 317:Core/Src/uart_printf.c ****     }
+ 318:Core/Src/uart_printf.c **** #else
+ 319:Core/Src/uart_printf.c **** 
+ 320:Core/Src/uart_printf.c ****     uint8_t temp = 0;
+ 321:Core/Src/uart_printf.c ****     while (uart_fifo_get(&log_fifo_handle.fifo_log, &temp, 1) != FIFO_OUT_FAIL)
+ 322:Core/Src/uart_printf.c ****     {
+ 323:Core/Src/uart_printf.c ****         uart_out(temp);
+ 324:Core/Src/uart_printf.c ****     }
+ 325:Core/Src/uart_printf.c **** 
+ 326:Core/Src/uart_printf.c **** #endif
+ 327:Core/Src/uart_printf.c **** 
+ 328:Core/Src/uart_printf.c **** #if use_RTOS
+ 329:Core/Src/uart_printf.c ****     // 打开中断
+ 330:Core/Src/uart_printf.c ****     portENABLE_INTERRUPTS();
+ 331:Core/Src/uart_printf.c **** 
+ 332:Core/Src/uart_printf.c **** #endif
+ 333:Core/Src/uart_printf.c ****     return 0;
+ 334:Core/Src/uart_printf.c **** }
+ 335:Core/Src/uart_printf.c **** 
+ 336:Core/Src/uart_printf.c **** uint8_t uart_get(uint8_t *data)
+ 337:Core/Src/uart_printf.c **** {
+ 338:Core/Src/uart_printf.c **** #if uart_IT
+ 339:Core/Src/uart_printf.c **** 
+ 340:Core/Src/uart_printf.c ****     if (uart_fifo_get(&log_fifo_handle.fifo_log_in, data, 1) == FIFO_OUT_FAIL)
+ 341:Core/Src/uart_printf.c ****     {
+ 342:Core/Src/uart_printf.c ****         return false;
+ 343:Core/Src/uart_printf.c ****     }
+ 344:Core/Src/uart_printf.c ****     else
+ 345:Core/Src/uart_printf.c ****     {
+ 346:Core/Src/uart_printf.c ****         return true;
+ 347:Core/Src/uart_printf.c ****     }
+ 348:Core/Src/uart_printf.c **** 
+ 349:Core/Src/uart_printf.c **** #else
+ 350:Core/Src/uart_printf.c ****     uart_in(data);
+ 351:Core/Src/uart_printf.c ****     return true;
+ 352:Core/Src/uart_printf.c **** #endif
+ 353:Core/Src/uart_printf.c **** }
+ 354:Core/Src/uart_printf.c **** 
+ 355:Core/Src/uart_printf.c **** void uart_out_IT()
+ 356:Core/Src/uart_printf.c **** {
+ 357:Core/Src/uart_printf.c ****     uint8_t data = 0;
+ 358:Core/Src/uart_printf.c ****     uint8_t fifo_status = uart_fifo_get(&log_fifo_handle.fifo_log, &data, 1);
+ 359:Core/Src/uart_printf.c ****     if (fifo_status == FIFO_LAST_DATA)
+ 360:Core/Src/uart_printf.c ****     {
+ 361:Core/Src/uart_printf.c ****         log_fifo_handle.uart_error_code = UART_TX_READY;
+ 362:Core/Src/uart_printf.c ****         UART_SEND_DATA_DR(data);
+ 363:Core/Src/uart_printf.c ****         DISABLE_UART_TX_DR_IT();
+ 364:Core/Src/uart_printf.c ****     }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 9
+
+
+ 365:Core/Src/uart_printf.c ****     else
+ 366:Core/Src/uart_printf.c ****     {
+ 367:Core/Src/uart_printf.c ****         UART_SEND_DATA_DR(data);
+ 368:Core/Src/uart_printf.c ****     }
+ 369:Core/Src/uart_printf.c **** }
+ 370:Core/Src/uart_printf.c **** void uart2_out_IT()
+ 371:Core/Src/uart_printf.c **** {
+ 372:Core/Src/uart_printf.c ****     uint8_t data = 0;
+ 373:Core/Src/uart_printf.c ****     uint8_t fifo_status = uart_fifo_get(&log_fifo_handle2.fifo_log, &data, 1);
+ 374:Core/Src/uart_printf.c ****     if (fifo_status == FIFO_LAST_DATA)
+ 375:Core/Src/uart_printf.c ****     {
+ 376:Core/Src/uart_printf.c ****         log_fifo_handle2.uart_error_code = UART_TX_READY;
+ 377:Core/Src/uart_printf.c ****         UART2_SEND_DATA_DR(data);
+ 378:Core/Src/uart_printf.c ****         DISABLE_UART2_TX_DR_IT();
+ 379:Core/Src/uart_printf.c ****     }
+ 380:Core/Src/uart_printf.c ****     else
+ 381:Core/Src/uart_printf.c ****     {
+ 382:Core/Src/uart_printf.c ****         UART2_SEND_DATA_DR(data);
+ 383:Core/Src/uart_printf.c ****     }
+ 384:Core/Src/uart_printf.c **** }
+ 385:Core/Src/uart_printf.c **** 
+ 386:Core/Src/uart_printf.c **** void uart_in(uint8_t *data)
+ 387:Core/Src/uart_printf.c **** {
+ 388:Core/Src/uart_printf.c ****     while ((USART1_BASS->SR & (1U << 5)) == 0)
+ 389:Core/Src/uart_printf.c ****     {
+ 390:Core/Src/uart_printf.c ****     }
+ 391:Core/Src/uart_printf.c ****     *data = USART1_BASS->DR;
+ 392:Core/Src/uart_printf.c **** }
+ 393:Core/Src/uart_printf.c **** 
+ 394:Core/Src/uart_printf.c **** void uart2_in(uint8_t *data)
+ 395:Core/Src/uart_printf.c **** {
+ 396:Core/Src/uart_printf.c ****     while ((USART2_BASS->SR & (1U << 5)) == 0)
+ 397:Core/Src/uart_printf.c ****     {
+ 398:Core/Src/uart_printf.c ****     }
+ 399:Core/Src/uart_printf.c ****     *data = USART2_BASS->DR;
+ 400:Core/Src/uart_printf.c **** }
+ 401:Core/Src/uart_printf.c **** 
+ 402:Core/Src/uart_printf.c **** #if uart_IT
+ 403:Core/Src/uart_printf.c **** void uart_in_IT(uint8_t data)
+ 404:Core/Src/uart_printf.c **** {
+ 405:Core/Src/uart_printf.c ****     uart_fifo_put(&log_fifo_handle.fifo_log_in, &data, 1);
+ 406:Core/Src/uart_printf.c **** }
+ 407:Core/Src/uart_printf.c **** void uart2_in_IT(uint8_t data)
+ 408:Core/Src/uart_printf.c **** {
+ 409:Core/Src/uart_printf.c ****     uart_fifo_put(&log_fifo_handle2.fifo_log_in, &data, 1);
+ 410:Core/Src/uart_printf.c **** }
+ 411:Core/Src/uart_printf.c **** #endif
+ 412:Core/Src/uart_printf.c **** 
+ 413:Core/Src/uart_printf.c **** void uart_out(uint8_t data)
+ 414:Core/Src/uart_printf.c **** {
+ 415:Core/Src/uart_printf.c ****     // *USART1_DR = data & 0xFF;
+ 416:Core/Src/uart_printf.c ****     while ((USART1_BASS->SR & (1U << 7)) == 0)
+ 417:Core/Src/uart_printf.c ****     {
+ 418:Core/Src/uart_printf.c ****     }
+ 419:Core/Src/uart_printf.c ****     USART1_BASS->DR = data;
+ 420:Core/Src/uart_printf.c **** }
+ 421:Core/Src/uart_printf.c **** 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 10
+
+
+ 422:Core/Src/uart_printf.c **** void uart2_out(uint8_t data)
+ 423:Core/Src/uart_printf.c **** {
+ 424:Core/Src/uart_printf.c ****     // *USART1_DR = data & 0xFF;
+ 425:Core/Src/uart_printf.c ****     while ((USART2_BASS->SR & (1U << 7)) == 0)
+ 426:Core/Src/uart_printf.c ****     {
+ 427:Core/Src/uart_printf.c ****     }
+ 428:Core/Src/uart_printf.c ****     USART2_BASS->DR = data;
+ 429:Core/Src/uart_printf.c **** }
+ 430:Core/Src/uart_printf.c **** 
+ 431:Core/Src/uart_printf.c **** // 输入data 转换成asill
+ 432:Core/Src/uart_printf.c **** static void HEX_TO_STR(uint8_t data, char *str)
+ 433:Core/Src/uart_printf.c **** {
+ 434:Core/Src/uart_printf.c ****     uint8_t temp = 0;
+ 435:Core/Src/uart_printf.c ****     memcpy(str, "-", 1);
+ 436:Core/Src/uart_printf.c **** 
+ 437:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 2; i++)
+ 438:Core/Src/uart_printf.c ****     {
+ 439:Core/Src/uart_printf.c ****         // 高4位
+ 440:Core/Src/uart_printf.c ****         if (i == 0)
+ 441:Core/Src/uart_printf.c ****         {
+ 442:Core/Src/uart_printf.c ****             temp = (data & 0xf0) >> 4;
+ 443:Core/Src/uart_printf.c ****         }
+ 444:Core/Src/uart_printf.c ****         // 低四位
+ 445:Core/Src/uart_printf.c ****         else
+ 446:Core/Src/uart_printf.c ****         {
+ 447:Core/Src/uart_printf.c ****             temp = data & 0x0f;
+ 448:Core/Src/uart_printf.c ****         }
+ 449:Core/Src/uart_printf.c ****         temp = temp < 0x0a ? (temp + '0') : (temp - 0x0a + 'A');
+ 450:Core/Src/uart_printf.c **** 
+ 451:Core/Src/uart_printf.c ****         memcpy(&str[i + 1], &temp, 1);
+ 452:Core/Src/uart_printf.c ****     }
+ 453:Core/Src/uart_printf.c **** }
+ 454:Core/Src/uart_printf.c **** 
+ 455:Core/Src/uart_printf.c **** // 输入2字节的char 返回成uint8_t
+ 456:Core/Src/uart_printf.c **** void STR_TO_HEX(char *str, uint8_t *data)
+ 457:Core/Src/uart_printf.c **** {
+ 458:Core/Src/uart_printf.c **** 
+ 459:Core/Src/uart_printf.c ****     *data = 0;
+ 460:Core/Src/uart_printf.c ****     uint8_t i = 1;
+ 461:Core/Src/uart_printf.c ****     while (*str != '\0')
+ 462:Core/Src/uart_printf.c ****     {
+ 463:Core/Src/uart_printf.c ****         if (('/' < *str) && (*str < ':'))
+ 464:Core/Src/uart_printf.c ****         {
+ 465:Core/Src/uart_printf.c ****             *data |= (*str - '0') << (4 * i);
+ 466:Core/Src/uart_printf.c ****         }
+ 467:Core/Src/uart_printf.c ****         // ascll A-F
+ 468:Core/Src/uart_printf.c ****         else if (('@' < *str) && (*str < 'G'))
+ 469:Core/Src/uart_printf.c ****         {
+ 470:Core/Src/uart_printf.c ****             *data |= (*str - 'A' + 0x0a) << (4 * i);
+ 471:Core/Src/uart_printf.c ****         }
+ 472:Core/Src/uart_printf.c ****         // ascll a-f
+ 473:Core/Src/uart_printf.c ****         else if (('`' < *str) && (*str < 'g'))
+ 474:Core/Src/uart_printf.c ****         {
+ 475:Core/Src/uart_printf.c ****             *data |= (*str - 'a' + 0x0a) << (4 * i);
+ 476:Core/Src/uart_printf.c ****         }
+ 477:Core/Src/uart_printf.c ****         str++;
+ 478:Core/Src/uart_printf.c **** 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 11
+
+
+ 479:Core/Src/uart_printf.c ****         if (i == 1)
+ 480:Core/Src/uart_printf.c ****         {
+ 481:Core/Src/uart_printf.c ****             i = 0;
+ 482:Core/Src/uart_printf.c ****         }
+ 483:Core/Src/uart_printf.c ****         else
+ 484:Core/Src/uart_printf.c ****         {
+ 485:Core/Src/uart_printf.c ****             i = 1;
+ 486:Core/Src/uart_printf.c ****             data++;
+ 487:Core/Src/uart_printf.c ****             *data = 0;
+ 488:Core/Src/uart_printf.c ****         };
+ 489:Core/Src/uart_printf.c ****     }
+ 490:Core/Src/uart_printf.c **** }
+ 491:Core/Src/uart_printf.c **** 
+ 492:Core/Src/uart_printf.c **** // 串口硬件初始化
+ 493:Core/Src/uart_printf.c **** static void uart_hardware_init()
+ 494:Core/Src/uart_printf.c **** {
+  94              		.loc 1 494 1 is_stmt 1 view -0
+  95              		.cfi_startproc
+  96              		@ args = 0, pretend = 0, frame = 0
+  97              		@ frame_needed = 0, uses_anonymous_args = 0
+  98 0000 10B5     		push	{r4, lr}
+  99              		.cfi_def_cfa_offset 8
+ 100              		.cfi_offset 4, -8
+ 101              		.cfi_offset 14, -4
+ 495:Core/Src/uart_printf.c **** 
+ 496:Core/Src/uart_printf.c ****     uint32_t temp = 0;
+ 102              		.loc 1 496 5 view .LVU25
+ 103              	.LVL1:
+ 497:Core/Src/uart_printf.c ****     // USARTDIV的整数部分
+ 498:Core/Src/uart_printf.c ****     uint32_t DIV_Mantissa = 0;
+ 104              		.loc 1 498 5 view .LVU26
+ 499:Core/Src/uart_printf.c ****     // USARTDIV的小数部分
+ 500:Core/Src/uart_printf.c ****     uint32_t DIV_Fraction = 0;
+ 105              		.loc 1 500 5 view .LVU27
+ 501:Core/Src/uart_printf.c **** 
+ 502:Core/Src/uart_printf.c ****     /* 启用时钟 */
+ 503:Core/Src/uart_printf.c **** 
+ 504:Core/Src/uart_printf.c ****     // 启用USART1时钟
+ 505:Core/Src/uart_printf.c ****     MyRCC_BASS->APB2ENR |= (1U << 14);
+ 106              		.loc 1 505 5 view .LVU28
+ 107              		.loc 1 505 15 is_stmt 0 view .LVU29
+ 108 0002 3248     		ldr	r0, .L9
+ 109 0004 0368     		ldr	r3, [r0]
+ 110 0006 9A69     		ldr	r2, [r3, #24]
+ 111              		.loc 1 505 25 view .LVU30
+ 112 0008 42F48042 		orr	r2, r2, #16384
+ 113 000c 9A61     		str	r2, [r3, #24]
+ 506:Core/Src/uart_printf.c **** 
+ 507:Core/Src/uart_printf.c ****     // 启用GPIO A时钟
+ 508:Core/Src/uart_printf.c ****     MyRCC_BASS->APB2ENR |= (1U << 2);
+ 114              		.loc 1 508 5 is_stmt 1 view .LVU31
+ 115              		.loc 1 508 15 is_stmt 0 view .LVU32
+ 116 000e 9A69     		ldr	r2, [r3, #24]
+ 117              		.loc 1 508 25 view .LVU33
+ 118 0010 42F00402 		orr	r2, r2, #4
+ 119 0014 9A61     		str	r2, [r3, #24]
+ 509:Core/Src/uart_printf.c **** 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 12
+
+
+ 510:Core/Src/uart_printf.c ****     /* 配置gpio pin (确保GPIOA_CRH = 0x4bX)*/
+ 511:Core/Src/uart_printf.c **** 
+ 512:Core/Src/uart_printf.c ****     // 清除GPIO A9的配置位 bit4:7
+ 513:Core/Src/uart_printf.c ****     *GPIOA_CRH &= 0xFFFFFF0F;
+ 120              		.loc 1 513 5 is_stmt 1 view .LVU34
+ 121 0016 2E4B     		ldr	r3, .L9+4
+ 122 0018 D3F80428 		ldr	r2, [r3, #2052]
+ 123              		.loc 1 513 16 is_stmt 0 view .LVU35
+ 124 001c 22F0F002 		bic	r2, r2, #240
+ 125 0020 C3F80428 		str	r2, [r3, #2052]
+ 514:Core/Src/uart_printf.c **** 
+ 515:Core/Src/uart_printf.c ****     // 配置GPIO A9 输出模式为复用推挽输出(bit6:7)和输出速度为高(bit4:5)
+ 516:Core/Src/uart_printf.c ****     *GPIOA_CRH |= (3U << 4) | (2U << 6);
+ 126              		.loc 1 516 5 is_stmt 1 view .LVU36
+ 127 0024 D3F80428 		ldr	r2, [r3, #2052]
+ 128              		.loc 1 516 16 is_stmt 0 view .LVU37
+ 129 0028 42F0B002 		orr	r2, r2, #176
+ 130 002c C3F80428 		str	r2, [r3, #2052]
+ 517:Core/Src/uart_printf.c **** 
+ 518:Core/Src/uart_printf.c ****     // 清除GPIO A10的配置位 bit8:11
+ 519:Core/Src/uart_printf.c ****     *GPIOA_CRH &= 0xFFFFF0FF;
+ 131              		.loc 1 519 5 is_stmt 1 view .LVU38
+ 132 0030 D3F80428 		ldr	r2, [r3, #2052]
+ 133              		.loc 1 519 16 is_stmt 0 view .LVU39
+ 134 0034 22F47062 		bic	r2, r2, #3840
+ 135 0038 C3F80428 		str	r2, [r3, #2052]
+ 520:Core/Src/uart_printf.c **** 
+ 521:Core/Src/uart_printf.c ****     // 配置GPIO A10 输出模式为浮空输入(bit10:11)和输入模式(bit8:9)
+ 522:Core/Src/uart_printf.c ****     *GPIOA_CRH |= (1U << 10);
+ 136              		.loc 1 522 5 is_stmt 1 view .LVU40
+ 137 003c D3F80428 		ldr	r2, [r3, #2052]
+ 138              		.loc 1 522 16 is_stmt 0 view .LVU41
+ 139 0040 42F48062 		orr	r2, r2, #1024
+ 140 0044 C3F80428 		str	r2, [r3, #2052]
+ 523:Core/Src/uart_printf.c **** 
+ 524:Core/Src/uart_printf.c ****     /*配置串口参数*/
+ 525:Core/Src/uart_printf.c **** 
+ 526:Core/Src/uart_printf.c ****     // 配置字长bit12、校验使能bit9、奇偶校验bit8、接受使能bit3、发送使能bit
+ 527:Core/Src/uart_printf.c ****     // 清除位
+ 528:Core/Src/uart_printf.c ****     USART1_BASS->CR1 &= (~((1U << 12) | (1U << 9) | (1 << 8) | (1 << 3) | (1 << 2)));
+ 141              		.loc 1 528 5 is_stmt 1 view .LVU42
+ 142              		.loc 1 528 16 is_stmt 0 view .LVU43
+ 143 0048 224C     		ldr	r4, .L9+8
+ 144 004a 2168     		ldr	r1, [r4]
+ 145 004c CB68     		ldr	r3, [r1, #12]
+ 146              		.loc 1 528 22 view .LVU44
+ 147 004e 23F49853 		bic	r3, r3, #4864
+ 148 0052 23F00C03 		bic	r3, r3, #12
+ 149 0056 CB60     		str	r3, [r1, #12]
+ 529:Core/Src/uart_printf.c **** 
+ 530:Core/Src/uart_printf.c ****     // 配置位 bit2、3为1，其他位为0
+ 531:Core/Src/uart_printf.c ****     USART1_BASS->CR1 |= ((1UL << 2) | (1U << 3));
+ 150              		.loc 1 531 5 is_stmt 1 view .LVU45
+ 151              		.loc 1 531 16 is_stmt 0 view .LVU46
+ 152 0058 CB68     		ldr	r3, [r1, #12]
+ 153              		.loc 1 531 22 view .LVU47
+ 154 005a 43F00C03 		orr	r3, r3, #12
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 13
+
+
+ 155 005e CB60     		str	r3, [r1, #12]
+ 532:Core/Src/uart_printf.c **** 
+ 533:Core/Src/uart_printf.c ****     // 配置字长(bit12:13) 一个停止位、禁用LIN模式bit14、禁用CLKEN bit11
+ 534:Core/Src/uart_printf.c ****     // 清除位
+ 535:Core/Src/uart_printf.c ****     USART1_BASS->CR2 &= (~(3U << 12) | (1U << 11) | (1U << 14));
+ 156              		.loc 1 535 5 is_stmt 1 view .LVU48
+ 157              		.loc 1 535 16 is_stmt 0 view .LVU49
+ 158 0060 0B69     		ldr	r3, [r1, #16]
+ 159              		.loc 1 535 22 view .LVU50
+ 160 0062 23F44053 		bic	r3, r3, #12288
+ 161 0066 0B61     		str	r3, [r1, #16]
+ 536:Core/Src/uart_printf.c **** 
+ 537:Core/Src/uart_printf.c ****     // 配置禁用红外模式、半双工模式、智能卡模式
+ 538:Core/Src/uart_printf.c ****     // 清除位
+ 539:Core/Src/uart_printf.c ****     USART1_BASS->CR3 &= (~(3U << 1) | (1U << 3) | (1U << 5));
+ 162              		.loc 1 539 5 is_stmt 1 view .LVU51
+ 163              		.loc 1 539 16 is_stmt 0 view .LVU52
+ 164 0068 4B69     		ldr	r3, [r1, #20]
+ 165              		.loc 1 539 22 view .LVU53
+ 166 006a 23F00603 		bic	r3, r3, #6
+ 167 006e 4B61     		str	r3, [r1, #20]
+ 540:Core/Src/uart_printf.c **** 
+ 541:Core/Src/uart_printf.c ****     // 配置 USART_BRR寄存器 USART1时钟源PCLK2,先获取到PCLK2的分频率数
+ 542:Core/Src/uart_printf.c ****     temp = (MyRCC_BASS->CFGR & (7U << 11)) >> 11;  // 分频倍数
+ 168              		.loc 1 542 5 is_stmt 1 view .LVU54
+ 169              		.loc 1 542 23 is_stmt 0 view .LVU55
+ 170 0070 0368     		ldr	r3, [r0]
+ 171 0072 5A68     		ldr	r2, [r3, #4]
+ 172              		.loc 1 542 10 view .LVU56
+ 173 0074 C2F3C222 		ubfx	r2, r2, #11, #3
+ 174              	.LVL2:
+ 543:Core/Src/uart_printf.c ****     temp = SystemCoreClock >> APBPrescTable[temp]; // PCLK2 频率
+ 175              		.loc 1 543 5 is_stmt 1 view .LVU57
+ 176              		.loc 1 543 28 is_stmt 0 view .LVU58
+ 177 0078 174B     		ldr	r3, .L9+12
+ 178 007a 1B68     		ldr	r3, [r3]
+ 179              		.loc 1 543 44 view .LVU59
+ 180 007c 1748     		ldr	r0, .L9+16
+ 181 007e 825C     		ldrb	r2, [r0, r2]	@ zero_extendqisi2
+ 182              	.LVL3:
+ 183              		.loc 1 543 10 view .LVU60
+ 184 0080 D340     		lsrs	r3, r3, r2
+ 185              	.LVL4:
+ 544:Core/Src/uart_printf.c **** 
+ 545:Core/Src/uart_printf.c ****     // 波特率计算公式 ：baud = fck/(16 * USARTDIV )，USARTDIV =fck / ( 16 * baud )
+ 546:Core/Src/uart_printf.c **** 
+ 547:Core/Src/uart_printf.c ****     // 计算整数部分， 将PCLK2 放大100倍数(HAL库)，用于提高精度
+ 548:Core/Src/uart_printf.c ****     DIV_Mantissa = (((temp * 25U) / (4U * 115200U)) / 100U);
+ 186              		.loc 1 548 5 is_stmt 1 view .LVU61
+ 187              		.loc 1 548 28 is_stmt 0 view .LVU62
+ 188 0082 03EB8303 		add	r3, r3, r3, lsl #2
+ 189              	.LVL5:
+ 190              		.loc 1 548 28 view .LVU63
+ 191 0086 03EB8303 		add	r3, r3, r3, lsl #2
+ 192              		.loc 1 548 18 view .LVU64
+ 193 008a 5A0B     		lsrs	r2, r3, #13
+ 194              	.LVL6:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 14
+
+
+ 195              		.loc 1 548 18 view .LVU65
+ 196 008c 1448     		ldr	r0, .L9+20
+ 197              		.loc 1 548 18 view .LVU66
+ 198 008e A0FB0220 		umull	r2, r0, r0, r2
+ 199              	.LVL7:
+ 549:Core/Src/uart_printf.c ****     // 小数部分 *16是为了将小数转换成二进制数 加50是补偿(手动四舍五入)
+ 550:Core/Src/uart_printf.c ****     DIV_Fraction = ((((temp * 25U) / (4U * 115200U)) - DIV_Mantissa * 100U) * 16U + 50U) / 100U;
+ 200              		.loc 1 550 5 is_stmt 1 view .LVU67
+ 201              		.loc 1 550 36 is_stmt 0 view .LVU68
+ 202 0092 144A     		ldr	r2, .L9+24
+ 203 0094 A2FB0323 		umull	r2, r3, r2, r3
+ 204              		.loc 1 550 69 view .LVU69
+ 205 0098 6422     		movs	r2, #100
+ 206 009a 00FB02F2 		mul	r2, r0, r2
+ 207              		.loc 1 550 54 view .LVU70
+ 208 009e C2EB9343 		rsb	r3, r2, r3, lsr #18
+ 209              		.loc 1 550 77 view .LVU71
+ 210 00a2 1B01     		lsls	r3, r3, #4
+ 211              		.loc 1 550 83 view .LVU72
+ 212 00a4 3233     		adds	r3, r3, #50
+ 213              		.loc 1 550 18 view .LVU73
+ 214 00a6 104A     		ldr	r2, .L9+28
+ 215 00a8 A2FB0323 		umull	r2, r3, r2, r3
+ 216              	.LVL8:
+ 551:Core/Src/uart_printf.c ****     USART1_BASS->BRR = (DIV_Mantissa << 4) + DIV_Fraction;
+ 217              		.loc 1 551 5 is_stmt 1 view .LVU74
+ 218              		.loc 1 551 38 is_stmt 0 view .LVU75
+ 219 00ac 0001     		lsls	r0, r0, #4
+ 220              	.LVL9:
+ 221              		.loc 1 551 44 view .LVU76
+ 222 00ae 00EB5310 		add	r0, r0, r3, lsr #5
+ 223              		.loc 1 551 22 view .LVU77
+ 224 00b2 8860     		str	r0, [r1, #8]
+ 552:Core/Src/uart_printf.c **** 
+ 553:Core/Src/uart_printf.c **** #if uart_IT
+ 554:Core/Src/uart_printf.c **** 
+ 555:Core/Src/uart_printf.c ****     // // 设置USART1 中断优先级 nvic 偏移值0x0000_00D4
+ 556:Core/Src/uart_printf.c ****     // NVIC_SetPriority(37, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 0, 0));
+ 557:Core/Src/uart_printf.c **** 
+ 558:Core/Src/uart_printf.c ****     // // 启用中断
+ 559:Core/Src/uart_printf.c ****     // NVIC_EnableIRQ(37);
+ 560:Core/Src/uart_printf.c **** 
+ 561:Core/Src/uart_printf.c ****     // 启用优先级
+ 562:Core/Src/uart_printf.c ****     usart1PrioritySetAndEnable();
+ 225              		.loc 1 562 5 is_stmt 1 view .LVU78
+ 226 00b4 FFF7FEFF 		bl	usart1PrioritySetAndEnable
+ 227              	.LVL10:
+ 563:Core/Src/uart_printf.c **** 
+ 564:Core/Src/uart_printf.c ****     // 启用接收中断
+ 565:Core/Src/uart_printf.c ****     ENABLE_UART_RX_DR_IT();
+ 228              		.loc 1 565 5 view .LVU79
+ 229 00b8 2368     		ldr	r3, [r4]
+ 230 00ba DA68     		ldr	r2, [r3, #12]
+ 231 00bc 42F02002 		orr	r2, r2, #32
+ 232 00c0 DA60     		str	r2, [r3, #12]
+ 566:Core/Src/uart_printf.c **** 
+ 567:Core/Src/uart_printf.c **** #endif
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 15
+
+
+ 568:Core/Src/uart_printf.c ****     // 使能USART1
+ 569:Core/Src/uart_printf.c ****     USART1_BASS->CR1 |= (1UL << 13);
+ 233              		.loc 1 569 5 view .LVU80
+ 234              		.loc 1 569 16 is_stmt 0 view .LVU81
+ 235 00c2 DA68     		ldr	r2, [r3, #12]
+ 236              		.loc 1 569 22 view .LVU82
+ 237 00c4 42F40052 		orr	r2, r2, #8192
+ 238 00c8 DA60     		str	r2, [r3, #12]
+ 570:Core/Src/uart_printf.c **** }
+ 239              		.loc 1 570 1 view .LVU83
+ 240 00ca 10BD     		pop	{r4, pc}
+ 241              	.L10:
+ 242              		.align	2
+ 243              	.L9:
+ 244 00cc 00000000 		.word	MyRCC_BASS
+ 245 00d0 00000140 		.word	1073807360
+ 246 00d4 00000000 		.word	USART1_BASS
+ 247 00d8 00000000 		.word	SystemCoreClock
+ 248 00dc 00000000 		.word	APBPrescTable
+ 249 00e0 9FA60B00 		.word	763551
+ 250 00e4 C5B3A291 		.word	-1851608123
+ 251 00e8 1F85EB51 		.word	1374389535
+ 252              		.cfi_endproc
+ 253              	.LFE15:
+ 255              		.section	.text.HEX_TO_STR,"ax",%progbits
+ 256              		.align	1
+ 257              		.syntax unified
+ 258              		.thumb
+ 259              		.thumb_func
+ 261              	HEX_TO_STR:
+ 262              	.LVL11:
+ 263              	.LFB13:
+ 433:Core/Src/uart_printf.c ****     uint8_t temp = 0;
+ 264              		.loc 1 433 1 is_stmt 1 view -0
+ 265              		.cfi_startproc
+ 266              		@ args = 0, pretend = 0, frame = 0
+ 267              		@ frame_needed = 0, uses_anonymous_args = 0
+ 268              		@ link register save eliminated.
+ 434:Core/Src/uart_printf.c ****     memcpy(str, "-", 1);
+ 269              		.loc 1 434 5 view .LVU85
+ 435:Core/Src/uart_printf.c **** 
+ 270              		.loc 1 435 5 view .LVU86
+ 271 0000 2D23     		movs	r3, #45
+ 272 0002 0B70     		strb	r3, [r1]
+ 437:Core/Src/uart_printf.c ****     {
+ 273              		.loc 1 437 5 view .LVU87
+ 274              	.LBB2:
+ 437:Core/Src/uart_printf.c ****     {
+ 275              		.loc 1 437 10 view .LVU88
+ 276              	.LVL12:
+ 437:Core/Src/uart_printf.c ****     {
+ 277              		.loc 1 437 18 is_stmt 0 view .LVU89
+ 278 0004 0023     		movs	r3, #0
+ 437:Core/Src/uart_printf.c ****     {
+ 279              		.loc 1 437 5 view .LVU90
+ 280 0006 05E0     		b	.L12
+ 281              	.LVL13:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 16
+
+
+ 282              	.L19:
+ 442:Core/Src/uart_printf.c ****         }
+ 283              		.loc 1 442 13 is_stmt 1 view .LVU91
+ 442:Core/Src/uart_printf.c ****         }
+ 284              		.loc 1 442 34 is_stmt 0 view .LVU92
+ 285 0008 0209     		lsrs	r2, r0, #4
+ 286              	.LVL14:
+ 442:Core/Src/uart_printf.c ****         }
+ 287              		.loc 1 442 34 view .LVU93
+ 288 000a 09E0     		b	.L14
+ 289              	.L15:
+ 449:Core/Src/uart_printf.c **** 
+ 290              		.loc 1 449 14 discriminator 2 view .LVU94
+ 291 000c 3732     		adds	r2, r2, #55
+ 292              	.LVL15:
+ 293              	.L16:
+ 451:Core/Src/uart_printf.c ****     }
+ 294              		.loc 1 451 9 is_stmt 1 view .LVU95
+ 451:Core/Src/uart_printf.c ****     }
+ 295              		.loc 1 451 20 is_stmt 0 view .LVU96
+ 296 000e 0133     		adds	r3, r3, #1
+ 297              	.LVL16:
+ 451:Core/Src/uart_printf.c ****     }
+ 298              		.loc 1 451 9 view .LVU97
+ 299 0010 CA54     		strb	r2, [r1, r3]
+ 437:Core/Src/uart_printf.c ****     {
+ 300              		.loc 1 437 33 is_stmt 1 discriminator 2 view .LVU98
+ 301 0012 DBB2     		uxtb	r3, r3
+ 302              	.LVL17:
+ 303              	.L12:
+ 437:Core/Src/uart_printf.c ****     {
+ 304              		.loc 1 437 27 discriminator 1 view .LVU99
+ 305 0014 012B     		cmp	r3, #1
+ 306 0016 07D8     		bhi	.L18
+ 440:Core/Src/uart_printf.c ****         {
+ 307              		.loc 1 440 9 view .LVU100
+ 440:Core/Src/uart_printf.c ****         {
+ 308              		.loc 1 440 12 is_stmt 0 view .LVU101
+ 309 0018 002B     		cmp	r3, #0
+ 310 001a F5D0     		beq	.L19
+ 447:Core/Src/uart_printf.c ****         }
+ 311              		.loc 1 447 13 is_stmt 1 view .LVU102
+ 447:Core/Src/uart_printf.c ****         }
+ 312              		.loc 1 447 25 is_stmt 0 view .LVU103
+ 313 001c 00F00F02 		and	r2, r0, #15
+ 314              	.LVL18:
+ 315              	.L14:
+ 449:Core/Src/uart_printf.c **** 
+ 316              		.loc 1 449 9 is_stmt 1 view .LVU104
+ 449:Core/Src/uart_printf.c **** 
+ 317              		.loc 1 449 14 is_stmt 0 view .LVU105
+ 318 0020 092A     		cmp	r2, #9
+ 319 0022 F3D8     		bhi	.L15
+ 449:Core/Src/uart_printf.c **** 
+ 320              		.loc 1 449 14 discriminator 1 view .LVU106
+ 321 0024 3032     		adds	r2, r2, #48
+ 322              	.LVL19:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 17
+
+
+ 449:Core/Src/uart_printf.c **** 
+ 323              		.loc 1 449 14 discriminator 1 view .LVU107
+ 324 0026 F2E7     		b	.L16
+ 325              	.LVL20:
+ 326              	.L18:
+ 449:Core/Src/uart_printf.c **** 
+ 327              		.loc 1 449 14 discriminator 1 view .LVU108
+ 328              	.LBE2:
+ 453:Core/Src/uart_printf.c **** 
+ 329              		.loc 1 453 1 view .LVU109
+ 330 0028 7047     		bx	lr
+ 331              		.cfi_endproc
+ 332              	.LFE13:
+ 334              		.section	.text.uart_fifo_put,"ax",%progbits
+ 335              		.align	1
+ 336              		.syntax unified
+ 337              		.thumb
+ 338              		.thumb_func
+ 340              	uart_fifo_put:
+ 341              	.LVL21:
+ 342              	.LFB1:
+ 106:Core/Src/uart_printf.c ****     // 此次写到fifo的长度
+ 343              		.loc 1 106 1 is_stmt 1 view -0
+ 344              		.cfi_startproc
+ 345              		@ args = 0, pretend = 0, frame = 0
+ 346              		@ frame_needed = 0, uses_anonymous_args = 0
+ 106:Core/Src/uart_printf.c ****     // 此次写到fifo的长度
+ 347              		.loc 1 106 1 is_stmt 0 view .LVU111
+ 348 0000 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ 349              		.cfi_def_cfa_offset 32
+ 350              		.cfi_offset 3, -32
+ 351              		.cfi_offset 4, -28
+ 352              		.cfi_offset 5, -24
+ 353              		.cfi_offset 6, -20
+ 354              		.cfi_offset 7, -16
+ 355              		.cfi_offset 8, -12
+ 356              		.cfi_offset 9, -8
+ 357              		.cfi_offset 14, -4
+ 358 0004 0446     		mov	r4, r0
+ 359 0006 0F46     		mov	r7, r1
+ 360 0008 9046     		mov	r8, r2
+ 108:Core/Src/uart_printf.c ****     // fifo的剩余空间
+ 361              		.loc 1 108 5 is_stmt 1 view .LVU112
+ 362              	.LVL22:
+ 110:Core/Src/uart_printf.c ****     // 从in到fifo_len的长度
+ 363              		.loc 1 110 5 view .LVU113
+ 112:Core/Src/uart_printf.c ****     uint8_t *buff = NULL;
+ 364              		.loc 1 112 5 view .LVU114
+ 113:Core/Src/uart_printf.c ****     // 下次写的位置
+ 365              		.loc 1 113 5 view .LVU115
+ 115:Core/Src/uart_printf.c ****     // 下次读的位置
+ 366              		.loc 1 115 5 view .LVU116
+ 117:Core/Src/uart_printf.c **** 
+ 367              		.loc 1 117 5 view .LVU117
+ 120:Core/Src/uart_printf.c ****     out = &(fifo->out);
+ 368              		.loc 1 120 5 view .LVU118
+ 121:Core/Src/uart_printf.c ****     buff = &(fifo->buff[0]);
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 18
+
+
+ 369              		.loc 1 121 5 view .LVU119
+ 122:Core/Src/uart_printf.c **** 
+ 370              		.loc 1 122 5 view .LVU120
+ 127:Core/Src/uart_printf.c ****     {
+ 371              		.loc 1 127 5 view .LVU121
+ 127:Core/Src/uart_printf.c ****     {
+ 372              		.loc 1 127 10 is_stmt 0 view .LVU122
+ 373 000a B0F80054 		ldrh	r5, [r0, #1024]
+ 127:Core/Src/uart_printf.c ****     {
+ 374              		.loc 1 127 22 view .LVU123
+ 375 000e B0F80464 		ldrh	r6, [r0, #1028]
+ 127:Core/Src/uart_printf.c ****     {
+ 376              		.loc 1 127 33 view .LVU124
+ 377 0012 731E     		subs	r3, r6, #1
+ 127:Core/Src/uart_printf.c ****     {
+ 378              		.loc 1 127 8 view .LVU125
+ 379 0014 9D42     		cmp	r5, r3
+ 380 0016 28D0     		beq	.L32
+ 381              	.L21:
+ 127:Core/Src/uart_printf.c ****     {
+ 382              		.loc 1 127 60 discriminator 3 view .LVU126
+ 383 0018 6A1C     		adds	r2, r5, #1
+ 384              	.LVL23:
+ 127:Core/Src/uart_printf.c ****     {
+ 385              		.loc 1 127 68 discriminator 3 view .LVU127
+ 386 001a B4F80234 		ldrh	r3, [r4, #1026]
+ 127:Core/Src/uart_printf.c ****     {
+ 387              		.loc 1 127 52 discriminator 3 view .LVU128
+ 388 001e 9A42     		cmp	r2, r3
+ 389 0020 45D0     		beq	.L28
+ 135:Core/Src/uart_printf.c ****     {
+ 390              		.loc 1 135 5 is_stmt 1 view .LVU129
+ 135:Core/Src/uart_printf.c ****     {
+ 391              		.loc 1 135 8 is_stmt 0 view .LVU130
+ 392 0022 9D42     		cmp	r5, r3
+ 393 0024 27D9     		bls	.L23
+ 137:Core/Src/uart_printf.c ****     }
+ 394              		.loc 1 137 9 is_stmt 1 view .LVU131
+ 137:Core/Src/uart_printf.c ****     }
+ 395              		.loc 1 137 36 is_stmt 0 view .LVU132
+ 396 0026 721B     		subs	r2, r6, r5
+ 397 0028 92B2     		uxth	r2, r2
+ 137:Core/Src/uart_printf.c ****     }
+ 398              		.loc 1 137 18 view .LVU133
+ 399 002a 1344     		add	r3, r3, r2
+ 400 002c 9BB2     		uxth	r3, r3
+ 401              	.LVL24:
+ 402              	.L24:
+ 162:Core/Src/uart_printf.c **** 
+ 403              		.loc 1 162 5 is_stmt 1 view .LVU134
+ 162:Core/Src/uart_printf.c **** 
+ 404              		.loc 1 162 15 is_stmt 0 view .LVU135
+ 405 002e 4345     		cmp	r3, r8
+ 406 0030 02D8     		bhi	.L25
+ 162:Core/Src/uart_printf.c **** 
+ 407              		.loc 1 162 15 discriminator 1 view .LVU136
+ 408 0032 013B     		subs	r3, r3, #1
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 19
+
+
+ 409              	.LVL25:
+ 162:Core/Src/uart_printf.c **** 
+ 410              		.loc 1 162 15 discriminator 1 view .LVU137
+ 411 0034 1FFA83F8 		uxth	r8, r3
+ 412              	.LVL26:
+ 413              	.L25:
+ 165:Core/Src/uart_printf.c **** 
+ 414              		.loc 1 165 5 is_stmt 1 view .LVU138
+ 165:Core/Src/uart_printf.c **** 
+ 415              		.loc 1 165 19 is_stmt 0 view .LVU139
+ 416 0038 A6EB0509 		sub	r9, r6, r5
+ 417 003c 1FFA89F9 		uxth	r9, r9
+ 418              	.LVL27:
+ 168:Core/Src/uart_printf.c ****     {
+ 419              		.loc 1 168 5 is_stmt 1 view .LVU140
+ 168:Core/Src/uart_printf.c ****     {
+ 420              		.loc 1 168 8 is_stmt 0 view .LVU141
+ 421 0040 C845     		cmp	r8, r9
+ 422 0042 1FD9     		bls	.L26
+ 171:Core/Src/uart_printf.c ****         memcpy(&buff[0], &((uint8_t *)data)[forwardLength], maxLength - forwardLength); // 复制�
+ 423              		.loc 1 171 9 is_stmt 1 view .LVU142
+ 424 0044 4A46     		mov	r2, r9
+ 425 0046 3946     		mov	r1, r7
+ 426              	.LVL28:
+ 171:Core/Src/uart_printf.c ****         memcpy(&buff[0], &((uint8_t *)data)[forwardLength], maxLength - forwardLength); // 复制�
+ 427              		.loc 1 171 9 is_stmt 0 view .LVU143
+ 428 0048 6019     		adds	r0, r4, r5
+ 429              	.LVL29:
+ 171:Core/Src/uart_printf.c ****         memcpy(&buff[0], &((uint8_t *)data)[forwardLength], maxLength - forwardLength); // 复制�
+ 430              		.loc 1 171 9 view .LVU144
+ 431 004a FFF7FEFF 		bl	memcpy
+ 432              	.LVL30:
+ 172:Core/Src/uart_printf.c **** 
+ 433              		.loc 1 172 9 is_stmt 1 view .LVU145
+ 434 004e A8EB0902 		sub	r2, r8, r9
+ 435 0052 07EB0901 		add	r1, r7, r9
+ 436 0056 2046     		mov	r0, r4
+ 437 0058 FFF7FEFF 		bl	memcpy
+ 438              	.LVL31:
+ 175:Core/Src/uart_printf.c ****     }
+ 439              		.loc 1 175 9 view .LVU146
+ 175:Core/Src/uart_printf.c ****     }
+ 440              		.loc 1 175 25 is_stmt 0 view .LVU147
+ 441 005c AE1B     		subs	r6, r5, r6
+ 442 005e 4644     		add	r6, r6, r8
+ 175:Core/Src/uart_printf.c ****     }
+ 443              		.loc 1 175 13 view .LVU148
+ 444 0060 A4F80064 		strh	r6, [r4, #1024]	@ movhi
+ 190:Core/Src/uart_printf.c **** }
+ 445              		.loc 1 190 12 view .LVU149
+ 446 0064 0020     		movs	r0, #0
+ 447              	.LVL32:
+ 448              	.L22:
+ 191:Core/Src/uart_printf.c **** 
+ 449              		.loc 1 191 1 view .LVU150
+ 450 0066 BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 451              	.LVL33:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 20
+
+
+ 452              	.L32:
+ 127:Core/Src/uart_printf.c ****     {
+ 453              		.loc 1 127 41 discriminator 1 view .LVU151
+ 454 006a B0F80234 		ldrh	r3, [r0, #1026]
+ 127:Core/Src/uart_printf.c ****     {
+ 455              		.loc 1 127 38 discriminator 1 view .LVU152
+ 456 006e 002B     		cmp	r3, #0
+ 457 0070 D2D1     		bne	.L21
+ 129:Core/Src/uart_printf.c ****     }
+ 458              		.loc 1 129 16 view .LVU153
+ 459 0072 0320     		movs	r0, #3
+ 460              	.LVL34:
+ 129:Core/Src/uart_printf.c ****     }
+ 461              		.loc 1 129 16 view .LVU154
+ 462 0074 F7E7     		b	.L22
+ 463              	.LVL35:
+ 464              	.L23:
+ 140:Core/Src/uart_printf.c ****     {
+ 465              		.loc 1 140 10 is_stmt 1 view .LVU155
+ 140:Core/Src/uart_printf.c ****     {
+ 466              		.loc 1 140 13 is_stmt 0 view .LVU156
+ 467 0076 9D42     		cmp	r5, r3
+ 468 0078 02D0     		beq	.L29
+ 147:Core/Src/uart_printf.c ****     }
+ 469              		.loc 1 147 9 is_stmt 1 view .LVU157
+ 147:Core/Src/uart_printf.c ****     }
+ 470              		.loc 1 147 18 is_stmt 0 view .LVU158
+ 471 007a 5B1B     		subs	r3, r3, r5
+ 472 007c 9BB2     		uxth	r3, r3
+ 473              	.LVL36:
+ 147:Core/Src/uart_printf.c ****     }
+ 474              		.loc 1 147 18 view .LVU159
+ 475 007e D6E7     		b	.L24
+ 476              	.LVL37:
+ 477              	.L29:
+ 142:Core/Src/uart_printf.c ****     }
+ 478              		.loc 1 142 18 view .LVU160
+ 479 0080 3346     		mov	r3, r6
+ 480 0082 D4E7     		b	.L24
+ 481              	.LVL38:
+ 482              	.L26:
+ 180:Core/Src/uart_printf.c ****         *in = *in + maxLength;
+ 483              		.loc 1 180 9 is_stmt 1 view .LVU161
+ 484 0084 4246     		mov	r2, r8
+ 485 0086 3946     		mov	r1, r7
+ 486              	.LVL39:
+ 180:Core/Src/uart_printf.c ****         *in = *in + maxLength;
+ 487              		.loc 1 180 9 is_stmt 0 view .LVU162
+ 488 0088 6019     		adds	r0, r4, r5
+ 489              	.LVL40:
+ 180:Core/Src/uart_printf.c ****         *in = *in + maxLength;
+ 490              		.loc 1 180 9 view .LVU163
+ 491 008a FFF7FEFF 		bl	memcpy
+ 492              	.LVL41:
+ 181:Core/Src/uart_printf.c **** 
+ 493              		.loc 1 181 9 is_stmt 1 view .LVU164
+ 181:Core/Src/uart_printf.c **** 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 21
+
+
+ 494              		.loc 1 181 15 is_stmt 0 view .LVU165
+ 495 008e B4F80034 		ldrh	r3, [r4, #1024]
+ 181:Core/Src/uart_printf.c **** 
+ 496              		.loc 1 181 19 view .LVU166
+ 497 0092 4344     		add	r3, r3, r8
+ 498 0094 9BB2     		uxth	r3, r3
+ 181:Core/Src/uart_printf.c **** 
+ 499              		.loc 1 181 13 view .LVU167
+ 500 0096 A4F80034 		strh	r3, [r4, #1024]	@ movhi
+ 184:Core/Src/uart_printf.c ****         {
+ 501              		.loc 1 184 9 is_stmt 1 view .LVU168
+ 184:Core/Src/uart_printf.c ****         {
+ 502              		.loc 1 184 24 is_stmt 0 view .LVU169
+ 503 009a B4F80424 		ldrh	r2, [r4, #1028]
+ 184:Core/Src/uart_printf.c ****         {
+ 504              		.loc 1 184 12 view .LVU170
+ 505 009e 9342     		cmp	r3, r2
+ 506 00a0 01D0     		beq	.L33
+ 190:Core/Src/uart_printf.c **** }
+ 507              		.loc 1 190 12 view .LVU171
+ 508 00a2 0020     		movs	r0, #0
+ 509 00a4 DFE7     		b	.L22
+ 510              	.L33:
+ 186:Core/Src/uart_printf.c ****         }
+ 511              		.loc 1 186 13 is_stmt 1 view .LVU172
+ 186:Core/Src/uart_printf.c ****         }
+ 512              		.loc 1 186 17 is_stmt 0 view .LVU173
+ 513 00a6 0020     		movs	r0, #0
+ 514 00a8 A4F80004 		strh	r0, [r4, #1024]	@ movhi
+ 515 00ac DBE7     		b	.L22
+ 516              	.LVL42:
+ 517              	.L28:
+ 129:Core/Src/uart_printf.c ****     }
+ 518              		.loc 1 129 16 view .LVU174
+ 519 00ae 0320     		movs	r0, #3
+ 520              	.LVL43:
+ 129:Core/Src/uart_printf.c ****     }
+ 521              		.loc 1 129 16 view .LVU175
+ 522 00b0 D9E7     		b	.L22
+ 523              		.cfi_endproc
+ 524              	.LFE1:
+ 526              		.section	.text.uart_fifo_get,"ax",%progbits
+ 527              		.align	1
+ 528              		.syntax unified
+ 529              		.thumb
+ 530              		.thumb_func
+ 532              	uart_fifo_get:
+ 533              	.LVL44:
+ 534              	.LFB2:
+ 195:Core/Src/uart_printf.c ****     // 此次进fifo的最长长度
+ 535              		.loc 1 195 1 is_stmt 1 view -0
+ 536              		.cfi_startproc
+ 537              		@ args = 0, pretend = 0, frame = 0
+ 538              		@ frame_needed = 0, uses_anonymous_args = 0
+ 195:Core/Src/uart_printf.c ****     // 此次进fifo的最长长度
+ 539              		.loc 1 195 1 is_stmt 0 view .LVU177
+ 540 0000 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 22
+
+
+ 541              		.cfi_def_cfa_offset 32
+ 542              		.cfi_offset 3, -32
+ 543              		.cfi_offset 4, -28
+ 544              		.cfi_offset 5, -24
+ 545              		.cfi_offset 6, -20
+ 546              		.cfi_offset 7, -16
+ 547              		.cfi_offset 8, -12
+ 548              		.cfi_offset 9, -8
+ 549              		.cfi_offset 14, -4
+ 197:Core/Src/uart_printf.c ****     // 从in到fifo_len的长度
+ 550              		.loc 1 197 5 is_stmt 1 view .LVU178
+ 551              	.LVL45:
+ 199:Core/Src/uart_printf.c ****     uint8_t *buff;
+ 552              		.loc 1 199 5 view .LVU179
+ 200:Core/Src/uart_printf.c ****     uint16_t *in = 0;
+ 553              		.loc 1 200 5 view .LVU180
+ 201:Core/Src/uart_printf.c ****     uint16_t *out = 0;
+ 554              		.loc 1 201 5 view .LVU181
+ 202:Core/Src/uart_printf.c **** 
+ 555              		.loc 1 202 5 view .LVU182
+ 204:Core/Src/uart_printf.c ****     out = &(fifo->out);
+ 556              		.loc 1 204 5 view .LVU183
+ 205:Core/Src/uart_printf.c ****     buff = &(fifo->buff[0]);
+ 557              		.loc 1 205 5 view .LVU184
+ 206:Core/Src/uart_printf.c **** 
+ 558              		.loc 1 206 5 view .LVU185
+ 209:Core/Src/uart_printf.c ****     {
+ 559              		.loc 1 209 5 view .LVU186
+ 209:Core/Src/uart_printf.c ****     {
+ 560              		.loc 1 209 9 is_stmt 0 view .LVU187
+ 561 0004 B0F80034 		ldrh	r3, [r0, #1024]
+ 209:Core/Src/uart_printf.c ****     {
+ 562              		.loc 1 209 16 view .LVU188
+ 563 0008 B0F80264 		ldrh	r6, [r0, #1026]
+ 209:Core/Src/uart_printf.c ****     {
+ 564              		.loc 1 209 8 view .LVU189
+ 565 000c B342     		cmp	r3, r6
+ 566 000e 43D0     		beq	.L40
+ 567 0010 0546     		mov	r5, r0
+ 568 0012 0F46     		mov	r7, r1
+ 216:Core/Src/uart_printf.c ****     {
+ 569              		.loc 1 216 5 is_stmt 1 view .LVU190
+ 216:Core/Src/uart_printf.c ****     {
+ 570              		.loc 1 216 8 is_stmt 0 view .LVU191
+ 571 0014 2AD2     		bcs	.L36
+ 219:Core/Src/uart_printf.c ****     }
+ 572              		.loc 1 219 9 is_stmt 1 view .LVU192
+ 219:Core/Src/uart_printf.c ****     }
+ 573              		.loc 1 219 25 is_stmt 0 view .LVU193
+ 574 0016 B0F80414 		ldrh	r1, [r0, #1028]
+ 575              	.LVL46:
+ 219:Core/Src/uart_printf.c ****     }
+ 576              		.loc 1 219 36 view .LVU194
+ 577 001a 891B     		subs	r1, r1, r6
+ 578 001c 89B2     		uxth	r1, r1
+ 219:Core/Src/uart_printf.c ****     }
+ 579              		.loc 1 219 19 view .LVU195
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 23
+
+
+ 580 001e 5C18     		adds	r4, r3, r1
+ 581 0020 A4B2     		uxth	r4, r4
+ 582              	.LVL47:
+ 583              	.L37:
+ 228:Core/Src/uart_printf.c **** 
+ 584              		.loc 1 228 5 is_stmt 1 view .LVU196
+ 228:Core/Src/uart_printf.c **** 
+ 585              		.loc 1 228 25 is_stmt 0 view .LVU197
+ 586 0022 B5F80494 		ldrh	r9, [r5, #1028]
+ 228:Core/Src/uart_printf.c **** 
+ 587              		.loc 1 228 19 view .LVU198
+ 588 0026 A9EB0608 		sub	r8, r9, r6
+ 589 002a 1FFA88F8 		uxth	r8, r8
+ 590              	.LVL48:
+ 231:Core/Src/uart_printf.c ****     if (maxLength > forwardLength)
+ 591              		.loc 1 231 5 is_stmt 1 view .LVU199
+ 231:Core/Src/uart_printf.c ****     if (maxLength > forwardLength)
+ 592              		.loc 1 231 15 is_stmt 0 view .LVU200
+ 593 002e 9442     		cmp	r4, r2
+ 594 0030 28BF     		it	cs
+ 595 0032 1446     		movcs	r4, r2
+ 596              	.LVL49:
+ 232:Core/Src/uart_printf.c ****     {
+ 597              		.loc 1 232 5 is_stmt 1 view .LVU201
+ 232:Core/Src/uart_printf.c ****     {
+ 598              		.loc 1 232 8 is_stmt 0 view .LVU202
+ 599 0034 A045     		cmp	r8, r4
+ 600 0036 1CD2     		bcs	.L38
+ 234:Core/Src/uart_printf.c ****         memcpy(&data[forwardLength], buff, maxLength - forwardLength);
+ 601              		.loc 1 234 9 is_stmt 1 view .LVU203
+ 602 0038 4246     		mov	r2, r8
+ 603              	.LVL50:
+ 234:Core/Src/uart_printf.c ****         memcpy(&data[forwardLength], buff, maxLength - forwardLength);
+ 604              		.loc 1 234 9 is_stmt 0 view .LVU204
+ 605 003a A919     		adds	r1, r5, r6
+ 606 003c 3846     		mov	r0, r7
+ 607              	.LVL51:
+ 234:Core/Src/uart_printf.c ****         memcpy(&data[forwardLength], buff, maxLength - forwardLength);
+ 608              		.loc 1 234 9 view .LVU205
+ 609 003e FFF7FEFF 		bl	memcpy
+ 610              	.LVL52:
+ 235:Core/Src/uart_printf.c ****         *out = maxLength - forwardLength;
+ 611              		.loc 1 235 9 is_stmt 1 view .LVU206
+ 612 0042 A4EB0802 		sub	r2, r4, r8
+ 613 0046 2946     		mov	r1, r5
+ 614 0048 07EB0800 		add	r0, r7, r8
+ 615 004c FFF7FEFF 		bl	memcpy
+ 616              	.LVL53:
+ 236:Core/Src/uart_printf.c ****     }
+ 617              		.loc 1 236 9 view .LVU207
+ 236:Core/Src/uart_printf.c ****     }
+ 618              		.loc 1 236 26 is_stmt 0 view .LVU208
+ 619 0050 A6EB0909 		sub	r9, r6, r9
+ 620 0054 4C44     		add	r4, r4, r9
+ 621              	.LVL54:
+ 236:Core/Src/uart_printf.c ****     }
+ 622              		.loc 1 236 14 view .LVU209
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 24
+
+
+ 623 0056 A5F80244 		strh	r4, [r5, #1026]	@ movhi
+ 624              	.L39:
+ 248:Core/Src/uart_printf.c ****     {
+ 625              		.loc 1 248 5 is_stmt 1 view .LVU210
+ 248:Core/Src/uart_printf.c ****     {
+ 626              		.loc 1 248 9 is_stmt 0 view .LVU211
+ 627 005a B5F80024 		ldrh	r2, [r5, #1024]
+ 248:Core/Src/uart_printf.c ****     {
+ 628              		.loc 1 248 16 view .LVU212
+ 629 005e B5F80234 		ldrh	r3, [r5, #1026]
+ 248:Core/Src/uart_printf.c ****     {
+ 630              		.loc 1 248 8 view .LVU213
+ 631 0062 9A42     		cmp	r2, r3
+ 632 0064 1AD0     		beq	.L41
+ 253:Core/Src/uart_printf.c ****     // 开启os调度
+ 633              		.loc 1 253 12 view .LVU214
+ 634 0066 0020     		movs	r0, #0
+ 635              	.LVL55:
+ 636              	.L35:
+ 255:Core/Src/uart_printf.c **** 
+ 637              		.loc 1 255 1 view .LVU215
+ 638 0068 BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 639              	.LVL56:
+ 640              	.L36:
+ 224:Core/Src/uart_printf.c ****     }
+ 641              		.loc 1 224 9 is_stmt 1 view .LVU216
+ 224:Core/Src/uart_printf.c ****     }
+ 642              		.loc 1 224 19 is_stmt 0 view .LVU217
+ 643 006c 9C1B     		subs	r4, r3, r6
+ 644 006e A4B2     		uxth	r4, r4
+ 645              	.LVL57:
+ 224:Core/Src/uart_printf.c ****     }
+ 646              		.loc 1 224 19 view .LVU218
+ 647 0070 D7E7     		b	.L37
+ 648              	.LVL58:
+ 649              	.L38:
+ 240:Core/Src/uart_printf.c ****         *out = *out + maxLength;
+ 650              		.loc 1 240 9 is_stmt 1 view .LVU219
+ 651 0072 2246     		mov	r2, r4
+ 652              	.LVL59:
+ 240:Core/Src/uart_printf.c ****         *out = *out + maxLength;
+ 653              		.loc 1 240 9 is_stmt 0 view .LVU220
+ 654 0074 A919     		adds	r1, r5, r6
+ 655 0076 3846     		mov	r0, r7
+ 656              	.LVL60:
+ 240:Core/Src/uart_printf.c ****         *out = *out + maxLength;
+ 657              		.loc 1 240 9 view .LVU221
+ 658 0078 FFF7FEFF 		bl	memcpy
+ 659              	.LVL61:
+ 241:Core/Src/uart_printf.c ****         if (*out == fifo->fifo_len)
+ 660              		.loc 1 241 9 is_stmt 1 view .LVU222
+ 241:Core/Src/uart_printf.c ****         if (*out == fifo->fifo_len)
+ 661              		.loc 1 241 16 is_stmt 0 view .LVU223
+ 662 007c B5F80234 		ldrh	r3, [r5, #1026]
+ 241:Core/Src/uart_printf.c ****         if (*out == fifo->fifo_len)
+ 663              		.loc 1 241 21 view .LVU224
+ 664 0080 2344     		add	r3, r3, r4
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 25
+
+
+ 665 0082 9BB2     		uxth	r3, r3
+ 241:Core/Src/uart_printf.c ****         if (*out == fifo->fifo_len)
+ 666              		.loc 1 241 14 view .LVU225
+ 667 0084 A5F80234 		strh	r3, [r5, #1026]	@ movhi
+ 242:Core/Src/uart_printf.c ****         {
+ 668              		.loc 1 242 9 is_stmt 1 view .LVU226
+ 242:Core/Src/uart_printf.c ****         {
+ 669              		.loc 1 242 25 is_stmt 0 view .LVU227
+ 670 0088 B5F80424 		ldrh	r2, [r5, #1028]
+ 242:Core/Src/uart_printf.c ****         {
+ 671              		.loc 1 242 12 view .LVU228
+ 672 008c 9342     		cmp	r3, r2
+ 673 008e E4D1     		bne	.L39
+ 244:Core/Src/uart_printf.c ****         }
+ 674              		.loc 1 244 13 is_stmt 1 view .LVU229
+ 244:Core/Src/uart_printf.c ****         }
+ 675              		.loc 1 244 18 is_stmt 0 view .LVU230
+ 676 0090 0023     		movs	r3, #0
+ 677 0092 A5F80234 		strh	r3, [r5, #1026]	@ movhi
+ 678 0096 E0E7     		b	.L39
+ 679              	.LVL62:
+ 680              	.L40:
+ 212:Core/Src/uart_printf.c ****     }
+ 681              		.loc 1 212 16 view .LVU231
+ 682 0098 0220     		movs	r0, #2
+ 683              	.LVL63:
+ 212:Core/Src/uart_printf.c ****     }
+ 684              		.loc 1 212 16 view .LVU232
+ 685 009a E5E7     		b	.L35
+ 686              	.LVL64:
+ 687              	.L41:
+ 250:Core/Src/uart_printf.c ****     }
+ 688              		.loc 1 250 16 view .LVU233
+ 689 009c 0120     		movs	r0, #1
+ 690 009e E3E7     		b	.L35
+ 691              		.cfi_endproc
+ 692              	.LFE2:
+ 694              		.section	.rodata.uart_printf.str1.4,"aMS",%progbits,1
+ 695              		.align	2
+ 696              	.LC0:
+ 697 0000 0D0A00   		.ascii	"\015\012\000"
+ 698              		.section	.text.uart_printf,"ax",%progbits
+ 699              		.align	1
+ 700              		.global	uart_printf
+ 701              		.syntax unified
+ 702              		.thumb
+ 703              		.thumb_func
+ 705              	uart_printf:
+ 706              	.LVL65:
+ 707              	.LFB3:
+ 258:Core/Src/uart_printf.c **** #if use_RTOS
+ 708              		.loc 1 258 1 is_stmt 1 view -0
+ 709              		.cfi_startproc
+ 710              		@ args = 0, pretend = 0, frame = 8
+ 711              		@ frame_needed = 0, uses_anonymous_args = 0
+ 258:Core/Src/uart_printf.c **** #if use_RTOS
+ 712              		.loc 1 258 1 is_stmt 0 view .LVU235
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 26
+
+
+ 713 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 714              		.cfi_def_cfa_offset 20
+ 715              		.cfi_offset 4, -20
+ 716              		.cfi_offset 5, -16
+ 717              		.cfi_offset 6, -12
+ 718              		.cfi_offset 7, -8
+ 719              		.cfi_offset 14, -4
+ 720 0002 83B0     		sub	sp, sp, #12
+ 721              		.cfi_def_cfa_offset 32
+ 722 0004 0746     		mov	r7, r0
+ 723 0006 0C46     		mov	r4, r1
+ 724 0008 1546     		mov	r5, r2
+ 725 000a 1E46     		mov	r6, r3
+ 266:Core/Src/uart_printf.c ****     {
+ 726              		.loc 1 266 5 is_stmt 1 view .LVU236
+ 266:Core/Src/uart_printf.c ****     {
+ 727              		.loc 1 266 24 is_stmt 0 view .LVU237
+ 728 000c 264B     		ldr	r3, .L57
+ 729              	.LVL66:
+ 266:Core/Src/uart_printf.c ****     {
+ 730              		.loc 1 266 24 view .LVU238
+ 731 000e 93F80F38 		ldrb	r3, [r3, #2063]	@ zero_extendqisi2
+ 266:Core/Src/uart_printf.c ****     {
+ 732              		.loc 1 266 8 view .LVU239
+ 733 0012 A3B1     		cbz	r3, .L53
+ 734              	.LVL67:
+ 735              	.L44:
+ 274:Core/Src/uart_printf.c ****     {
+ 736              		.loc 1 274 5 is_stmt 1 view .LVU240
+ 274:Core/Src/uart_printf.c ****     {
+ 737              		.loc 1 274 38 is_stmt 0 view .LVU241
+ 738 0014 244B     		ldr	r3, .L57
+ 739 0016 93F80E38 		ldrb	r3, [r3, #2062]	@ zero_extendqisi2
+ 274:Core/Src/uart_printf.c ****     {
+ 740              		.loc 1 274 8 view .LVU242
+ 741 001a 3B42     		tst	r3, r7
+ 742 001c 36D0     		beq	.L45
+ 280:Core/Src/uart_printf.c ****     {
+ 743              		.loc 1 280 5 is_stmt 1 view .LVU243
+ 280:Core/Src/uart_printf.c ****     {
+ 744              		.loc 1 280 8 is_stmt 0 view .LVU244
+ 745 001e 3CB1     		cbz	r4, .L46
+ 282:Core/Src/uart_printf.c ****     }
+ 746              		.loc 1 282 9 is_stmt 1 view .LVU245
+ 282:Core/Src/uart_printf.c ****     }
+ 747              		.loc 1 282 59 is_stmt 0 view .LVU246
+ 748 0020 2046     		mov	r0, r4
+ 749 0022 FFF7FEFF 		bl	strlen
+ 750              	.LVL68:
+ 282:Core/Src/uart_printf.c ****     }
+ 751              		.loc 1 282 9 discriminator 1 view .LVU247
+ 752 0026 82B2     		uxth	r2, r0
+ 753 0028 2146     		mov	r1, r4
+ 754 002a 2048     		ldr	r0, .L57+4
+ 755 002c FFF7FEFF 		bl	uart_fifo_put
+ 756              	.LVL69:
+ 757              	.L46:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 27
+
+
+ 285:Core/Src/uart_printf.c ****     {
+ 758              		.loc 1 285 5 is_stmt 1 view .LVU248
+ 285:Core/Src/uart_printf.c ****     {
+ 759              		.loc 1 285 8 is_stmt 0 view .LVU249
+ 760 0030 3DB3     		cbz	r5, .L47
+ 761              	.LBB3:
+ 290:Core/Src/uart_printf.c ****         for (uint8_t i = 0; i < len; i++)
+ 762              		.loc 1 290 9 is_stmt 1 view .LVU250
+ 290:Core/Src/uart_printf.c ****         for (uint8_t i = 0; i < len; i++)
+ 763              		.loc 1 290 14 is_stmt 0 view .LVU251
+ 764 0032 0024     		movs	r4, #0
+ 765              	.LVL70:
+ 290:Core/Src/uart_printf.c ****         for (uint8_t i = 0; i < len; i++)
+ 766              		.loc 1 290 14 view .LVU252
+ 767 0034 ADF80440 		strh	r4, [sp, #4]	@ movhi
+ 768 0038 8DF80640 		strb	r4, [sp, #6]
+ 291:Core/Src/uart_printf.c ****         {
+ 769              		.loc 1 291 9 is_stmt 1 view .LVU253
+ 770              	.LBB4:
+ 291:Core/Src/uart_printf.c ****         {
+ 771              		.loc 1 291 14 view .LVU254
+ 772              	.LVL71:
+ 291:Core/Src/uart_printf.c ****         {
+ 773              		.loc 1 291 9 is_stmt 0 view .LVU255
+ 774 003c 0DE0     		b	.L48
+ 775              	.LVL72:
+ 776              	.L53:
+ 291:Core/Src/uart_printf.c ****         {
+ 777              		.loc 1 291 9 view .LVU256
+ 778              	.LBE4:
+ 779              	.LBE3:
+ 268:Core/Src/uart_printf.c ****         uart_printf_init(&log_fifo_handle);
+ 780              		.loc 1 268 9 is_stmt 1 view .LVU257
+ 781 003e FFF7FEFF 		bl	uart_hardware_init
+ 782              	.LVL73:
+ 269:Core/Src/uart_printf.c ****     }
+ 783              		.loc 1 269 9 view .LVU258
+ 784 0042 1948     		ldr	r0, .L57
+ 785 0044 FFF7FEFF 		bl	uart_printf_init
+ 786              	.LVL74:
+ 787 0048 E4E7     		b	.L44
+ 788              	.LVL75:
+ 789              	.L55:
+ 790              	.LBB6:
+ 791              	.LBB5:
+ 300:Core/Src/uart_printf.c ****             }
+ 792              		.loc 1 300 17 view .LVU259
+ 793 004a 0222     		movs	r2, #2
+ 794 004c 0DF10501 		add	r1, sp, #5
+ 795 0050 1648     		ldr	r0, .L57+4
+ 796 0052 FFF7FEFF 		bl	uart_fifo_put
+ 797              	.LVL76:
+ 798              	.L50:
+ 291:Core/Src/uart_printf.c ****         {
+ 799              		.loc 1 291 39 discriminator 2 view .LVU260
+ 800 0056 0134     		adds	r4, r4, #1
+ 801              	.LVL77:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 28
+
+
+ 291:Core/Src/uart_printf.c ****         {
+ 802              		.loc 1 291 39 is_stmt 0 discriminator 2 view .LVU261
+ 803 0058 E4B2     		uxtb	r4, r4
+ 804              	.LVL78:
+ 805              	.L48:
+ 291:Core/Src/uart_printf.c ****         {
+ 806              		.loc 1 291 31 is_stmt 1 discriminator 1 view .LVU262
+ 807 005a B442     		cmp	r4, r6
+ 808 005c 0CD2     		bcs	.L54
+ 293:Core/Src/uart_printf.c ****             data++;
+ 809              		.loc 1 293 13 view .LVU263
+ 810 005e 01A9     		add	r1, sp, #4
+ 811 0060 15F8010B 		ldrb	r0, [r5], #1	@ zero_extendqisi2
+ 812              	.LVL79:
+ 293:Core/Src/uart_printf.c ****             data++;
+ 813              		.loc 1 293 13 is_stmt 0 view .LVU264
+ 814 0064 FFF7FEFF 		bl	HEX_TO_STR
+ 815              	.LVL80:
+ 294:Core/Src/uart_printf.c **** 
+ 816              		.loc 1 294 13 is_stmt 1 view .LVU265
+ 297:Core/Src/uart_printf.c ****             {
+ 817              		.loc 1 297 13 view .LVU266
+ 297:Core/Src/uart_printf.c ****             {
+ 818              		.loc 1 297 16 is_stmt 0 view .LVU267
+ 819 0068 002C     		cmp	r4, #0
+ 820 006a EED0     		beq	.L55
+ 305:Core/Src/uart_printf.c ****             }
+ 821              		.loc 1 305 17 is_stmt 1 view .LVU268
+ 822 006c 0322     		movs	r2, #3
+ 823 006e 01A9     		add	r1, sp, #4
+ 824 0070 0E48     		ldr	r0, .L57+4
+ 825 0072 FFF7FEFF 		bl	uart_fifo_put
+ 826              	.LVL81:
+ 827 0076 EEE7     		b	.L50
+ 828              	.L54:
+ 305:Core/Src/uart_printf.c ****             }
+ 829              		.loc 1 305 17 is_stmt 0 view .LVU269
+ 830              	.LBE5:
+ 308:Core/Src/uart_printf.c ****     }
+ 831              		.loc 1 308 9 is_stmt 1 view .LVU270
+ 832 0078 0422     		movs	r2, #4
+ 833 007a 0D49     		ldr	r1, .L57+8
+ 834 007c 0B48     		ldr	r0, .L57+4
+ 835 007e FFF7FEFF 		bl	uart_fifo_put
+ 836              	.LVL82:
+ 837              	.L47:
+ 308:Core/Src/uart_printf.c ****     }
+ 838              		.loc 1 308 9 is_stmt 0 view .LVU271
+ 839              	.LBE6:
+ 312:Core/Src/uart_printf.c ****     {
+ 840              		.loc 1 312 5 is_stmt 1 view .LVU272
+ 312:Core/Src/uart_printf.c ****     {
+ 841              		.loc 1 312 24 is_stmt 0 view .LVU273
+ 842 0082 094B     		ldr	r3, .L57
+ 843 0084 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 844 0086 DBB2     		uxtb	r3, r3
+ 312:Core/Src/uart_printf.c ****     {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 29
+
+
+ 845              		.loc 1 312 8 view .LVU274
+ 846 0088 012B     		cmp	r3, #1
+ 847 008a 02D0     		beq	.L56
+ 848              	.L45:
+ 334:Core/Src/uart_printf.c **** 
+ 849              		.loc 1 334 1 view .LVU275
+ 850 008c 0020     		movs	r0, #0
+ 851 008e 03B0     		add	sp, sp, #12
+ 852              		.cfi_remember_state
+ 853              		.cfi_def_cfa_offset 20
+ 854              		@ sp needed
+ 855 0090 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 856              	.LVL83:
+ 857              	.L56:
+ 858              		.cfi_restore_state
+ 315:Core/Src/uart_printf.c ****         ENABLE_UART_TX_DR_IT();
+ 859              		.loc 1 315 9 is_stmt 1 view .LVU276
+ 315:Core/Src/uart_printf.c ****         ENABLE_UART_TX_DR_IT();
+ 860              		.loc 1 315 41 is_stmt 0 view .LVU277
+ 861 0092 054B     		ldr	r3, .L57
+ 862 0094 0222     		movs	r2, #2
+ 863 0096 1A70     		strb	r2, [r3]
+ 316:Core/Src/uart_printf.c ****     }
+ 864              		.loc 1 316 9 is_stmt 1 view .LVU278
+ 865 0098 064B     		ldr	r3, .L57+12
+ 866 009a 1A68     		ldr	r2, [r3]
+ 867 009c D368     		ldr	r3, [r2, #12]
+ 868 009e 43F08003 		orr	r3, r3, #128
+ 869 00a2 D360     		str	r3, [r2, #12]
+ 870 00a4 F2E7     		b	.L45
+ 871              	.L58:
+ 872 00a6 00BF     		.align	2
+ 873              	.L57:
+ 874 00a8 00000000 		.word	log_fifo_handle
+ 875 00ac 02000000 		.word	log_fifo_handle+2
+ 876 00b0 00000000 		.word	.LC0
+ 877 00b4 00000000 		.word	USART1_BASS
+ 878              		.cfi_endproc
+ 879              	.LFE3:
+ 881              		.section	.text.uart_get,"ax",%progbits
+ 882              		.align	1
+ 883              		.global	uart_get
+ 884              		.syntax unified
+ 885              		.thumb
+ 886              		.thumb_func
+ 888              	uart_get:
+ 889              	.LVL84:
+ 890              	.LFB4:
+ 337:Core/Src/uart_printf.c **** #if uart_IT
+ 891              		.loc 1 337 1 view -0
+ 892              		.cfi_startproc
+ 893              		@ args = 0, pretend = 0, frame = 0
+ 894              		@ frame_needed = 0, uses_anonymous_args = 0
+ 337:Core/Src/uart_printf.c **** #if uart_IT
+ 895              		.loc 1 337 1 is_stmt 0 view .LVU280
+ 896 0000 08B5     		push	{r3, lr}
+ 897              		.cfi_def_cfa_offset 8
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 30
+
+
+ 898              		.cfi_offset 3, -8
+ 899              		.cfi_offset 14, -4
+ 900 0002 0146     		mov	r1, r0
+ 340:Core/Src/uart_printf.c ****     {
+ 901              		.loc 1 340 5 is_stmt 1 view .LVU281
+ 340:Core/Src/uart_printf.c ****     {
+ 902              		.loc 1 340 9 is_stmt 0 view .LVU282
+ 903 0004 0122     		movs	r2, #1
+ 904 0006 0448     		ldr	r0, .L64
+ 905              	.LVL85:
+ 340:Core/Src/uart_printf.c ****     {
+ 906              		.loc 1 340 9 view .LVU283
+ 907 0008 FFF7FEFF 		bl	uart_fifo_get
+ 908              	.LVL86:
+ 340:Core/Src/uart_printf.c ****     {
+ 909              		.loc 1 340 8 discriminator 1 view .LVU284
+ 910 000c 0228     		cmp	r0, #2
+ 911 000e 01D0     		beq	.L63
+ 346:Core/Src/uart_printf.c ****     }
+ 912              		.loc 1 346 16 view .LVU285
+ 913 0010 0120     		movs	r0, #1
+ 914              	.L60:
+ 353:Core/Src/uart_printf.c **** 
+ 915              		.loc 1 353 1 view .LVU286
+ 916 0012 08BD     		pop	{r3, pc}
+ 917              	.L63:
+ 342:Core/Src/uart_printf.c ****     }
+ 918              		.loc 1 342 16 view .LVU287
+ 919 0014 0020     		movs	r0, #0
+ 920 0016 FCE7     		b	.L60
+ 921              	.L65:
+ 922              		.align	2
+ 923              	.L64:
+ 924 0018 08040000 		.word	log_fifo_handle+1032
+ 925              		.cfi_endproc
+ 926              	.LFE4:
+ 928              		.section	.text.uart_out_IT,"ax",%progbits
+ 929              		.align	1
+ 930              		.global	uart_out_IT
+ 931              		.syntax unified
+ 932              		.thumb
+ 933              		.thumb_func
+ 935              	uart_out_IT:
+ 936              	.LFB5:
+ 356:Core/Src/uart_printf.c ****     uint8_t data = 0;
+ 937              		.loc 1 356 1 is_stmt 1 view -0
+ 938              		.cfi_startproc
+ 939              		@ args = 0, pretend = 0, frame = 8
+ 940              		@ frame_needed = 0, uses_anonymous_args = 0
+ 941 0000 00B5     		push	{lr}
+ 942              		.cfi_def_cfa_offset 4
+ 943              		.cfi_offset 14, -4
+ 944 0002 83B0     		sub	sp, sp, #12
+ 945              		.cfi_def_cfa_offset 16
+ 357:Core/Src/uart_printf.c ****     uint8_t fifo_status = uart_fifo_get(&log_fifo_handle.fifo_log, &data, 1);
+ 946              		.loc 1 357 5 view .LVU289
+ 357:Core/Src/uart_printf.c ****     uint8_t fifo_status = uart_fifo_get(&log_fifo_handle.fifo_log, &data, 1);
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 31
+
+
+ 947              		.loc 1 357 13 is_stmt 0 view .LVU290
+ 948 0004 0023     		movs	r3, #0
+ 949 0006 8DF80730 		strb	r3, [sp, #7]
+ 358:Core/Src/uart_printf.c ****     if (fifo_status == FIFO_LAST_DATA)
+ 950              		.loc 1 358 5 is_stmt 1 view .LVU291
+ 358:Core/Src/uart_printf.c ****     if (fifo_status == FIFO_LAST_DATA)
+ 951              		.loc 1 358 27 is_stmt 0 view .LVU292
+ 952 000a 0122     		movs	r2, #1
+ 953 000c 0DF10701 		add	r1, sp, #7
+ 954 0010 0C48     		ldr	r0, .L71
+ 955 0012 FFF7FEFF 		bl	uart_fifo_get
+ 956              	.LVL87:
+ 359:Core/Src/uart_printf.c ****     {
+ 957              		.loc 1 359 5 is_stmt 1 view .LVU293
+ 359:Core/Src/uart_printf.c ****     {
+ 958              		.loc 1 359 8 is_stmt 0 view .LVU294
+ 959 0016 0128     		cmp	r0, #1
+ 960 0018 07D0     		beq	.L70
+ 367:Core/Src/uart_printf.c ****     }
+ 961              		.loc 1 367 9 is_stmt 1 view .LVU295
+ 962 001a 0B4B     		ldr	r3, .L71+4
+ 963 001c 1B68     		ldr	r3, [r3]
+ 964 001e 9DF80720 		ldrb	r2, [sp, #7]	@ zero_extendqisi2
+ 965 0022 5A60     		str	r2, [r3, #4]
+ 966              	.L66:
+ 369:Core/Src/uart_printf.c **** void uart2_out_IT()
+ 967              		.loc 1 369 1 is_stmt 0 view .LVU296
+ 968 0024 03B0     		add	sp, sp, #12
+ 969              		.cfi_remember_state
+ 970              		.cfi_def_cfa_offset 4
+ 971              		@ sp needed
+ 972 0026 5DF804FB 		ldr	pc, [sp], #4
+ 973              	.L70:
+ 974              		.cfi_restore_state
+ 361:Core/Src/uart_printf.c ****         UART_SEND_DATA_DR(data);
+ 975              		.loc 1 361 9 is_stmt 1 view .LVU297
+ 361:Core/Src/uart_printf.c ****         UART_SEND_DATA_DR(data);
+ 976              		.loc 1 361 41 is_stmt 0 view .LVU298
+ 977 002a 084B     		ldr	r3, .L71+8
+ 978 002c 0122     		movs	r2, #1
+ 979 002e 1A70     		strb	r2, [r3]
+ 362:Core/Src/uart_printf.c ****         DISABLE_UART_TX_DR_IT();
+ 980              		.loc 1 362 9 is_stmt 1 view .LVU299
+ 981 0030 054B     		ldr	r3, .L71+4
+ 982 0032 1B68     		ldr	r3, [r3]
+ 983 0034 9DF80720 		ldrb	r2, [sp, #7]	@ zero_extendqisi2
+ 984 0038 5A60     		str	r2, [r3, #4]
+ 363:Core/Src/uart_printf.c ****     }
+ 985              		.loc 1 363 9 view .LVU300
+ 986 003a DA68     		ldr	r2, [r3, #12]
+ 987 003c 22F08002 		bic	r2, r2, #128
+ 988 0040 DA60     		str	r2, [r3, #12]
+ 989 0042 EFE7     		b	.L66
+ 990              	.L72:
+ 991              		.align	2
+ 992              	.L71:
+ 993 0044 02000000 		.word	log_fifo_handle+2
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 32
+
+
+ 994 0048 00000000 		.word	USART1_BASS
+ 995 004c 00000000 		.word	log_fifo_handle
+ 996              		.cfi_endproc
+ 997              	.LFE5:
+ 999              		.section	.text.uart2_out_IT,"ax",%progbits
+ 1000              		.align	1
+ 1001              		.global	uart2_out_IT
+ 1002              		.syntax unified
+ 1003              		.thumb
+ 1004              		.thumb_func
+ 1006              	uart2_out_IT:
+ 1007              	.LFB6:
+ 371:Core/Src/uart_printf.c ****     uint8_t data = 0;
+ 1008              		.loc 1 371 1 view -0
+ 1009              		.cfi_startproc
+ 1010              		@ args = 0, pretend = 0, frame = 8
+ 1011              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1012 0000 00B5     		push	{lr}
+ 1013              		.cfi_def_cfa_offset 4
+ 1014              		.cfi_offset 14, -4
+ 1015 0002 83B0     		sub	sp, sp, #12
+ 1016              		.cfi_def_cfa_offset 16
+ 372:Core/Src/uart_printf.c ****     uint8_t fifo_status = uart_fifo_get(&log_fifo_handle2.fifo_log, &data, 1);
+ 1017              		.loc 1 372 5 view .LVU302
+ 372:Core/Src/uart_printf.c ****     uint8_t fifo_status = uart_fifo_get(&log_fifo_handle2.fifo_log, &data, 1);
+ 1018              		.loc 1 372 13 is_stmt 0 view .LVU303
+ 1019 0004 0023     		movs	r3, #0
+ 1020 0006 8DF80730 		strb	r3, [sp, #7]
+ 373:Core/Src/uart_printf.c ****     if (fifo_status == FIFO_LAST_DATA)
+ 1021              		.loc 1 373 5 is_stmt 1 view .LVU304
+ 373:Core/Src/uart_printf.c ****     if (fifo_status == FIFO_LAST_DATA)
+ 1022              		.loc 1 373 27 is_stmt 0 view .LVU305
+ 1023 000a 0122     		movs	r2, #1
+ 1024 000c 0DF10701 		add	r1, sp, #7
+ 1025 0010 0C48     		ldr	r0, .L78
+ 1026 0012 FFF7FEFF 		bl	uart_fifo_get
+ 1027              	.LVL88:
+ 374:Core/Src/uart_printf.c ****     {
+ 1028              		.loc 1 374 5 is_stmt 1 view .LVU306
+ 374:Core/Src/uart_printf.c ****     {
+ 1029              		.loc 1 374 8 is_stmt 0 view .LVU307
+ 1030 0016 0128     		cmp	r0, #1
+ 1031 0018 07D0     		beq	.L77
+ 382:Core/Src/uart_printf.c ****     }
+ 1032              		.loc 1 382 9 is_stmt 1 view .LVU308
+ 1033 001a 0B4B     		ldr	r3, .L78+4
+ 1034 001c 1B68     		ldr	r3, [r3]
+ 1035 001e 9DF80720 		ldrb	r2, [sp, #7]	@ zero_extendqisi2
+ 1036 0022 5A60     		str	r2, [r3, #4]
+ 1037              	.L73:
+ 384:Core/Src/uart_printf.c **** 
+ 1038              		.loc 1 384 1 is_stmt 0 view .LVU309
+ 1039 0024 03B0     		add	sp, sp, #12
+ 1040              		.cfi_remember_state
+ 1041              		.cfi_def_cfa_offset 4
+ 1042              		@ sp needed
+ 1043 0026 5DF804FB 		ldr	pc, [sp], #4
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 33
+
+
+ 1044              	.L77:
+ 1045              		.cfi_restore_state
+ 376:Core/Src/uart_printf.c ****         UART2_SEND_DATA_DR(data);
+ 1046              		.loc 1 376 9 is_stmt 1 view .LVU310
+ 376:Core/Src/uart_printf.c ****         UART2_SEND_DATA_DR(data);
+ 1047              		.loc 1 376 42 is_stmt 0 view .LVU311
+ 1048 002a 084B     		ldr	r3, .L78+8
+ 1049 002c 0122     		movs	r2, #1
+ 1050 002e 1A70     		strb	r2, [r3]
+ 377:Core/Src/uart_printf.c ****         DISABLE_UART2_TX_DR_IT();
+ 1051              		.loc 1 377 9 is_stmt 1 view .LVU312
+ 1052 0030 054B     		ldr	r3, .L78+4
+ 1053 0032 1B68     		ldr	r3, [r3]
+ 1054 0034 9DF80720 		ldrb	r2, [sp, #7]	@ zero_extendqisi2
+ 1055 0038 5A60     		str	r2, [r3, #4]
+ 378:Core/Src/uart_printf.c ****     }
+ 1056              		.loc 1 378 9 view .LVU313
+ 1057 003a DA68     		ldr	r2, [r3, #12]
+ 1058 003c 22F08002 		bic	r2, r2, #128
+ 1059 0040 DA60     		str	r2, [r3, #12]
+ 1060 0042 EFE7     		b	.L73
+ 1061              	.L79:
+ 1062              		.align	2
+ 1063              	.L78:
+ 1064 0044 02000000 		.word	log_fifo_handle2+2
+ 1065 0048 00000000 		.word	USART2_BASS
+ 1066 004c 00000000 		.word	log_fifo_handle2
+ 1067              		.cfi_endproc
+ 1068              	.LFE6:
+ 1070              		.section	.text.uart_in,"ax",%progbits
+ 1071              		.align	1
+ 1072              		.global	uart_in
+ 1073              		.syntax unified
+ 1074              		.thumb
+ 1075              		.thumb_func
+ 1077              	uart_in:
+ 1078              	.LFB7:
+ 387:Core/Src/uart_printf.c ****     while ((USART1_BASS->SR & (1U << 5)) == 0)
+ 1079              		.loc 1 387 1 view -0
+ 1080              		.cfi_startproc
+ 1081              		@ args = 0, pretend = 0, frame = 0
+ 1082              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1083              		@ link register save eliminated.
+ 1084              	.LVL89:
+ 1085              	.L81:
+ 390:Core/Src/uart_printf.c ****     *data = USART1_BASS->DR;
+ 1086              		.loc 1 390 5 view .LVU315
+ 388:Core/Src/uart_printf.c ****     {
+ 1087              		.loc 1 388 42 discriminator 1 view .LVU316
+ 388:Core/Src/uart_printf.c ****     {
+ 1088              		.loc 1 388 24 is_stmt 0 discriminator 1 view .LVU317
+ 1089 0000 044B     		ldr	r3, .L82
+ 1090 0002 1B68     		ldr	r3, [r3]
+ 1091 0004 1A68     		ldr	r2, [r3]
+ 388:Core/Src/uart_printf.c ****     {
+ 1092              		.loc 1 388 42 discriminator 1 view .LVU318
+ 1093 0006 12F0200F 		tst	r2, #32
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 34
+
+
+ 1094 000a F9D0     		beq	.L81
+ 391:Core/Src/uart_printf.c **** }
+ 1095              		.loc 1 391 5 is_stmt 1 view .LVU319
+ 391:Core/Src/uart_printf.c **** }
+ 1096              		.loc 1 391 24 is_stmt 0 view .LVU320
+ 1097 000c 5B68     		ldr	r3, [r3, #4]
+ 391:Core/Src/uart_printf.c **** }
+ 1098              		.loc 1 391 11 view .LVU321
+ 1099 000e 0370     		strb	r3, [r0]
+ 392:Core/Src/uart_printf.c **** 
+ 1100              		.loc 1 392 1 view .LVU322
+ 1101 0010 7047     		bx	lr
+ 1102              	.L83:
+ 1103 0012 00BF     		.align	2
+ 1104              	.L82:
+ 1105 0014 00000000 		.word	USART1_BASS
+ 1106              		.cfi_endproc
+ 1107              	.LFE7:
+ 1109              		.section	.text.uart2_in,"ax",%progbits
+ 1110              		.align	1
+ 1111              		.global	uart2_in
+ 1112              		.syntax unified
+ 1113              		.thumb
+ 1114              		.thumb_func
+ 1116              	uart2_in:
+ 1117              	.LFB8:
+ 395:Core/Src/uart_printf.c ****     while ((USART2_BASS->SR & (1U << 5)) == 0)
+ 1118              		.loc 1 395 1 is_stmt 1 view -0
+ 1119              		.cfi_startproc
+ 1120              		@ args = 0, pretend = 0, frame = 0
+ 1121              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1122              		@ link register save eliminated.
+ 1123              	.LVL90:
+ 1124              	.L85:
+ 398:Core/Src/uart_printf.c ****     *data = USART2_BASS->DR;
+ 1125              		.loc 1 398 5 view .LVU324
+ 396:Core/Src/uart_printf.c ****     {
+ 1126              		.loc 1 396 42 discriminator 1 view .LVU325
+ 396:Core/Src/uart_printf.c ****     {
+ 1127              		.loc 1 396 24 is_stmt 0 discriminator 1 view .LVU326
+ 1128 0000 044B     		ldr	r3, .L86
+ 1129 0002 1B68     		ldr	r3, [r3]
+ 1130 0004 1A68     		ldr	r2, [r3]
+ 396:Core/Src/uart_printf.c ****     {
+ 1131              		.loc 1 396 42 discriminator 1 view .LVU327
+ 1132 0006 12F0200F 		tst	r2, #32
+ 1133 000a F9D0     		beq	.L85
+ 399:Core/Src/uart_printf.c **** }
+ 1134              		.loc 1 399 5 is_stmt 1 view .LVU328
+ 399:Core/Src/uart_printf.c **** }
+ 1135              		.loc 1 399 24 is_stmt 0 view .LVU329
+ 1136 000c 5B68     		ldr	r3, [r3, #4]
+ 399:Core/Src/uart_printf.c **** }
+ 1137              		.loc 1 399 11 view .LVU330
+ 1138 000e 0370     		strb	r3, [r0]
+ 400:Core/Src/uart_printf.c **** 
+ 1139              		.loc 1 400 1 view .LVU331
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 35
+
+
+ 1140 0010 7047     		bx	lr
+ 1141              	.L87:
+ 1142 0012 00BF     		.align	2
+ 1143              	.L86:
+ 1144 0014 00000000 		.word	USART2_BASS
+ 1145              		.cfi_endproc
+ 1146              	.LFE8:
+ 1148              		.section	.text.uart_in_IT,"ax",%progbits
+ 1149              		.align	1
+ 1150              		.global	uart_in_IT
+ 1151              		.syntax unified
+ 1152              		.thumb
+ 1153              		.thumb_func
+ 1155              	uart_in_IT:
+ 1156              	.LVL91:
+ 1157              	.LFB9:
+ 404:Core/Src/uart_printf.c ****     uart_fifo_put(&log_fifo_handle.fifo_log_in, &data, 1);
+ 1158              		.loc 1 404 1 is_stmt 1 view -0
+ 1159              		.cfi_startproc
+ 1160              		@ args = 0, pretend = 0, frame = 8
+ 1161              		@ frame_needed = 0, uses_anonymous_args = 0
+ 404:Core/Src/uart_printf.c ****     uart_fifo_put(&log_fifo_handle.fifo_log_in, &data, 1);
+ 1162              		.loc 1 404 1 is_stmt 0 view .LVU333
+ 1163 0000 00B5     		push	{lr}
+ 1164              		.cfi_def_cfa_offset 4
+ 1165              		.cfi_offset 14, -4
+ 1166 0002 83B0     		sub	sp, sp, #12
+ 1167              		.cfi_def_cfa_offset 16
+ 1168 0004 8DF80700 		strb	r0, [sp, #7]
+ 405:Core/Src/uart_printf.c **** }
+ 1169              		.loc 1 405 5 is_stmt 1 view .LVU334
+ 1170 0008 0122     		movs	r2, #1
+ 1171 000a 0DF10701 		add	r1, sp, #7
+ 1172 000e 0348     		ldr	r0, .L90
+ 1173              	.LVL92:
+ 405:Core/Src/uart_printf.c **** }
+ 1174              		.loc 1 405 5 is_stmt 0 view .LVU335
+ 1175 0010 FFF7FEFF 		bl	uart_fifo_put
+ 1176              	.LVL93:
+ 406:Core/Src/uart_printf.c **** void uart2_in_IT(uint8_t data)
+ 1177              		.loc 1 406 1 view .LVU336
+ 1178 0014 03B0     		add	sp, sp, #12
+ 1179              		.cfi_def_cfa_offset 4
+ 1180              		@ sp needed
+ 1181 0016 5DF804FB 		ldr	pc, [sp], #4
+ 1182              	.L91:
+ 1183 001a 00BF     		.align	2
+ 1184              	.L90:
+ 1185 001c 08040000 		.word	log_fifo_handle+1032
+ 1186              		.cfi_endproc
+ 1187              	.LFE9:
+ 1189              		.section	.text.uart2_in_IT,"ax",%progbits
+ 1190              		.align	1
+ 1191              		.global	uart2_in_IT
+ 1192              		.syntax unified
+ 1193              		.thumb
+ 1194              		.thumb_func
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 36
+
+
+ 1196              	uart2_in_IT:
+ 1197              	.LVL94:
+ 1198              	.LFB10:
+ 408:Core/Src/uart_printf.c ****     uart_fifo_put(&log_fifo_handle2.fifo_log_in, &data, 1);
+ 1199              		.loc 1 408 1 is_stmt 1 view -0
+ 1200              		.cfi_startproc
+ 1201              		@ args = 0, pretend = 0, frame = 8
+ 1202              		@ frame_needed = 0, uses_anonymous_args = 0
+ 408:Core/Src/uart_printf.c ****     uart_fifo_put(&log_fifo_handle2.fifo_log_in, &data, 1);
+ 1203              		.loc 1 408 1 is_stmt 0 view .LVU338
+ 1204 0000 00B5     		push	{lr}
+ 1205              		.cfi_def_cfa_offset 4
+ 1206              		.cfi_offset 14, -4
+ 1207 0002 83B0     		sub	sp, sp, #12
+ 1208              		.cfi_def_cfa_offset 16
+ 1209 0004 8DF80700 		strb	r0, [sp, #7]
+ 409:Core/Src/uart_printf.c **** }
+ 1210              		.loc 1 409 5 is_stmt 1 view .LVU339
+ 1211 0008 0122     		movs	r2, #1
+ 1212 000a 0DF10701 		add	r1, sp, #7
+ 1213 000e 0348     		ldr	r0, .L94
+ 1214              	.LVL95:
+ 409:Core/Src/uart_printf.c **** }
+ 1215              		.loc 1 409 5 is_stmt 0 view .LVU340
+ 1216 0010 FFF7FEFF 		bl	uart_fifo_put
+ 1217              	.LVL96:
+ 410:Core/Src/uart_printf.c **** #endif
+ 1218              		.loc 1 410 1 view .LVU341
+ 1219 0014 03B0     		add	sp, sp, #12
+ 1220              		.cfi_def_cfa_offset 4
+ 1221              		@ sp needed
+ 1222 0016 5DF804FB 		ldr	pc, [sp], #4
+ 1223              	.L95:
+ 1224 001a 00BF     		.align	2
+ 1225              	.L94:
+ 1226 001c 08040000 		.word	log_fifo_handle2+1032
+ 1227              		.cfi_endproc
+ 1228              	.LFE10:
+ 1230              		.section	.text.uart_out,"ax",%progbits
+ 1231              		.align	1
+ 1232              		.global	uart_out
+ 1233              		.syntax unified
+ 1234              		.thumb
+ 1235              		.thumb_func
+ 1237              	uart_out:
+ 1238              	.LFB11:
+ 414:Core/Src/uart_printf.c ****     // *USART1_DR = data & 0xFF;
+ 1239              		.loc 1 414 1 is_stmt 1 view -0
+ 1240              		.cfi_startproc
+ 1241              		@ args = 0, pretend = 0, frame = 0
+ 1242              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1243              		@ link register save eliminated.
+ 1244              	.LVL97:
+ 1245              	.L97:
+ 418:Core/Src/uart_printf.c ****     USART1_BASS->DR = data;
+ 1246              		.loc 1 418 5 view .LVU343
+ 416:Core/Src/uart_printf.c ****     {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 37
+
+
+ 1247              		.loc 1 416 42 discriminator 1 view .LVU344
+ 416:Core/Src/uart_printf.c ****     {
+ 1248              		.loc 1 416 24 is_stmt 0 discriminator 1 view .LVU345
+ 1249 0000 034B     		ldr	r3, .L98
+ 1250 0002 1B68     		ldr	r3, [r3]
+ 1251 0004 1A68     		ldr	r2, [r3]
+ 416:Core/Src/uart_printf.c ****     {
+ 1252              		.loc 1 416 42 discriminator 1 view .LVU346
+ 1253 0006 12F0800F 		tst	r2, #128
+ 1254 000a F9D0     		beq	.L97
+ 419:Core/Src/uart_printf.c **** }
+ 1255              		.loc 1 419 5 is_stmt 1 view .LVU347
+ 419:Core/Src/uart_printf.c **** }
+ 1256              		.loc 1 419 21 is_stmt 0 view .LVU348
+ 1257 000c 5860     		str	r0, [r3, #4]
+ 420:Core/Src/uart_printf.c **** 
+ 1258              		.loc 1 420 1 view .LVU349
+ 1259 000e 7047     		bx	lr
+ 1260              	.L99:
+ 1261              		.align	2
+ 1262              	.L98:
+ 1263 0010 00000000 		.word	USART1_BASS
+ 1264              		.cfi_endproc
+ 1265              	.LFE11:
+ 1267              		.section	.text.uart2_out,"ax",%progbits
+ 1268              		.align	1
+ 1269              		.global	uart2_out
+ 1270              		.syntax unified
+ 1271              		.thumb
+ 1272              		.thumb_func
+ 1274              	uart2_out:
+ 1275              	.LFB12:
+ 423:Core/Src/uart_printf.c ****     // *USART1_DR = data & 0xFF;
+ 1276              		.loc 1 423 1 is_stmt 1 view -0
+ 1277              		.cfi_startproc
+ 1278              		@ args = 0, pretend = 0, frame = 0
+ 1279              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1280              		@ link register save eliminated.
+ 1281              	.LVL98:
+ 1282              	.L101:
+ 427:Core/Src/uart_printf.c ****     USART2_BASS->DR = data;
+ 1283              		.loc 1 427 5 view .LVU351
+ 425:Core/Src/uart_printf.c ****     {
+ 1284              		.loc 1 425 42 discriminator 1 view .LVU352
+ 425:Core/Src/uart_printf.c ****     {
+ 1285              		.loc 1 425 24 is_stmt 0 discriminator 1 view .LVU353
+ 1286 0000 034B     		ldr	r3, .L102
+ 1287 0002 1B68     		ldr	r3, [r3]
+ 1288 0004 1A68     		ldr	r2, [r3]
+ 425:Core/Src/uart_printf.c ****     {
+ 1289              		.loc 1 425 42 discriminator 1 view .LVU354
+ 1290 0006 12F0800F 		tst	r2, #128
+ 1291 000a F9D0     		beq	.L101
+ 428:Core/Src/uart_printf.c **** }
+ 1292              		.loc 1 428 5 is_stmt 1 view .LVU355
+ 428:Core/Src/uart_printf.c **** }
+ 1293              		.loc 1 428 21 is_stmt 0 view .LVU356
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 38
+
+
+ 1294 000c 5860     		str	r0, [r3, #4]
+ 429:Core/Src/uart_printf.c **** 
+ 1295              		.loc 1 429 1 view .LVU357
+ 1296 000e 7047     		bx	lr
+ 1297              	.L103:
+ 1298              		.align	2
+ 1299              	.L102:
+ 1300 0010 00000000 		.word	USART2_BASS
+ 1301              		.cfi_endproc
+ 1302              	.LFE12:
+ 1304              		.section	.text.STR_TO_HEX,"ax",%progbits
+ 1305              		.align	1
+ 1306              		.global	STR_TO_HEX
+ 1307              		.syntax unified
+ 1308              		.thumb
+ 1309              		.thumb_func
+ 1311              	STR_TO_HEX:
+ 1312              	.LVL99:
+ 1313              	.LFB14:
+ 457:Core/Src/uart_printf.c **** 
+ 1314              		.loc 1 457 1 is_stmt 1 view -0
+ 1315              		.cfi_startproc
+ 1316              		@ args = 0, pretend = 0, frame = 0
+ 1317              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1318              		@ link register save eliminated.
+ 457:Core/Src/uart_printf.c **** 
+ 1319              		.loc 1 457 1 is_stmt 0 view .LVU359
+ 1320 0000 10B4     		push	{r4}
+ 1321              		.cfi_def_cfa_offset 4
+ 1322              		.cfi_offset 4, -4
+ 459:Core/Src/uart_printf.c ****     uint8_t i = 1;
+ 1323              		.loc 1 459 5 is_stmt 1 view .LVU360
+ 459:Core/Src/uart_printf.c ****     uint8_t i = 1;
+ 1324              		.loc 1 459 11 is_stmt 0 view .LVU361
+ 1325 0002 0023     		movs	r3, #0
+ 1326 0004 0B70     		strb	r3, [r1]
+ 460:Core/Src/uart_printf.c ****     while (*str != '\0')
+ 1327              		.loc 1 460 5 is_stmt 1 view .LVU362
+ 1328              	.LVL100:
+ 461:Core/Src/uart_printf.c ****     {
+ 1329              		.loc 1 461 5 view .LVU363
+ 460:Core/Src/uart_printf.c ****     while (*str != '\0')
+ 1330              		.loc 1 460 13 is_stmt 0 view .LVU364
+ 1331 0006 0124     		movs	r4, #1
+ 461:Core/Src/uart_printf.c ****     {
+ 1332              		.loc 1 461 11 view .LVU365
+ 1333 0008 12E0     		b	.L105
+ 1334              	.LVL101:
+ 1335              	.L106:
+ 468:Core/Src/uart_printf.c ****         {
+ 1336              		.loc 1 468 14 is_stmt 1 view .LVU366
+ 468:Core/Src/uart_printf.c ****         {
+ 1337              		.loc 1 468 31 is_stmt 0 view .LVU367
+ 1338 000a A3F14102 		sub	r2, r3, #65
+ 1339 000e D2B2     		uxtb	r2, r2
+ 468:Core/Src/uart_printf.c ****         {
+ 1340              		.loc 1 468 17 view .LVU368
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 39
+
+
+ 1341 0010 052A     		cmp	r2, #5
+ 1342 0012 1DD8     		bhi	.L108
+ 470:Core/Src/uart_printf.c ****         }
+ 1343              		.loc 1 470 13 is_stmt 1 view .LVU369
+ 1344 0014 0A78     		ldrb	r2, [r1]	@ zero_extendqisi2
+ 470:Core/Src/uart_printf.c ****         }
+ 1345              		.loc 1 470 34 is_stmt 0 view .LVU370
+ 1346 0016 373B     		subs	r3, r3, #55
+ 470:Core/Src/uart_printf.c ****         }
+ 1347              		.loc 1 470 48 view .LVU371
+ 1348 0018 4FEA840C 		lsl	ip, r4, #2
+ 470:Core/Src/uart_printf.c ****         }
+ 1349              		.loc 1 470 42 view .LVU372
+ 1350 001c 03FA0CF3 		lsl	r3, r3, ip
+ 470:Core/Src/uart_printf.c ****         }
+ 1351              		.loc 1 470 19 view .LVU373
+ 1352 0020 1343     		orrs	r3, r3, r2
+ 1353 0022 0B70     		strb	r3, [r1]
+ 1354              	.L107:
+ 477:Core/Src/uart_printf.c **** 
+ 1355              		.loc 1 477 9 is_stmt 1 view .LVU374
+ 477:Core/Src/uart_printf.c **** 
+ 1356              		.loc 1 477 12 is_stmt 0 view .LVU375
+ 1357 0024 0130     		adds	r0, r0, #1
+ 1358              	.LVL102:
+ 479:Core/Src/uart_printf.c ****         {
+ 1359              		.loc 1 479 9 is_stmt 1 view .LVU376
+ 479:Core/Src/uart_printf.c ****         {
+ 1360              		.loc 1 479 12 is_stmt 0 view .LVU377
+ 1361 0026 0CBB     		cbnz	r4, .L111
+ 485:Core/Src/uart_printf.c ****             data++;
+ 1362              		.loc 1 485 13 is_stmt 1 view .LVU378
+ 1363              	.LVL103:
+ 486:Core/Src/uart_printf.c ****             *data = 0;
+ 1364              		.loc 1 486 13 view .LVU379
+ 487:Core/Src/uart_printf.c ****         };
+ 1365              		.loc 1 487 13 view .LVU380
+ 487:Core/Src/uart_printf.c ****         };
+ 1366              		.loc 1 487 19 is_stmt 0 view .LVU381
+ 1367 0028 0023     		movs	r3, #0
+ 1368 002a 01F8013F 		strb	r3, [r1, #1]!
+ 1369              	.LVL104:
+ 485:Core/Src/uart_printf.c ****             data++;
+ 1370              		.loc 1 485 15 view .LVU382
+ 1371 002e 0124     		movs	r4, #1
+ 1372              	.LVL105:
+ 1373              	.L105:
+ 488:Core/Src/uart_printf.c ****     }
+ 1374              		.loc 1 488 10 is_stmt 1 view .LVU383
+ 461:Core/Src/uart_printf.c ****     {
+ 1375              		.loc 1 461 17 view .LVU384
+ 461:Core/Src/uart_printf.c ****     {
+ 1376              		.loc 1 461 12 is_stmt 0 view .LVU385
+ 1377 0030 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 461:Core/Src/uart_printf.c ****     {
+ 1378              		.loc 1 461 17 view .LVU386
+ 1379 0032 EBB1     		cbz	r3, .L113
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 40
+
+
+ 463:Core/Src/uart_printf.c ****         {
+ 1380              		.loc 1 463 9 is_stmt 1 view .LVU387
+ 463:Core/Src/uart_printf.c ****         {
+ 1381              		.loc 1 463 26 is_stmt 0 view .LVU388
+ 1382 0034 A3F13002 		sub	r2, r3, #48
+ 1383 0038 D2B2     		uxtb	r2, r2
+ 463:Core/Src/uart_printf.c ****         {
+ 1384              		.loc 1 463 12 view .LVU389
+ 1385 003a 092A     		cmp	r2, #9
+ 1386 003c E5D8     		bhi	.L106
+ 465:Core/Src/uart_printf.c ****         }
+ 1387              		.loc 1 465 13 is_stmt 1 view .LVU390
+ 1388 003e 0A78     		ldrb	r2, [r1]	@ zero_extendqisi2
+ 465:Core/Src/uart_printf.c ****         }
+ 1389              		.loc 1 465 28 is_stmt 0 view .LVU391
+ 1390 0040 303B     		subs	r3, r3, #48
+ 465:Core/Src/uart_printf.c ****         }
+ 1391              		.loc 1 465 41 view .LVU392
+ 1392 0042 4FEA840C 		lsl	ip, r4, #2
+ 465:Core/Src/uart_printf.c ****         }
+ 1393              		.loc 1 465 35 view .LVU393
+ 1394 0046 03FA0CF3 		lsl	r3, r3, ip
+ 465:Core/Src/uart_printf.c ****         }
+ 1395              		.loc 1 465 19 view .LVU394
+ 1396 004a 1343     		orrs	r3, r3, r2
+ 1397 004c 0B70     		strb	r3, [r1]
+ 1398 004e E9E7     		b	.L107
+ 1399              	.L108:
+ 473:Core/Src/uart_printf.c ****         {
+ 1400              		.loc 1 473 14 is_stmt 1 view .LVU395
+ 473:Core/Src/uart_printf.c ****         {
+ 1401              		.loc 1 473 31 is_stmt 0 view .LVU396
+ 1402 0050 A3F16102 		sub	r2, r3, #97
+ 1403 0054 D2B2     		uxtb	r2, r2
+ 473:Core/Src/uart_printf.c ****         {
+ 1404              		.loc 1 473 17 view .LVU397
+ 1405 0056 052A     		cmp	r2, #5
+ 1406 0058 E4D8     		bhi	.L107
+ 475:Core/Src/uart_printf.c ****         }
+ 1407              		.loc 1 475 13 is_stmt 1 view .LVU398
+ 1408 005a 0A78     		ldrb	r2, [r1]	@ zero_extendqisi2
+ 475:Core/Src/uart_printf.c ****         }
+ 1409              		.loc 1 475 34 is_stmt 0 view .LVU399
+ 1410 005c 573B     		subs	r3, r3, #87
+ 475:Core/Src/uart_printf.c ****         }
+ 1411              		.loc 1 475 48 view .LVU400
+ 1412 005e 4FEA840C 		lsl	ip, r4, #2
+ 475:Core/Src/uart_printf.c ****         }
+ 1413              		.loc 1 475 42 view .LVU401
+ 1414 0062 03FA0CF3 		lsl	r3, r3, ip
+ 475:Core/Src/uart_printf.c ****         }
+ 1415              		.loc 1 475 19 view .LVU402
+ 1416 0066 1343     		orrs	r3, r3, r2
+ 1417 0068 0B70     		strb	r3, [r1]
+ 1418 006a DBE7     		b	.L107
+ 1419              	.L111:
+ 481:Core/Src/uart_printf.c ****         }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 41
+
+
+ 1420              		.loc 1 481 15 view .LVU403
+ 1421 006c 0024     		movs	r4, #0
+ 1422              	.LVL106:
+ 481:Core/Src/uart_printf.c ****         }
+ 1423              		.loc 1 481 15 view .LVU404
+ 1424 006e DFE7     		b	.L105
+ 1425              	.LVL107:
+ 1426              	.L113:
+ 490:Core/Src/uart_printf.c **** 
+ 1427              		.loc 1 490 1 view .LVU405
+ 1428 0070 10BC     		pop	{r4}
+ 1429              		.cfi_restore 4
+ 1430              		.cfi_def_cfa_offset 0
+ 1431              	.LVL108:
+ 490:Core/Src/uart_printf.c **** 
+ 1432              		.loc 1 490 1 view .LVU406
+ 1433 0072 7047     		bx	lr
+ 1434              		.cfi_endproc
+ 1435              	.LFE14:
+ 1437              		.section	.text.set_log_level,"ax",%progbits
+ 1438              		.align	1
+ 1439              		.global	set_log_level
+ 1440              		.syntax unified
+ 1441              		.thumb
+ 1442              		.thumb_func
+ 1444              	set_log_level:
+ 1445              	.LVL109:
+ 1446              	.LFB16:
+ 571:Core/Src/uart_printf.c **** 
+ 572:Core/Src/uart_printf.c **** // 允许某个等级的log
+ 573:Core/Src/uart_printf.c **** void set_log_level(uint8_t level)
+ 574:Core/Src/uart_printf.c **** {
+ 1447              		.loc 1 574 1 is_stmt 1 view -0
+ 1448              		.cfi_startproc
+ 1449              		@ args = 0, pretend = 0, frame = 0
+ 1450              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1451              		@ link register save eliminated.
+ 575:Core/Src/uart_printf.c ****     if (level <= system_log)
+ 1452              		.loc 1 575 5 view .LVU408
+ 1453              		.loc 1 575 8 is_stmt 0 view .LVU409
+ 1454 0000 0828     		cmp	r0, #8
+ 1455 0002 05D8     		bhi	.L114
+ 576:Core/Src/uart_printf.c ****     {
+ 577:Core/Src/uart_printf.c ****         log_fifo_handle.u.log_level |= level;
+ 1456              		.loc 1 577 9 is_stmt 1 view .LVU410
+ 1457              		.loc 1 577 26 is_stmt 0 view .LVU411
+ 1458 0004 034A     		ldr	r2, .L116
+ 1459 0006 92F80E38 		ldrb	r3, [r2, #2062]	@ zero_extendqisi2
+ 1460              		.loc 1 577 37 view .LVU412
+ 1461 000a 0343     		orrs	r3, r3, r0
+ 1462 000c 82F80E38 		strb	r3, [r2, #2062]
+ 1463              	.L114:
+ 578:Core/Src/uart_printf.c ****     }
+ 579:Core/Src/uart_printf.c **** }
+ 1464              		.loc 1 579 1 view .LVU413
+ 1465 0010 7047     		bx	lr
+ 1466              	.L117:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 42
+
+
+ 1467 0012 00BF     		.align	2
+ 1468              	.L116:
+ 1469 0014 00000000 		.word	log_fifo_handle
+ 1470              		.cfi_endproc
+ 1471              	.LFE16:
+ 1473              		.section	.text.set_frame_count,"ax",%progbits
+ 1474              		.align	1
+ 1475              		.global	set_frame_count
+ 1476              		.syntax unified
+ 1477              		.thumb
+ 1478              		.thumb_func
+ 1480              	set_frame_count:
+ 1481              	.LVL110:
+ 1482              	.LFB17:
+ 580:Core/Src/uart_printf.c **** 
+ 581:Core/Src/uart_printf.c **** void set_frame_count(uint8_t count)
+ 582:Core/Src/uart_printf.c **** {
+ 1483              		.loc 1 582 1 is_stmt 1 view -0
+ 1484              		.cfi_startproc
+ 1485              		@ args = 0, pretend = 0, frame = 0
+ 1486              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1487              		@ link register save eliminated.
+ 583:Core/Src/uart_printf.c ****     log_fifo_handle2.u.frame_count = count;
+ 1488              		.loc 1 583 5 view .LVU415
+ 1489              		.loc 1 583 36 is_stmt 0 view .LVU416
+ 1490 0000 014B     		ldr	r3, .L119
+ 1491 0002 83F80E08 		strb	r0, [r3, #2062]
+ 584:Core/Src/uart_printf.c **** }
+ 1492              		.loc 1 584 1 view .LVU417
+ 1493 0006 7047     		bx	lr
+ 1494              	.L120:
+ 1495              		.align	2
+ 1496              	.L119:
+ 1497 0008 00000000 		.word	log_fifo_handle2
+ 1498              		.cfi_endproc
+ 1499              	.LFE17:
+ 1501              		.section	.text.get_frame_count,"ax",%progbits
+ 1502              		.align	1
+ 1503              		.global	get_frame_count
+ 1504              		.syntax unified
+ 1505              		.thumb
+ 1506              		.thumb_func
+ 1508              	get_frame_count:
+ 1509              	.LFB18:
+ 585:Core/Src/uart_printf.c **** uint8_t get_frame_count()
+ 586:Core/Src/uart_printf.c **** {
+ 1510              		.loc 1 586 1 is_stmt 1 view -0
+ 1511              		.cfi_startproc
+ 1512              		@ args = 0, pretend = 0, frame = 0
+ 1513              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1514              		@ link register save eliminated.
+ 587:Core/Src/uart_printf.c ****     return log_fifo_handle2.u.frame_count;
+ 1515              		.loc 1 587 5 view .LVU419
+ 588:Core/Src/uart_printf.c **** }
+ 1516              		.loc 1 588 1 is_stmt 0 view .LVU420
+ 1517 0000 014B     		ldr	r3, .L122
+ 1518 0002 93F80E08 		ldrb	r0, [r3, #2062]	@ zero_extendqisi2
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 43
+
+
+ 1519 0006 7047     		bx	lr
+ 1520              	.L123:
+ 1521              		.align	2
+ 1522              	.L122:
+ 1523 0008 00000000 		.word	log_fifo_handle2
+ 1524              		.cfi_endproc
+ 1525              	.LFE18:
+ 1527              		.section	.text.cancel_log_level,"ax",%progbits
+ 1528              		.align	1
+ 1529              		.global	cancel_log_level
+ 1530              		.syntax unified
+ 1531              		.thumb
+ 1532              		.thumb_func
+ 1534              	cancel_log_level:
+ 1535              	.LVL111:
+ 1536              	.LFB19:
+ 589:Core/Src/uart_printf.c **** 
+ 590:Core/Src/uart_printf.c **** // 禁止某个等级的log
+ 591:Core/Src/uart_printf.c **** void cancel_log_level(uint8_t level)
+ 592:Core/Src/uart_printf.c **** {
+ 1537              		.loc 1 592 1 is_stmt 1 view -0
+ 1538              		.cfi_startproc
+ 1539              		@ args = 0, pretend = 0, frame = 0
+ 1540              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1541              		@ link register save eliminated.
+ 593:Core/Src/uart_printf.c ****     if (level <= system_log)
+ 1542              		.loc 1 593 5 view .LVU422
+ 1543              		.loc 1 593 8 is_stmt 0 view .LVU423
+ 1544 0000 0828     		cmp	r0, #8
+ 1545 0002 06D8     		bhi	.L124
+ 594:Core/Src/uart_printf.c ****     {
+ 595:Core/Src/uart_printf.c **** 
+ 596:Core/Src/uart_printf.c ****         level = (~level) & 0xff;
+ 1546              		.loc 1 596 9 is_stmt 1 view .LVU424
+ 1547              	.LVL112:
+ 597:Core/Src/uart_printf.c **** 
+ 598:Core/Src/uart_printf.c ****         log_fifo_handle.u.log_level &= level;
+ 1548              		.loc 1 598 9 view .LVU425
+ 1549              		.loc 1 598 26 is_stmt 0 view .LVU426
+ 1550 0004 034A     		ldr	r2, .L126
+ 1551 0006 92F80E38 		ldrb	r3, [r2, #2062]	@ zero_extendqisi2
+ 1552              		.loc 1 598 37 view .LVU427
+ 1553 000a 23EA0003 		bic	r3, r3, r0
+ 1554 000e 82F80E38 		strb	r3, [r2, #2062]
+ 1555              	.LVL113:
+ 1556              	.L124:
+ 599:Core/Src/uart_printf.c ****     }
+ 600:Core/Src/uart_printf.c **** }
+ 1557              		.loc 1 600 1 view .LVU428
+ 1558 0012 7047     		bx	lr
+ 1559              	.L127:
+ 1560              		.align	2
+ 1561              	.L126:
+ 1562 0014 00000000 		.word	log_fifo_handle
+ 1563              		.cfi_endproc
+ 1564              	.LFE19:
+ 1566              		.section	.text.uart2_hardware_init,"ax",%progbits
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 44
+
+
+ 1567              		.align	1
+ 1568              		.global	uart2_hardware_init
+ 1569              		.syntax unified
+ 1570              		.thumb
+ 1571              		.thumb_func
+ 1573              	uart2_hardware_init:
+ 1574              	.LFB20:
+ 601:Core/Src/uart_printf.c **** 
+ 602:Core/Src/uart_printf.c **** // 配置usart2
+ 603:Core/Src/uart_printf.c **** void uart2_hardware_init()
+ 604:Core/Src/uart_printf.c **** {
+ 1575              		.loc 1 604 1 is_stmt 1 view -0
+ 1576              		.cfi_startproc
+ 1577              		@ args = 0, pretend = 0, frame = 0
+ 1578              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1579 0000 10B5     		push	{r4, lr}
+ 1580              		.cfi_def_cfa_offset 8
+ 1581              		.cfi_offset 4, -8
+ 1582              		.cfi_offset 14, -4
+ 605:Core/Src/uart_printf.c ****     /**配置gpio**/
+ 606:Core/Src/uart_printf.c ****     // PA2     ------> USART2_TX
+ 607:Core/Src/uart_printf.c ****     // PA3     ------> USART2_RX
+ 608:Core/Src/uart_printf.c ****     MyRCC_BASS->APB2ENR |= (1U << 2); // gpio_portA时钟
+ 1583              		.loc 1 608 5 view .LVU430
+ 1584              		.loc 1 608 15 is_stmt 0 view .LVU431
+ 1585 0002 3249     		ldr	r1, .L130
+ 1586 0004 0A68     		ldr	r2, [r1]
+ 1587 0006 9369     		ldr	r3, [r2, #24]
+ 1588              		.loc 1 608 25 view .LVU432
+ 1589 0008 43F00403 		orr	r3, r3, #4
+ 1590 000c 9361     		str	r3, [r2, #24]
+ 609:Core/Src/uart_printf.c **** 
+ 610:Core/Src/uart_printf.c ****     // 配置PA2 11:10 输出模式 9:8 io模式
+ 611:Core/Src/uart_printf.c ****     // *GPIOA_CRL &= 0XFFFFF0FF;
+ 612:Core/Src/uart_printf.c ****     *GPIOA_CRL &= (~(0xF << (2 * 4)));
+ 1591              		.loc 1 612 5 is_stmt 1 view .LVU433
+ 1592 000e 304B     		ldr	r3, .L130+4
+ 1593 0010 D3F80028 		ldr	r2, [r3, #2048]
+ 1594              		.loc 1 612 16 is_stmt 0 view .LVU434
+ 1595 0014 22F47062 		bic	r2, r2, #3840
+ 1596 0018 C3F80028 		str	r2, [r3, #2048]
+ 613:Core/Src/uart_printf.c ****     *GPIOA_CRL |= (0x2 << (2 * 4 + 2)) | (0x3 << (2 * 4)); // 复用推挽输出
+ 1597              		.loc 1 613 5 is_stmt 1 view .LVU435
+ 1598 001c D3F80028 		ldr	r2, [r3, #2048]
+ 1599              		.loc 1 613 16 is_stmt 0 view .LVU436
+ 1600 0020 42F43062 		orr	r2, r2, #2816
+ 1601 0024 C3F80028 		str	r2, [r3, #2048]
+ 614:Core/Src/uart_printf.c **** 
+ 615:Core/Src/uart_printf.c ****     *GPIOA_CRL &= (~(0xF << (3 * 4)));
+ 1602              		.loc 1 615 5 is_stmt 1 view .LVU437
+ 1603 0028 D3F80028 		ldr	r2, [r3, #2048]
+ 1604              		.loc 1 615 16 is_stmt 0 view .LVU438
+ 1605 002c 22F47042 		bic	r2, r2, #61440
+ 1606 0030 C3F80028 		str	r2, [r3, #2048]
+ 616:Core/Src/uart_printf.c ****     *GPIOA_CRL |= (0x1 << (3 * 4 + 2)) | (0x00 << (3 * 4)); // 浮空输入
+ 1607              		.loc 1 616 5 is_stmt 1 view .LVU439
+ 1608 0034 D3F80028 		ldr	r2, [r3, #2048]
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 45
+
+
+ 1609              		.loc 1 616 16 is_stmt 0 view .LVU440
+ 1610 0038 42F48042 		orr	r2, r2, #16384
+ 1611 003c C3F80028 		str	r2, [r3, #2048]
+ 617:Core/Src/uart_printf.c **** 
+ 618:Core/Src/uart_printf.c ****     /**配置串口参数**/
+ 619:Core/Src/uart_printf.c **** 
+ 620:Core/Src/uart_printf.c ****     // 启用USART2时钟
+ 621:Core/Src/uart_printf.c ****     MyRCC_BASS->APB1ENR |= 1UL << 17;
+ 1612              		.loc 1 621 5 is_stmt 1 view .LVU441
+ 1613              		.loc 1 621 15 is_stmt 0 view .LVU442
+ 1614 0040 0A68     		ldr	r2, [r1]
+ 1615 0042 D369     		ldr	r3, [r2, #28]
+ 1616              		.loc 1 621 25 view .LVU443
+ 1617 0044 43F40033 		orr	r3, r3, #131072
+ 1618 0048 D361     		str	r3, [r2, #28]
+ 622:Core/Src/uart_printf.c **** 
+ 623:Core/Src/uart_printf.c ****     // 配置字长bit12、校验使能bit9、奇偶校验bit8、接受使能bit3、发送使能bit
+ 624:Core/Src/uart_printf.c ****     // 清除位
+ 625:Core/Src/uart_printf.c ****     USART2_BASS->CR1 &= (~((1U << 12) | (1U << 9) | (1 << 8) | (1 << 3) | (1 << 2)));
+ 1619              		.loc 1 625 5 is_stmt 1 view .LVU444
+ 1620              		.loc 1 625 16 is_stmt 0 view .LVU445
+ 1621 004a 224C     		ldr	r4, .L130+8
+ 1622 004c 2168     		ldr	r1, [r4]
+ 1623 004e CB68     		ldr	r3, [r1, #12]
+ 1624              		.loc 1 625 22 view .LVU446
+ 1625 0050 23F49853 		bic	r3, r3, #4864
+ 1626 0054 23F00C03 		bic	r3, r3, #12
+ 1627 0058 CB60     		str	r3, [r1, #12]
+ 626:Core/Src/uart_printf.c **** 
+ 627:Core/Src/uart_printf.c ****     // 配置位 bit2、3为1，其他位为0
+ 628:Core/Src/uart_printf.c ****     USART2_BASS->CR1 |= ((1U << 2) | (1U << 3));
+ 1628              		.loc 1 628 5 is_stmt 1 view .LVU447
+ 1629              		.loc 1 628 16 is_stmt 0 view .LVU448
+ 1630 005a CB68     		ldr	r3, [r1, #12]
+ 1631              		.loc 1 628 22 view .LVU449
+ 1632 005c 43F00C03 		orr	r3, r3, #12
+ 1633 0060 CB60     		str	r3, [r1, #12]
+ 629:Core/Src/uart_printf.c **** 
+ 630:Core/Src/uart_printf.c ****     // 配置字长(bit12:13) 一个停止位、禁用LIN模式bit14、禁用CLKEN bit11
+ 631:Core/Src/uart_printf.c ****     // 清除位
+ 632:Core/Src/uart_printf.c ****     USART2_BASS->CR2 &= (~(3U << 12) | (1U << 11) | (1U << 14));
+ 1634              		.loc 1 632 5 is_stmt 1 view .LVU450
+ 1635              		.loc 1 632 16 is_stmt 0 view .LVU451
+ 1636 0062 0B69     		ldr	r3, [r1, #16]
+ 1637              		.loc 1 632 22 view .LVU452
+ 1638 0064 23F44053 		bic	r3, r3, #12288
+ 1639 0068 0B61     		str	r3, [r1, #16]
+ 633:Core/Src/uart_printf.c **** 
+ 634:Core/Src/uart_printf.c ****     // 配置禁用红外模式、半双工模式、智能卡模式
+ 635:Core/Src/uart_printf.c ****     // 清除位
+ 636:Core/Src/uart_printf.c ****     USART2_BASS->CR3 &= (~(3U << 1) | (1U << 3) | (1U << 5));
+ 1640              		.loc 1 636 5 is_stmt 1 view .LVU453
+ 1641              		.loc 1 636 16 is_stmt 0 view .LVU454
+ 1642 006a 4B69     		ldr	r3, [r1, #20]
+ 1643              		.loc 1 636 22 view .LVU455
+ 1644 006c 23F00603 		bic	r3, r3, #6
+ 1645 0070 4B61     		str	r3, [r1, #20]
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 46
+
+
+ 637:Core/Src/uart_printf.c **** 
+ 638:Core/Src/uart_printf.c ****     uint32_t temp = 0;
+ 1646              		.loc 1 638 5 is_stmt 1 view .LVU456
+ 1647              	.LVL114:
+ 639:Core/Src/uart_printf.c ****     // 配置 USART_BRR寄存器 USART2时钟源PCLK1,先获取到PCLK1的分频率数
+ 640:Core/Src/uart_printf.c ****     temp = (MyRCC_BASS->CFGR & (7U << 8)) >> 8;    // APB1分频倍数
+ 1648              		.loc 1 640 5 view .LVU457
+ 1649              		.loc 1 640 23 is_stmt 0 view .LVU458
+ 1650 0072 5268     		ldr	r2, [r2, #4]
+ 1651              		.loc 1 640 10 view .LVU459
+ 1652 0074 C2F30222 		ubfx	r2, r2, #8, #3
+ 1653              	.LVL115:
+ 641:Core/Src/uart_printf.c ****     temp = SystemCoreClock >> APBPrescTable[temp]; // PCLK1 频率
+ 1654              		.loc 1 641 5 is_stmt 1 view .LVU460
+ 1655              		.loc 1 641 28 is_stmt 0 view .LVU461
+ 1656 0078 174B     		ldr	r3, .L130+12
+ 1657 007a 1B68     		ldr	r3, [r3]
+ 1658              		.loc 1 641 44 view .LVU462
+ 1659 007c 1748     		ldr	r0, .L130+16
+ 1660 007e 825C     		ldrb	r2, [r0, r2]	@ zero_extendqisi2
+ 1661              	.LVL116:
+ 1662              		.loc 1 641 10 view .LVU463
+ 1663 0080 D340     		lsrs	r3, r3, r2
+ 1664              	.LVL117:
+ 642:Core/Src/uart_printf.c **** 
+ 643:Core/Src/uart_printf.c ****     // USARTDIV的整数部分
+ 644:Core/Src/uart_printf.c ****     uint32_t DIV_Mantissa = 0;
+ 1665              		.loc 1 644 5 is_stmt 1 view .LVU464
+ 645:Core/Src/uart_printf.c ****     // USARTDIV的小数部分
+ 646:Core/Src/uart_printf.c ****     uint32_t DIV_Fraction = 0;
+ 1666              		.loc 1 646 5 view .LVU465
+ 647:Core/Src/uart_printf.c ****     // 计算整数部分， 将PCLK2 放大100倍数(HAL库)，用于提高精度
+ 648:Core/Src/uart_printf.c ****     DIV_Mantissa = (((temp * 25U) / (4U * 115200U)) / 100U);
+ 1667              		.loc 1 648 5 view .LVU466
+ 1668              		.loc 1 648 28 is_stmt 0 view .LVU467
+ 1669 0082 03EB8303 		add	r3, r3, r3, lsl #2
+ 1670              	.LVL118:
+ 1671              		.loc 1 648 28 view .LVU468
+ 1672 0086 03EB8303 		add	r3, r3, r3, lsl #2
+ 1673              		.loc 1 648 18 view .LVU469
+ 1674 008a 5A0B     		lsrs	r2, r3, #13
+ 1675              	.LVL119:
+ 1676              		.loc 1 648 18 view .LVU470
+ 1677 008c 1448     		ldr	r0, .L130+20
+ 1678              		.loc 1 648 18 view .LVU471
+ 1679 008e A0FB0220 		umull	r2, r0, r0, r2
+ 1680              	.LVL120:
+ 649:Core/Src/uart_printf.c ****     // 小数部分 *16是为了将小数转换成二进制数 加50是补偿(手动四舍五入)
+ 650:Core/Src/uart_printf.c ****     DIV_Fraction = ((((temp * 25U) / (4U * 115200U)) - DIV_Mantissa * 100U) * 16U + 50U) / 100U;
+ 1681              		.loc 1 650 5 is_stmt 1 view .LVU472
+ 1682              		.loc 1 650 36 is_stmt 0 view .LVU473
+ 1683 0092 144A     		ldr	r2, .L130+24
+ 1684 0094 A2FB0323 		umull	r2, r3, r2, r3
+ 1685              		.loc 1 650 69 view .LVU474
+ 1686 0098 6422     		movs	r2, #100
+ 1687 009a 00FB02F2 		mul	r2, r0, r2
+ 1688              		.loc 1 650 54 view .LVU475
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 47
+
+
+ 1689 009e C2EB9343 		rsb	r3, r2, r3, lsr #18
+ 1690              		.loc 1 650 77 view .LVU476
+ 1691 00a2 1B01     		lsls	r3, r3, #4
+ 1692              		.loc 1 650 83 view .LVU477
+ 1693 00a4 3233     		adds	r3, r3, #50
+ 1694              		.loc 1 650 18 view .LVU478
+ 1695 00a6 104A     		ldr	r2, .L130+28
+ 1696 00a8 A2FB0323 		umull	r2, r3, r2, r3
+ 1697              	.LVL121:
+ 651:Core/Src/uart_printf.c ****     USART2_BASS->BRR = (DIV_Mantissa << 4) + DIV_Fraction;
+ 1698              		.loc 1 651 5 is_stmt 1 view .LVU479
+ 1699              		.loc 1 651 38 is_stmt 0 view .LVU480
+ 1700 00ac 0001     		lsls	r0, r0, #4
+ 1701              	.LVL122:
+ 1702              		.loc 1 651 44 view .LVU481
+ 1703 00ae 00EB5310 		add	r0, r0, r3, lsr #5
+ 1704              		.loc 1 651 22 view .LVU482
+ 1705 00b2 8860     		str	r0, [r1, #8]
+ 652:Core/Src/uart_printf.c **** 
+ 653:Core/Src/uart_printf.c **** #if uart_IT
+ 654:Core/Src/uart_printf.c ****     // 打开串口2 中断
+ 655:Core/Src/uart_printf.c ****     usart2PrioritySetAndEnable();
+ 1706              		.loc 1 655 5 is_stmt 1 view .LVU483
+ 1707 00b4 FFF7FEFF 		bl	usart2PrioritySetAndEnable
+ 1708              	.LVL123:
+ 656:Core/Src/uart_printf.c ****     // 接收DR满中断
+ 657:Core/Src/uart_printf.c ****     ENABLE_UART2_RX_DR_IT();
+ 1709              		.loc 1 657 5 view .LVU484
+ 1710 00b8 2368     		ldr	r3, [r4]
+ 1711 00ba DA68     		ldr	r2, [r3, #12]
+ 1712 00bc 42F02002 		orr	r2, r2, #32
+ 1713 00c0 DA60     		str	r2, [r3, #12]
+ 658:Core/Src/uart_printf.c **** #endif
+ 659:Core/Src/uart_printf.c **** 
+ 660:Core/Src/uart_printf.c ****     // 使能UASRT2
+ 661:Core/Src/uart_printf.c ****     USART2_BASS->CR1 |= (1UL << 13);
+ 1714              		.loc 1 661 5 view .LVU485
+ 1715              		.loc 1 661 16 is_stmt 0 view .LVU486
+ 1716 00c2 DA68     		ldr	r2, [r3, #12]
+ 1717              		.loc 1 661 22 view .LVU487
+ 1718 00c4 42F40052 		orr	r2, r2, #8192
+ 1719 00c8 DA60     		str	r2, [r3, #12]
+ 662:Core/Src/uart_printf.c **** }
+ 1720              		.loc 1 662 1 view .LVU488
+ 1721 00ca 10BD     		pop	{r4, pc}
+ 1722              	.L131:
+ 1723              		.align	2
+ 1724              	.L130:
+ 1725 00cc 00000000 		.word	MyRCC_BASS
+ 1726 00d0 00000140 		.word	1073807360
+ 1727 00d4 00000000 		.word	USART2_BASS
+ 1728 00d8 00000000 		.word	SystemCoreClock
+ 1729 00dc 00000000 		.word	APBPrescTable
+ 1730 00e0 9FA60B00 		.word	763551
+ 1731 00e4 C5B3A291 		.word	-1851608123
+ 1732 00e8 1F85EB51 		.word	1374389535
+ 1733              		.cfi_endproc
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 48
+
+
+ 1734              	.LFE20:
+ 1736              		.section	.text.uart2_init,"ax",%progbits
+ 1737              		.align	1
+ 1738              		.global	uart2_init
+ 1739              		.syntax unified
+ 1740              		.thumb
+ 1741              		.thumb_func
+ 1743              	uart2_init:
+ 1744              	.LFB21:
+ 663:Core/Src/uart_printf.c **** 
+ 664:Core/Src/uart_printf.c **** void uart2_init()
+ 665:Core/Src/uart_printf.c **** {
+ 1745              		.loc 1 665 1 is_stmt 1 view -0
+ 1746              		.cfi_startproc
+ 1747              		@ args = 0, pretend = 0, frame = 0
+ 1748              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1749 0000 10B5     		push	{r4, lr}
+ 1750              		.cfi_def_cfa_offset 8
+ 1751              		.cfi_offset 4, -8
+ 1752              		.cfi_offset 14, -4
+ 666:Core/Src/uart_printf.c ****     log_fifo_handle2.initFifo = true;
+ 1753              		.loc 1 666 5 view .LVU490
+ 1754              		.loc 1 666 31 is_stmt 0 view .LVU491
+ 1755 0002 054C     		ldr	r4, .L134
+ 1756 0004 0123     		movs	r3, #1
+ 1757 0006 84F80F38 		strb	r3, [r4, #2063]
+ 667:Core/Src/uart_printf.c ****     uart2_hardware_init();
+ 1758              		.loc 1 667 5 is_stmt 1 view .LVU492
+ 1759 000a FFF7FEFF 		bl	uart2_hardware_init
+ 1760              	.LVL124:
+ 668:Core/Src/uart_printf.c ****     uart_printf_init(&log_fifo_handle2);
+ 1761              		.loc 1 668 5 view .LVU493
+ 1762 000e 2046     		mov	r0, r4
+ 1763 0010 FFF7FEFF 		bl	uart_printf_init
+ 1764              	.LVL125:
+ 669:Core/Src/uart_printf.c **** }
+ 1765              		.loc 1 669 1 is_stmt 0 view .LVU494
+ 1766 0014 10BD     		pop	{r4, pc}
+ 1767              	.L135:
+ 1768 0016 00BF     		.align	2
+ 1769              	.L134:
+ 1770 0018 00000000 		.word	log_fifo_handle2
+ 1771              		.cfi_endproc
+ 1772              	.LFE21:
+ 1774              		.section	.text.convert_uint32_t_to_uint8_t,"ax",%progbits
+ 1775              		.align	1
+ 1776              		.global	convert_uint32_t_to_uint8_t
+ 1777              		.syntax unified
+ 1778              		.thumb
+ 1779              		.thumb_func
+ 1781              	convert_uint32_t_to_uint8_t:
+ 1782              	.LVL126:
+ 1783              	.LFB24:
+ 670:Core/Src/uart_printf.c **** 
+ 671:Core/Src/uart_printf.c **** // used for chip communicate 一帧的头两个字节必须为为 0x5a 0xa5
+ 672:Core/Src/uart_printf.c **** uint8_t uart2_communicate_tx(const uint8_t *data, const uint8_t len)
+ 673:Core/Src/uart_printf.c **** {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 49
+
+
+ 674:Core/Src/uart_printf.c **** 
+ 675:Core/Src/uart_printf.c ****     uart_printf(info_log, "uart2_communicate_tx", data, len);
+ 676:Core/Src/uart_printf.c ****     uint8_t tx_data[2 + 8 + 4] = {};
+ 677:Core/Src/uart_printf.c ****     uint8_t frame_head[2] = {0x5a, 0xa5};
+ 678:Core/Src/uart_printf.c ****     // 消息被拆分成的帧数
+ 679:Core/Src/uart_printf.c ****     uint8_t frame_length = 0;
+ 680:Core/Src/uart_printf.c ****     uint32_t CRC_result = 0;
+ 681:Core/Src/uart_printf.c **** 
+ 682:Core/Src/uart_printf.c ****     uint32_t data_to_uint32_t[2];
+ 683:Core/Src/uart_printf.c ****     uint8_t data_to_uint8_t[4];
+ 684:Core/Src/uart_printf.c ****     uint8_t temp_data[8] = {0x00};
+ 685:Core/Src/uart_printf.c ****     frame_length = len / 8;
+ 686:Core/Src/uart_printf.c ****     // 初始化硬件和fifo
+ 687:Core/Src/uart_printf.c ****     if (log_fifo_handle2.initFifo == false)
+ 688:Core/Src/uart_printf.c ****     {
+ 689:Core/Src/uart_printf.c ****         uart2_hardware_init();
+ 690:Core/Src/uart_printf.c ****         uart_printf_init(&log_fifo_handle2);
+ 691:Core/Src/uart_printf.c ****     }
+ 692:Core/Src/uart_printf.c **** 
+ 693:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < frame_length; i++) // 长度满足8字节
+ 694:Core/Src/uart_printf.c ****     {
+ 695:Core/Src/uart_printf.c ****         // 转换成32位，用于CRC
+ 696:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8], data_to_uint32_t);
+ 697:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8 + 4], &data_to_uint32_t[1]);
+ 698:Core/Src/uart_printf.c ****         // 进行CRC运算
+ 699:Core/Src/uart_printf.c ****         crc_reset();
+ 700:Core/Src/uart_printf.c ****         CRC_result = crc_calculate(data_to_uint32_t, 2);
+ 701:Core/Src/uart_printf.c ****         // 将crc 转换成 uint8_t;
+ 702:Core/Src/uart_printf.c ****         convert_uint32_t_to_uint8_t(CRC_result, data_to_uint8_t);
+ 703:Core/Src/uart_printf.c ****         memcpy(tx_data, frame_head, 2);           // 复制帧头到tx
+ 704:Core/Src/uart_printf.c ****         memcpy(&tx_data[2], &data[i], 8);         // 复制帧到tx
+ 705:Core/Src/uart_printf.c ****         memcpy(&tx_data[10], data_to_uint8_t, 4); // 复制crc到tx
+ 706:Core/Src/uart_printf.c ****         uart_fifo_put(&log_fifo_handle2.fifo_log, tx_data, 14);
+ 707:Core/Src/uart_printf.c ****         uart_printf(info_log, "tx ", tx_data, 14);
+ 708:Core/Src/uart_printf.c ****     }
+ 709:Core/Src/uart_printf.c ****     // 不满足长度为8的数据
+ 710:Core/Src/uart_printf.c ****     if (len % 8 != 0)
+ 711:Core/Src/uart_printf.c ****     {
+ 712:Core/Src/uart_printf.c ****         // 剩下的长度
+ 713:Core/Src/uart_printf.c ****         uint8_t data_len = len % 8;
+ 714:Core/Src/uart_printf.c ****         memset(temp_data, 0, 8);
+ 715:Core/Src/uart_printf.c ****         // 复制数据
+ 716:Core/Src/uart_printf.c ****         memcpy(&temp_data, &data[len - data_len], data_len);
+ 717:Core/Src/uart_printf.c ****         // 转换成32位，用于CRC
+ 718:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(temp_data, data_to_uint32_t);
+ 719:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&temp_data[4], &data_to_uint32_t[1]);
+ 720:Core/Src/uart_printf.c ****         // 进行CRC运算
+ 721:Core/Src/uart_printf.c ****         crc_reset();
+ 722:Core/Src/uart_printf.c ****         CRC_result = crc_calculate(data_to_uint32_t, 2);
+ 723:Core/Src/uart_printf.c ****         // 将crc 转换成 uint8_t;
+ 724:Core/Src/uart_printf.c ****         convert_uint32_t_to_uint8_t(CRC_result, data_to_uint8_t);
+ 725:Core/Src/uart_printf.c ****         memcpy(tx_data, frame_head, 2);           // 复制帧头到tx
+ 726:Core/Src/uart_printf.c ****         memcpy(&tx_data[2], &temp_data, 8);       // 复制帧到tx
+ 727:Core/Src/uart_printf.c ****         memcpy(&tx_data[10], data_to_uint8_t, 4); // 复制crc到tx
+ 728:Core/Src/uart_printf.c ****         uart_fifo_put(&log_fifo_handle2.fifo_log, tx_data, 14);
+ 729:Core/Src/uart_printf.c ****         uart_printf(info_log, "tx ", tx_data, 14);
+ 730:Core/Src/uart_printf.c ****     }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 50
+
+
+ 731:Core/Src/uart_printf.c ****  
+ 732:Core/Src/uart_printf.c **** // 使能发送dr空中断 进行数据发送
+ 733:Core/Src/uart_printf.c **** #if uart_IT
+ 734:Core/Src/uart_printf.c ****     // 使能串口中断
+ 735:Core/Src/uart_printf.c ****     if (log_fifo_handle2.uart_error_code == UART_TX_READY)
+ 736:Core/Src/uart_printf.c ****     {
+ 737:Core/Src/uart_printf.c ****         // 打开串口中断 发送DR空中断
+ 738:Core/Src/uart_printf.c ****         ENABLE_UART2_TX_DR_IT();
+ 739:Core/Src/uart_printf.c ****         log_fifo_handle2.uart_error_code = UART_TX_BUSY;
+ 740:Core/Src/uart_printf.c ****     }
+ 741:Core/Src/uart_printf.c **** #else
+ 742:Core/Src/uart_printf.c ****     uint8_t temp = 0;
+ 743:Core/Src/uart_printf.c ****     while (uart_fifo_get(&log_fifo_handle2.fifo_log, &temp, 1) != FIFO_OUT_FAIL)
+ 744:Core/Src/uart_printf.c ****     {
+ 745:Core/Src/uart_printf.c ****         uart2_out(temp);
+ 746:Core/Src/uart_printf.c ****     }
+ 747:Core/Src/uart_printf.c **** #endif
+ 748:Core/Src/uart_printf.c ****     return true;
+ 749:Core/Src/uart_printf.c **** }
+ 750:Core/Src/uart_printf.c **** 
+ 751:Core/Src/uart_printf.c **** uint8_t uart2_communicate_rx()
+ 752:Core/Src/uart_printf.c **** {
+ 753:Core/Src/uart_printf.c ****     uint8_t rx_data[14] = {0x00};
+ 754:Core/Src/uart_printf.c ****     uint32_t CRC_result = 0;
+ 755:Core/Src/uart_printf.c ****     uint32_t data_to_uint32_t[2];
+ 756:Core/Src/uart_printf.c **** 
+ 757:Core/Src/uart_printf.c ****     uint8_t return_value = true;
+ 758:Core/Src/uart_printf.c ****     // 读出一帧数据
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 760:Core/Src/uart_printf.c ****     {
+ 761:Core/Src/uart_printf.c ****         return_value = uart_fifo_get(&log_fifo_handle2.fifo_log_in, &rx_data[i], 1);
+ 762:Core/Src/uart_printf.c ****     }
+ 763:Core/Src/uart_printf.c **** 
+ 764:Core/Src/uart_printf.c ****     uart_printf(info_log, "rx ", &rx_data[0], 14);
+ 765:Core/Src/uart_printf.c **** 
+ 766:Core/Src/uart_printf.c ****     // 校验
+ 767:Core/Src/uart_printf.c ****     if (rx_data[0] != 0x5a && rx_data[1] != 0xa5)
+ 768:Core/Src/uart_printf.c ****     {
+ 769:Core/Src/uart_printf.c ****         uart_printf(info_log, "rx data have not have right frame head \r\n", NULL, 0);
+ 770:Core/Src/uart_printf.c ****         return false;
+ 771:Core/Src/uart_printf.c ****     }
+ 772:Core/Src/uart_printf.c ****     convert_uint8_t_to_uint32_t(&rx_data[2], data_to_uint32_t);
+ 773:Core/Src/uart_printf.c ****     convert_uint8_t_to_uint32_t(&rx_data[6], &data_to_uint32_t[1]);
+ 774:Core/Src/uart_printf.c ****     convert_uint8_t_to_uint32_t(&rx_data[10], &CRC_result);
+ 775:Core/Src/uart_printf.c ****     // crc 计算
+ 776:Core/Src/uart_printf.c ****     crc_reset();
+ 777:Core/Src/uart_printf.c ****     if (CRC_result != crc_calculate(data_to_uint32_t, 2))
+ 778:Core/Src/uart_printf.c ****     {
+ 779:Core/Src/uart_printf.c ****         uart_printf(error_log, "the frame crc is wrong\r\n", NULL, 0);
+ 780:Core/Src/uart_printf.c ****         return false;
+ 781:Core/Src/uart_printf.c ****     }
+ 782:Core/Src/uart_printf.c ****     // 解析 信息
+ 783:Core/Src/uart_printf.c ****     can_service_entry(&rx_data[2]);
+ 784:Core/Src/uart_printf.c ****     // uds_entry(&rx_data[2], 8);
+ 785:Core/Src/uart_printf.c **** 
+ 786:Core/Src/uart_printf.c ****     return return_value;
+ 787:Core/Src/uart_printf.c **** }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 51
+
+
+ 788:Core/Src/uart_printf.c **** 
+ 789:Core/Src/uart_printf.c **** void convert_uint32_t_to_uint8_t(const uint32_t data, uint8_t *data_to_uint8_t)
+ 790:Core/Src/uart_printf.c **** {
+ 1784              		.loc 1 790 1 is_stmt 1 view -0
+ 1785              		.cfi_startproc
+ 1786              		@ args = 0, pretend = 0, frame = 0
+ 1787              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1788              		@ link register save eliminated.
+ 791:Core/Src/uart_printf.c ****     data_to_uint8_t[0] = data >> 24;
+ 1789              		.loc 1 791 5 view .LVU496
+ 1790              		.loc 1 791 31 is_stmt 0 view .LVU497
+ 1791 0000 030E     		lsrs	r3, r0, #24
+ 1792              		.loc 1 791 24 view .LVU498
+ 1793 0002 0B70     		strb	r3, [r1]
+ 792:Core/Src/uart_printf.c ****     data_to_uint8_t[1] = (data & 0xff0000) >> 16;
+ 1794              		.loc 1 792 5 is_stmt 1 view .LVU499
+ 1795              		.loc 1 792 44 is_stmt 0 view .LVU500
+ 1796 0004 030C     		lsrs	r3, r0, #16
+ 1797              		.loc 1 792 24 view .LVU501
+ 1798 0006 4B70     		strb	r3, [r1, #1]
+ 793:Core/Src/uart_printf.c ****     data_to_uint8_t[2] = (data & 0xff00) >> 8;
+ 1799              		.loc 1 793 5 is_stmt 1 view .LVU502
+ 1800              		.loc 1 793 42 is_stmt 0 view .LVU503
+ 1801 0008 030A     		lsrs	r3, r0, #8
+ 1802              		.loc 1 793 24 view .LVU504
+ 1803 000a 8B70     		strb	r3, [r1, #2]
+ 794:Core/Src/uart_printf.c ****     data_to_uint8_t[3] = (data & 0xff);
+ 1804              		.loc 1 794 5 is_stmt 1 view .LVU505
+ 1805              		.loc 1 794 24 is_stmt 0 view .LVU506
+ 1806 000c C870     		strb	r0, [r1, #3]
+ 795:Core/Src/uart_printf.c **** }
+ 1807              		.loc 1 795 1 view .LVU507
+ 1808 000e 7047     		bx	lr
+ 1809              		.cfi_endproc
+ 1810              	.LFE24:
+ 1812              		.section	.text.convert_uint8_t_to_uint32_t,"ax",%progbits
+ 1813              		.align	1
+ 1814              		.global	convert_uint8_t_to_uint32_t
+ 1815              		.syntax unified
+ 1816              		.thumb
+ 1817              		.thumb_func
+ 1819              	convert_uint8_t_to_uint32_t:
+ 1820              	.LVL127:
+ 1821              	.LFB25:
+ 796:Core/Src/uart_printf.c **** void convert_uint8_t_to_uint32_t(const uint8_t *data_to_uint32_t, uint32_t *data)
+ 797:Core/Src/uart_printf.c **** {
+ 1822              		.loc 1 797 1 is_stmt 1 view -0
+ 1823              		.cfi_startproc
+ 1824              		@ args = 0, pretend = 0, frame = 0
+ 1825              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1826              		@ link register save eliminated.
+ 798:Core/Src/uart_printf.c ****     *data = 0;
+ 1827              		.loc 1 798 5 view .LVU509
+ 1828              		.loc 1 798 11 is_stmt 0 view .LVU510
+ 1829 0000 0023     		movs	r3, #0
+ 1830 0002 0B60     		str	r3, [r1]
+ 799:Core/Src/uart_printf.c ****     *data |= (data_to_uint32_t[0] << 24);
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 52
+
+
+ 1831              		.loc 1 799 5 is_stmt 1 view .LVU511
+ 1832              		.loc 1 799 31 is_stmt 0 view .LVU512
+ 1833 0004 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 1834              		.loc 1 799 35 view .LVU513
+ 1835 0006 1B06     		lsls	r3, r3, #24
+ 1836              		.loc 1 799 11 view .LVU514
+ 1837 0008 0B60     		str	r3, [r1]
+ 800:Core/Src/uart_printf.c ****     *data |= (data_to_uint32_t[1] << 16);
+ 1838              		.loc 1 800 5 is_stmt 1 view .LVU515
+ 1839              		.loc 1 800 31 is_stmt 0 view .LVU516
+ 1840 000a 4278     		ldrb	r2, [r0, #1]	@ zero_extendqisi2
+ 1841              		.loc 1 800 11 view .LVU517
+ 1842 000c 43EA0243 		orr	r3, r3, r2, lsl #16
+ 1843 0010 0B60     		str	r3, [r1]
+ 801:Core/Src/uart_printf.c ****     *data |= (data_to_uint32_t[2] << 8);
+ 1844              		.loc 1 801 5 is_stmt 1 view .LVU518
+ 1845              		.loc 1 801 31 is_stmt 0 view .LVU519
+ 1846 0012 8278     		ldrb	r2, [r0, #2]	@ zero_extendqisi2
+ 1847              		.loc 1 801 11 view .LVU520
+ 1848 0014 43EA0223 		orr	r3, r3, r2, lsl #8
+ 1849 0018 0B60     		str	r3, [r1]
+ 802:Core/Src/uart_printf.c ****     *data |= (data_to_uint32_t[3]);
+ 1850              		.loc 1 802 5 is_stmt 1 view .LVU521
+ 1851              		.loc 1 802 31 is_stmt 0 view .LVU522
+ 1852 001a C278     		ldrb	r2, [r0, #3]	@ zero_extendqisi2
+ 1853              		.loc 1 802 11 view .LVU523
+ 1854 001c 1343     		orrs	r3, r3, r2
+ 1855 001e 0B60     		str	r3, [r1]
+ 803:Core/Src/uart_printf.c **** }...
+ 1856              		.loc 1 803 1 view .LVU524
+ 1857 0020 7047     		bx	lr
+ 1858              		.cfi_endproc
+ 1859              	.LFE25:
+ 1861              		.section	.rodata.uart2_communicate_tx.str1.4,"aMS",%progbits,1
+ 1862              		.align	2
+ 1863              	.LC1:
+ 1864 0000 75617274 		.ascii	"uart2_communicate_tx\000"
+ 1864      325F636F 
+ 1864      6D6D756E 
+ 1864      69636174 
+ 1864      655F7478 
+ 1865 0015 000000   		.align	2
+ 1866              	.LC2:
+ 1867 0018 74782000 		.ascii	"tx \000"
+ 1868              		.section	.text.uart2_communicate_tx,"ax",%progbits
+ 1869              		.align	1
+ 1870              		.global	uart2_communicate_tx
+ 1871              		.syntax unified
+ 1872              		.thumb
+ 1873              		.thumb_func
+ 1875              	uart2_communicate_tx:
+ 1876              	.LVL128:
+ 1877              	.LFB22:
+ 673:Core/Src/uart_printf.c **** {
+ 1878              		.loc 1 673 1 is_stmt 1 view -0
+ 1879              		.cfi_startproc
+ 1880              		@ args = 0, pretend = 0, frame = 40
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 53
+
+
+ 1881              		@ frame_needed = 0, uses_anonymous_args = 0
+ 673:Core/Src/uart_printf.c **** {
+ 1882              		.loc 1 673 1 is_stmt 0 view .LVU526
+ 1883 0000 2DE9F041 		push	{r4, r5, r6, r7, r8, lr}
+ 1884              		.cfi_def_cfa_offset 24
+ 1885              		.cfi_offset 4, -24
+ 1886              		.cfi_offset 5, -20
+ 1887              		.cfi_offset 6, -16
+ 1888              		.cfi_offset 7, -12
+ 1889              		.cfi_offset 8, -8
+ 1890              		.cfi_offset 14, -4
+ 1891 0004 8AB0     		sub	sp, sp, #40
+ 1892              		.cfi_def_cfa_offset 64
+ 1893 0006 0646     		mov	r6, r0
+ 1894 0008 8846     		mov	r8, r1
+ 675:Core/Src/uart_printf.c ****     uart_printf(info_log, "uart2_communicate_tx", data, len);
+ 1895              		.loc 1 675 5 is_stmt 1 view .LVU527
+ 1896 000a 0B46     		mov	r3, r1
+ 1897 000c 0246     		mov	r2, r0
+ 1898 000e 4C49     		ldr	r1, .L148
+ 1899              	.LVL129:
+ 675:Core/Src/uart_printf.c ****     uart_printf(info_log, "uart2_communicate_tx", data, len);
+ 1900              		.loc 1 675 5 is_stmt 0 view .LVU528
+ 1901 0010 0220     		movs	r0, #2
+ 1902              	.LVL130:
+ 675:Core/Src/uart_printf.c ****     uart_printf(info_log, "uart2_communicate_tx", data, len);
+ 1903              		.loc 1 675 5 view .LVU529
+ 1904 0012 FFF7FEFF 		bl	uart_printf
+ 1905              	.LVL131:
+ 676:Core/Src/uart_printf.c ****     uint8_t tx_data[2 + 8 + 4] = {};
+ 1906              		.loc 1 676 5 is_stmt 1 view .LVU530
+ 676:Core/Src/uart_printf.c ****     uint8_t tx_data[2 + 8 + 4] = {};
+ 1907              		.loc 1 676 13 is_stmt 0 view .LVU531
+ 1908 0016 0023     		movs	r3, #0
+ 1909 0018 0693     		str	r3, [sp, #24]
+ 1910 001a 0793     		str	r3, [sp, #28]
+ 1911 001c 0893     		str	r3, [sp, #32]
+ 1912 001e ADF82430 		strh	r3, [sp, #36]	@ movhi
+ 677:Core/Src/uart_printf.c ****     uint8_t frame_head[2] = {0x5a, 0xa5};
+ 1913              		.loc 1 677 5 is_stmt 1 view .LVU532
+ 677:Core/Src/uart_printf.c ****     uint8_t frame_head[2] = {0x5a, 0xa5};
+ 1914              		.loc 1 677 13 is_stmt 0 view .LVU533
+ 1915 0022 4AF25A52 		movw	r2, #42330
+ 1916 0026 ADF81420 		strh	r2, [sp, #20]	@ movhi
+ 679:Core/Src/uart_printf.c ****     uint8_t frame_length = 0;
+ 1917              		.loc 1 679 5 is_stmt 1 view .LVU534
+ 1918              	.LVL132:
+ 680:Core/Src/uart_printf.c ****     uint32_t CRC_result = 0;
+ 1919              		.loc 1 680 5 view .LVU535
+ 682:Core/Src/uart_printf.c ****     uint32_t data_to_uint32_t[2];
+ 1920              		.loc 1 682 5 view .LVU536
+ 683:Core/Src/uart_printf.c ****     uint8_t data_to_uint8_t[4];
+ 1921              		.loc 1 683 5 view .LVU537
+ 684:Core/Src/uart_printf.c ****     uint8_t temp_data[8] = {0x00};
+ 1922              		.loc 1 684 5 view .LVU538
+ 684:Core/Src/uart_printf.c ****     uint8_t temp_data[8] = {0x00};
+ 1923              		.loc 1 684 13 is_stmt 0 view .LVU539
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 54
+
+
+ 1924 002a 0093     		str	r3, [sp]
+ 1925 002c 0193     		str	r3, [sp, #4]
+ 685:Core/Src/uart_printf.c ****     frame_length = len / 8;
+ 1926              		.loc 1 685 5 is_stmt 1 view .LVU540
+ 685:Core/Src/uart_printf.c ****     frame_length = len / 8;
+ 1927              		.loc 1 685 18 is_stmt 0 view .LVU541
+ 1928 002e 4FEAD807 		lsr	r7, r8, #3
+ 1929              	.LVL133:
+ 687:Core/Src/uart_printf.c ****     if (log_fifo_handle2.initFifo == false)
+ 1930              		.loc 1 687 5 is_stmt 1 view .LVU542
+ 687:Core/Src/uart_printf.c ****     if (log_fifo_handle2.initFifo == false)
+ 1931              		.loc 1 687 25 is_stmt 0 view .LVU543
+ 1932 0032 444B     		ldr	r3, .L148+4
+ 1933 0034 93F80F38 		ldrb	r3, [r3, #2063]	@ zero_extendqisi2
+ 687:Core/Src/uart_printf.c ****     if (log_fifo_handle2.initFifo == false)
+ 1934              		.loc 1 687 8 view .LVU544
+ 1935 0038 0BB1     		cbz	r3, .L145
+ 1936              	.L139:
+ 673:Core/Src/uart_printf.c **** {
+ 1937              		.loc 1 673 1 view .LVU545
+ 1938 003a 0024     		movs	r4, #0
+ 1939 003c 34E0     		b	.L140
+ 1940              	.L145:
+ 689:Core/Src/uart_printf.c ****         uart2_hardware_init();
+ 1941              		.loc 1 689 9 is_stmt 1 view .LVU546
+ 1942 003e FFF7FEFF 		bl	uart2_hardware_init
+ 1943              	.LVL134:
+ 690:Core/Src/uart_printf.c ****         uart_printf_init(&log_fifo_handle2);
+ 1944              		.loc 1 690 9 view .LVU547
+ 1945 0042 4048     		ldr	r0, .L148+4
+ 1946 0044 FFF7FEFF 		bl	uart_printf_init
+ 1947              	.LVL135:
+ 1948 0048 F7E7     		b	.L139
+ 1949              	.LVL136:
+ 1950              	.L141:
+ 1951              	.LBB7:
+ 696:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8], data_to_uint32_t);
+ 1952              		.loc 1 696 9 view .LVU548
+ 696:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8], data_to_uint32_t);
+ 1953              		.loc 1 696 45 is_stmt 0 view .LVU549
+ 1954 004a E500     		lsls	r5, r4, #3
+ 696:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8], data_to_uint32_t);
+ 1955              		.loc 1 696 9 view .LVU550
+ 1956 004c 03A9     		add	r1, sp, #12
+ 1957 004e 06EBC400 		add	r0, r6, r4, lsl #3
+ 1958 0052 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 1959              	.LVL137:
+ 697:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8 + 4], &data_to_uint32_t[1]);
+ 1960              		.loc 1 697 9 is_stmt 1 view .LVU551
+ 697:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8 + 4], &data_to_uint32_t[1]);
+ 1961              		.loc 1 697 42 is_stmt 0 view .LVU552
+ 1962 0056 281D     		adds	r0, r5, #4
+ 697:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&data[i * 8 + 4], &data_to_uint32_t[1]);
+ 1963              		.loc 1 697 9 view .LVU553
+ 1964 0058 04A9     		add	r1, sp, #16
+ 1965 005a 3044     		add	r0, r0, r6
+ 1966 005c FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 55
+
+
+ 1967              	.LVL138:
+ 699:Core/Src/uart_printf.c ****         crc_reset();
+ 1968              		.loc 1 699 9 is_stmt 1 view .LVU554
+ 1969 0060 FFF7FEFF 		bl	crc_reset
+ 1970              	.LVL139:
+ 700:Core/Src/uart_printf.c ****         CRC_result = crc_calculate(data_to_uint32_t, 2);
+ 1971              		.loc 1 700 9 view .LVU555
+ 700:Core/Src/uart_printf.c ****         CRC_result = crc_calculate(data_to_uint32_t, 2);
+ 1972              		.loc 1 700 22 is_stmt 0 view .LVU556
+ 1973 0064 0221     		movs	r1, #2
+ 1974 0066 03A8     		add	r0, sp, #12
+ 1975 0068 FFF7FEFF 		bl	crc_calculate
+ 1976              	.LVL140:
+ 702:Core/Src/uart_printf.c ****         convert_uint32_t_to_uint8_t(CRC_result, data_to_uint8_t);
+ 1977              		.loc 1 702 9 is_stmt 1 view .LVU557
+ 1978 006c 02A9     		add	r1, sp, #8
+ 1979 006e FFF7FEFF 		bl	convert_uint32_t_to_uint8_t
+ 1980              	.LVL141:
+ 703:Core/Src/uart_printf.c ****         memcpy(tx_data, frame_head, 2);           // 复制帧头到tx
+ 1981              		.loc 1 703 9 view .LVU558
+ 1982 0072 BDF81430 		ldrh	r3, [sp, #20]
+ 1983 0076 ADF81830 		strh	r3, [sp, #24]	@ movhi
+ 704:Core/Src/uart_printf.c ****         memcpy(&tx_data[2], &data[i], 8);         // 复制帧到tx
+ 1984              		.loc 1 704 9 view .LVU559
+ 704:Core/Src/uart_printf.c ****         memcpy(&tx_data[2], &data[i], 8);         // 复制帧到tx
+ 1985              		.loc 1 704 29 is_stmt 0 view .LVU560
+ 1986 007a 3319     		adds	r3, r6, r4
+ 704:Core/Src/uart_printf.c ****         memcpy(&tx_data[2], &data[i], 8);         // 复制帧到tx
+ 1987              		.loc 1 704 9 view .LVU561
+ 1988 007c 3259     		ldr	r2, [r6, r4]	@ unaligned
+ 1989 007e 5B68     		ldr	r3, [r3, #4]	@ unaligned
+ 1990 0080 CDF81A20 		str	r2, [sp, #26]	@ unaligned
+ 1991 0084 CDF81E30 		str	r3, [sp, #30]	@ unaligned
+ 705:Core/Src/uart_printf.c ****         memcpy(&tx_data[10], data_to_uint8_t, 4); // 复制crc到tx
+ 1992              		.loc 1 705 9 is_stmt 1 view .LVU562
+ 1993 0088 029A     		ldr	r2, [sp, #8]
+ 1994 008a CDF82220 		str	r2, [sp, #34]	@ unaligned
+ 706:Core/Src/uart_printf.c ****         uart_fifo_put(&log_fifo_handle2.fifo_log, tx_data, 14);
+ 1995              		.loc 1 706 9 view .LVU563
+ 1996 008e 0E22     		movs	r2, #14
+ 1997 0090 06A9     		add	r1, sp, #24
+ 1998 0092 2D48     		ldr	r0, .L148+8
+ 1999 0094 FFF7FEFF 		bl	uart_fifo_put
+ 2000              	.LVL142:
+ 707:Core/Src/uart_printf.c ****         uart_printf(info_log, "tx ", tx_data, 14);
+ 2001              		.loc 1 707 9 view .LVU564
+ 2002 0098 0E23     		movs	r3, #14
+ 2003 009a 06AA     		add	r2, sp, #24
+ 2004 009c 2B49     		ldr	r1, .L148+12
+ 2005 009e 0220     		movs	r0, #2
+ 2006 00a0 FFF7FEFF 		bl	uart_printf
+ 2007              	.LVL143:
+ 693:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < frame_length; i++) // 长度满足8字节
+ 2008              		.loc 1 693 44 discriminator 3 view .LVU565
+ 2009 00a4 0134     		adds	r4, r4, #1
+ 2010              	.LVL144:
+ 693:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < frame_length; i++) // 长度满足8字节
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 56
+
+
+ 2011              		.loc 1 693 44 is_stmt 0 discriminator 3 view .LVU566
+ 2012 00a6 E4B2     		uxtb	r4, r4
+ 2013              	.LVL145:
+ 2014              	.L140:
+ 693:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < frame_length; i++) // 长度满足8字节
+ 2015              		.loc 1 693 27 is_stmt 1 discriminator 1 view .LVU567
+ 2016 00a8 BC42     		cmp	r4, r7
+ 2017 00aa CED3     		bcc	.L141
+ 2018              	.LBE7:
+ 710:Core/Src/uart_printf.c ****     if (len % 8 != 0)
+ 2019              		.loc 1 710 5 view .LVU568
+ 710:Core/Src/uart_printf.c ****     if (len % 8 != 0)
+ 2020              		.loc 1 710 8 is_stmt 0 view .LVU569
+ 2021 00ac 18F00702 		ands	r2, r8, #7
+ 2022 00b0 08D1     		bne	.L146
+ 2023              	.L142:
+ 735:Core/Src/uart_printf.c ****     if (log_fifo_handle2.uart_error_code == UART_TX_READY)
+ 2024              		.loc 1 735 5 is_stmt 1 view .LVU570
+ 735:Core/Src/uart_printf.c ****     if (log_fifo_handle2.uart_error_code == UART_TX_READY)
+ 2025              		.loc 1 735 25 is_stmt 0 view .LVU571
+ 2026 00b2 244B     		ldr	r3, .L148+4
+ 2027 00b4 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 2028 00b6 DBB2     		uxtb	r3, r3
+ 735:Core/Src/uart_printf.c ****     if (log_fifo_handle2.uart_error_code == UART_TX_READY)
+ 2029              		.loc 1 735 8 view .LVU572
+ 2030 00b8 012B     		cmp	r3, #1
+ 2031 00ba 36D0     		beq	.L147
+ 2032              	.L143:
+ 748:Core/Src/uart_printf.c ****     return true;
+ 2033              		.loc 1 748 5 is_stmt 1 view .LVU573
+ 749:Core/Src/uart_printf.c **** }
+ 2034              		.loc 1 749 1 is_stmt 0 view .LVU574
+ 2035 00bc 0120     		movs	r0, #1
+ 2036 00be 0AB0     		add	sp, sp, #40
+ 2037              		.cfi_remember_state
+ 2038              		.cfi_def_cfa_offset 24
+ 2039              		@ sp needed
+ 2040 00c0 BDE8F081 		pop	{r4, r5, r6, r7, r8, pc}
+ 2041              	.LVL146:
+ 2042              	.L146:
+ 2043              		.cfi_restore_state
+ 2044              	.LBB8:
+ 713:Core/Src/uart_printf.c ****         uint8_t data_len = len % 8;
+ 2045              		.loc 1 713 9 is_stmt 1 view .LVU575
+ 714:Core/Src/uart_printf.c ****         memset(temp_data, 0, 8);
+ 2046              		.loc 1 714 9 view .LVU576
+ 2047 00c4 0023     		movs	r3, #0
+ 2048 00c6 0093     		str	r3, [sp]
+ 2049 00c8 0193     		str	r3, [sp, #4]
+ 716:Core/Src/uart_printf.c ****         memcpy(&temp_data, &data[len - data_len], data_len);
+ 2050              		.loc 1 716 9 view .LVU577
+ 716:Core/Src/uart_printf.c ****         memcpy(&temp_data, &data[len - data_len], data_len);
+ 2051              		.loc 1 716 38 is_stmt 0 view .LVU578
+ 2052 00ca A8EB0201 		sub	r1, r8, r2
+ 716:Core/Src/uart_printf.c ****         memcpy(&temp_data, &data[len - data_len], data_len);
+ 2053              		.loc 1 716 9 view .LVU579
+ 2054 00ce 3144     		add	r1, r1, r6
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 57
+
+
+ 2055 00d0 6846     		mov	r0, sp
+ 2056 00d2 FFF7FEFF 		bl	memcpy
+ 2057              	.LVL147:
+ 718:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(temp_data, data_to_uint32_t);
+ 2058              		.loc 1 718 9 is_stmt 1 view .LVU580
+ 2059 00d6 03A9     		add	r1, sp, #12
+ 2060 00d8 6846     		mov	r0, sp
+ 2061 00da FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 2062              	.LVL148:
+ 719:Core/Src/uart_printf.c ****         convert_uint8_t_to_uint32_t(&temp_data[4], &data_to_uint32_t[1]);
+ 2063              		.loc 1 719 9 view .LVU581
+ 2064 00de 04A9     		add	r1, sp, #16
+ 2065 00e0 01A8     		add	r0, sp, #4
+ 2066 00e2 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 2067              	.LVL149:
+ 721:Core/Src/uart_printf.c ****         crc_reset();
+ 2068              		.loc 1 721 9 view .LVU582
+ 2069 00e6 FFF7FEFF 		bl	crc_reset
+ 2070              	.LVL150:
+ 722:Core/Src/uart_printf.c ****         CRC_result = crc_calculate(data_to_uint32_t, 2);
+ 2071              		.loc 1 722 9 view .LVU583
+ 722:Core/Src/uart_printf.c ****         CRC_result = crc_calculate(data_to_uint32_t, 2);
+ 2072              		.loc 1 722 22 is_stmt 0 view .LVU584
+ 2073 00ea 0221     		movs	r1, #2
+ 2074 00ec 03A8     		add	r0, sp, #12
+ 2075 00ee FFF7FEFF 		bl	crc_calculate
+ 2076              	.LVL151:
+ 724:Core/Src/uart_printf.c ****         convert_uint32_t_to_uint8_t(CRC_result, data_to_uint8_t);
+ 2077              		.loc 1 724 9 is_stmt 1 view .LVU585
+ 2078 00f2 02A9     		add	r1, sp, #8
+ 2079 00f4 FFF7FEFF 		bl	convert_uint32_t_to_uint8_t
+ 2080              	.LVL152:
+ 725:Core/Src/uart_printf.c ****         memcpy(tx_data, frame_head, 2);           // 复制帧头到tx
+ 2081              		.loc 1 725 9 view .LVU586
+ 2082 00f8 BDF81430 		ldrh	r3, [sp, #20]
+ 2083 00fc ADF81830 		strh	r3, [sp, #24]	@ movhi
+ 726:Core/Src/uart_printf.c ****         memcpy(&tx_data[2], &temp_data, 8);       // 复制帧到tx
+ 2084              		.loc 1 726 9 view .LVU587
+ 2085 0100 6B46     		mov	r3, sp
+ 2086 0102 03CB     		ldmia	r3!, {r0, r1}
+ 2087 0104 CDF81A00 		str	r0, [sp, #26]	@ unaligned
+ 2088 0108 CDF81E10 		str	r1, [sp, #30]	@ unaligned
+ 727:Core/Src/uart_printf.c ****         memcpy(&tx_data[10], data_to_uint8_t, 4); // 复制crc到tx
+ 2089              		.loc 1 727 9 view .LVU588
+ 2090 010c 029B     		ldr	r3, [sp, #8]
+ 2091 010e CDF82230 		str	r3, [sp, #34]	@ unaligned
+ 728:Core/Src/uart_printf.c ****         uart_fifo_put(&log_fifo_handle2.fifo_log, tx_data, 14);
+ 2092              		.loc 1 728 9 view .LVU589
+ 2093 0112 0E22     		movs	r2, #14
+ 2094 0114 06A9     		add	r1, sp, #24
+ 2095 0116 0C48     		ldr	r0, .L148+8
+ 2096 0118 FFF7FEFF 		bl	uart_fifo_put
+ 2097              	.LVL153:
+ 729:Core/Src/uart_printf.c ****         uart_printf(info_log, "tx ", tx_data, 14);
+ 2098              		.loc 1 729 9 view .LVU590
+ 2099 011c 0E23     		movs	r3, #14
+ 2100 011e 06AA     		add	r2, sp, #24
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 58
+
+
+ 2101 0120 0A49     		ldr	r1, .L148+12
+ 2102 0122 0220     		movs	r0, #2
+ 2103 0124 FFF7FEFF 		bl	uart_printf
+ 2104              	.LVL154:
+ 2105 0128 C3E7     		b	.L142
+ 2106              	.LVL155:
+ 2107              	.L147:
+ 729:Core/Src/uart_printf.c ****         uart_printf(info_log, "tx ", tx_data, 14);
+ 2108              		.loc 1 729 9 is_stmt 0 view .LVU591
+ 2109              	.LBE8:
+ 738:Core/Src/uart_printf.c ****         ENABLE_UART2_TX_DR_IT();
+ 2110              		.loc 1 738 9 is_stmt 1 view .LVU592
+ 2111 012a 094B     		ldr	r3, .L148+16
+ 2112 012c 1A68     		ldr	r2, [r3]
+ 2113 012e D368     		ldr	r3, [r2, #12]
+ 2114 0130 43F08003 		orr	r3, r3, #128
+ 2115 0134 D360     		str	r3, [r2, #12]
+ 739:Core/Src/uart_printf.c ****         log_fifo_handle2.uart_error_code = UART_TX_BUSY;
+ 2116              		.loc 1 739 9 view .LVU593
+ 739:Core/Src/uart_printf.c ****         log_fifo_handle2.uart_error_code = UART_TX_BUSY;
+ 2117              		.loc 1 739 42 is_stmt 0 view .LVU594
+ 2118 0136 034B     		ldr	r3, .L148+4
+ 2119 0138 0222     		movs	r2, #2
+ 2120 013a 1A70     		strb	r2, [r3]
+ 2121 013c BEE7     		b	.L143
+ 2122              	.L149:
+ 2123 013e 00BF     		.align	2
+ 2124              	.L148:
+ 2125 0140 00000000 		.word	.LC1
+ 2126 0144 00000000 		.word	log_fifo_handle2
+ 2127 0148 02000000 		.word	log_fifo_handle2+2
+ 2128 014c 18000000 		.word	.LC2
+ 2129 0150 00000000 		.word	USART2_BASS
+ 2130              		.cfi_endproc
+ 2131              	.LFE22:
+ 2133              		.section	.rodata.uart2_communicate_rx.str1.4,"aMS",%progbits,1
+ 2134              		.align	2
+ 2135              	.LC3:
+ 2136 0000 72782000 		.ascii	"rx \000"
+ 2137              		.align	2
+ 2138              	.LC4:
+ 2139 0004 72782064 		.ascii	"rx data have not have right frame head \015\012\000"
+ 2139      61746120 
+ 2139      68617665 
+ 2139      206E6F74 
+ 2139      20686176 
+ 2140 002e 0000     		.align	2
+ 2141              	.LC5:
+ 2142 0030 74686520 		.ascii	"the frame crc is wrong\015\012\000"
+ 2142      6672616D 
+ 2142      65206372 
+ 2142      63206973 
+ 2142      2077726F 
+ 2143              		.section	.text.uart2_communicate_rx,"ax",%progbits
+ 2144              		.align	1
+ 2145              		.global	uart2_communicate_rx
+ 2146              		.syntax unified
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 59
+
+
+ 2147              		.thumb
+ 2148              		.thumb_func
+ 2150              	uart2_communicate_rx:
+ 2151              	.LFB23:
+ 752:Core/Src/uart_printf.c **** {
+ 2152              		.loc 1 752 1 is_stmt 1 view -0
+ 2153              		.cfi_startproc
+ 2154              		@ args = 0, pretend = 0, frame = 32
+ 2155              		@ frame_needed = 0, uses_anonymous_args = 0
+ 2156 0000 30B5     		push	{r4, r5, lr}
+ 2157              		.cfi_def_cfa_offset 12
+ 2158              		.cfi_offset 4, -12
+ 2159              		.cfi_offset 5, -8
+ 2160              		.cfi_offset 14, -4
+ 2161 0002 89B0     		sub	sp, sp, #36
+ 2162              		.cfi_def_cfa_offset 48
+ 753:Core/Src/uart_printf.c ****     uint8_t rx_data[14] = {0x00};
+ 2163              		.loc 1 753 5 view .LVU596
+ 753:Core/Src/uart_printf.c ****     uint8_t rx_data[14] = {0x00};
+ 2164              		.loc 1 753 13 is_stmt 0 view .LVU597
+ 2165 0004 0024     		movs	r4, #0
+ 2166 0006 0494     		str	r4, [sp, #16]
+ 2167 0008 0594     		str	r4, [sp, #20]
+ 2168 000a 0694     		str	r4, [sp, #24]
+ 2169 000c ADF81C40 		strh	r4, [sp, #28]	@ movhi
+ 754:Core/Src/uart_printf.c ****     uint32_t CRC_result = 0;
+ 2170              		.loc 1 754 5 is_stmt 1 view .LVU598
+ 754:Core/Src/uart_printf.c ****     uint32_t CRC_result = 0;
+ 2171              		.loc 1 754 14 is_stmt 0 view .LVU599
+ 2172 0010 0394     		str	r4, [sp, #12]
+ 755:Core/Src/uart_printf.c ****     uint32_t data_to_uint32_t[2];
+ 2173              		.loc 1 755 5 is_stmt 1 view .LVU600
+ 757:Core/Src/uart_printf.c ****     uint8_t return_value = true;
+ 2174              		.loc 1 757 5 view .LVU601
+ 2175              	.LVL156:
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 2176              		.loc 1 759 5 view .LVU602
+ 2177              	.LBB9:
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 2178              		.loc 1 759 10 view .LVU603
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 2179              		.loc 1 759 10 is_stmt 0 view .LVU604
+ 2180              	.LBE9:
+ 757:Core/Src/uart_printf.c ****     uint8_t return_value = true;
+ 2181              		.loc 1 757 13 view .LVU605
+ 2182 0012 0125     		movs	r5, #1
+ 2183              	.LBB10:
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 2184              		.loc 1 759 5 view .LVU606
+ 2185 0014 08E0     		b	.L151
+ 2186              	.LVL157:
+ 2187              	.L152:
+ 761:Core/Src/uart_printf.c ****         return_value = uart_fifo_get(&log_fifo_handle2.fifo_log_in, &rx_data[i], 1);
+ 2188              		.loc 1 761 9 is_stmt 1 view .LVU607
+ 761:Core/Src/uart_printf.c ****         return_value = uart_fifo_get(&log_fifo_handle2.fifo_log_in, &rx_data[i], 1);
+ 2189              		.loc 1 761 24 is_stmt 0 view .LVU608
+ 2190 0016 0122     		movs	r2, #1
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 60
+
+
+ 2191 0018 04AB     		add	r3, sp, #16
+ 2192 001a 1919     		adds	r1, r3, r4
+ 2193 001c 2248     		ldr	r0, .L158
+ 2194 001e FFF7FEFF 		bl	uart_fifo_get
+ 2195              	.LVL158:
+ 2196 0022 0546     		mov	r5, r0
+ 2197              	.LVL159:
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 2198              		.loc 1 759 34 is_stmt 1 discriminator 3 view .LVU609
+ 2199 0024 0134     		adds	r4, r4, #1
+ 2200              	.LVL160:
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 2201              		.loc 1 759 34 is_stmt 0 discriminator 3 view .LVU610
+ 2202 0026 E4B2     		uxtb	r4, r4
+ 2203              	.LVL161:
+ 2204              	.L151:
+ 759:Core/Src/uart_printf.c ****     for (uint8_t i = 0; i < 14; i++)
+ 2205              		.loc 1 759 27 is_stmt 1 discriminator 1 view .LVU611
+ 2206 0028 0D2C     		cmp	r4, #13
+ 2207 002a F4D9     		bls	.L152
+ 2208              	.LBE10:
+ 764:Core/Src/uart_printf.c ****     uart_printf(info_log, "rx ", &rx_data[0], 14);
+ 2209              		.loc 1 764 5 view .LVU612
+ 2210 002c 0E23     		movs	r3, #14
+ 2211 002e 04AA     		add	r2, sp, #16
+ 2212 0030 1E49     		ldr	r1, .L158+4
+ 2213 0032 0220     		movs	r0, #2
+ 2214 0034 FFF7FEFF 		bl	uart_printf
+ 2215              	.LVL162:
+ 767:Core/Src/uart_printf.c ****     if (rx_data[0] != 0x5a && rx_data[1] != 0xa5)
+ 2216              		.loc 1 767 5 view .LVU613
+ 767:Core/Src/uart_printf.c ****     if (rx_data[0] != 0x5a && rx_data[1] != 0xa5)
+ 2217              		.loc 1 767 16 is_stmt 0 view .LVU614
+ 2218 0038 9DF81030 		ldrb	r3, [sp, #16]	@ zero_extendqisi2
+ 767:Core/Src/uart_printf.c ****     if (rx_data[0] != 0x5a && rx_data[1] != 0xa5)
+ 2219              		.loc 1 767 8 view .LVU615
+ 2220 003c 5A2B     		cmp	r3, #90
+ 2221 003e 03D0     		beq	.L153
+ 767:Core/Src/uart_printf.c ****     if (rx_data[0] != 0x5a && rx_data[1] != 0xa5)
+ 2222              		.loc 1 767 38 discriminator 1 view .LVU616
+ 2223 0040 9DF81130 		ldrb	r3, [sp, #17]	@ zero_extendqisi2
+ 767:Core/Src/uart_printf.c ****     if (rx_data[0] != 0x5a && rx_data[1] != 0xa5)
+ 2224              		.loc 1 767 28 discriminator 1 view .LVU617
+ 2225 0044 A52B     		cmp	r3, #165
+ 2226 0046 21D1     		bne	.L157
+ 2227              	.L153:
+ 772:Core/Src/uart_printf.c ****     convert_uint8_t_to_uint32_t(&rx_data[2], data_to_uint32_t);
+ 2228              		.loc 1 772 5 is_stmt 1 view .LVU618
+ 2229 0048 01A9     		add	r1, sp, #4
+ 2230 004a 0DF11200 		add	r0, sp, #18
+ 2231 004e FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 2232              	.LVL163:
+ 773:Core/Src/uart_printf.c ****     convert_uint8_t_to_uint32_t(&rx_data[6], &data_to_uint32_t[1]);
+ 2233              		.loc 1 773 5 view .LVU619
+ 2234 0052 02A9     		add	r1, sp, #8
+ 2235 0054 0DF11600 		add	r0, sp, #22
+ 2236 0058 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 61
+
+
+ 2237              	.LVL164:
+ 774:Core/Src/uart_printf.c ****     convert_uint8_t_to_uint32_t(&rx_data[10], &CRC_result);
+ 2238              		.loc 1 774 5 view .LVU620
+ 2239 005c 03A9     		add	r1, sp, #12
+ 2240 005e 0DF11A00 		add	r0, sp, #26
+ 2241 0062 FFF7FEFF 		bl	convert_uint8_t_to_uint32_t
+ 2242              	.LVL165:
+ 776:Core/Src/uart_printf.c ****     crc_reset();
+ 2243              		.loc 1 776 5 view .LVU621
+ 2244 0066 FFF7FEFF 		bl	crc_reset
+ 2245              	.LVL166:
+ 777:Core/Src/uart_printf.c ****     if (CRC_result != crc_calculate(data_to_uint32_t, 2))
+ 2246              		.loc 1 777 5 view .LVU622
+ 777:Core/Src/uart_printf.c ****     if (CRC_result != crc_calculate(data_to_uint32_t, 2))
+ 2247              		.loc 1 777 23 is_stmt 0 view .LVU623
+ 2248 006a 0221     		movs	r1, #2
+ 2249 006c 01A8     		add	r0, sp, #4
+ 2250 006e FFF7FEFF 		bl	crc_calculate
+ 2251              	.LVL167:
+ 777:Core/Src/uart_printf.c ****     if (CRC_result != crc_calculate(data_to_uint32_t, 2))
+ 2252              		.loc 1 777 20 discriminator 1 view .LVU624
+ 2253 0072 039B     		ldr	r3, [sp, #12]
+ 777:Core/Src/uart_printf.c ****     if (CRC_result != crc_calculate(data_to_uint32_t, 2))
+ 2254              		.loc 1 777 8 discriminator 1 view .LVU625
+ 2255 0074 9842     		cmp	r0, r3
+ 2256 0076 11D0     		beq	.L155
+ 779:Core/Src/uart_printf.c ****         uart_printf(error_log, "the frame crc is wrong\r\n", NULL, 0);
+ 2257              		.loc 1 779 9 is_stmt 1 view .LVU626
+ 2258 0078 0023     		movs	r3, #0
+ 2259 007a 1A46     		mov	r2, r3
+ 2260 007c 0C49     		ldr	r1, .L158+8
+ 2261 007e 0420     		movs	r0, #4
+ 2262 0080 FFF7FEFF 		bl	uart_printf
+ 2263              	.LVL168:
+ 780:Core/Src/uart_printf.c ****         return false;
+ 2264              		.loc 1 780 9 view .LVU627
+ 780:Core/Src/uart_printf.c ****         return false;
+ 2265              		.loc 1 780 16 is_stmt 0 view .LVU628
+ 2266 0084 0025     		movs	r5, #0
+ 2267              	.LVL169:
+ 2268              	.L154:
+ 787:Core/Src/uart_printf.c **** }
+ 2269              		.loc 1 787 1 view .LVU629
+ 2270 0086 2846     		mov	r0, r5
+ 2271 0088 09B0     		add	sp, sp, #36
+ 2272              		.cfi_remember_state
+ 2273              		.cfi_def_cfa_offset 12
+ 2274              		@ sp needed
+ 2275 008a 30BD     		pop	{r4, r5, pc}
+ 2276              	.LVL170:
+ 2277              	.L157:
+ 2278              		.cfi_restore_state
+ 769:Core/Src/uart_printf.c ****         uart_printf(info_log, "rx data have not have right frame head \r\n", NULL, 0);
+ 2279              		.loc 1 769 9 is_stmt 1 view .LVU630
+ 2280 008c 0023     		movs	r3, #0
+ 2281 008e 1A46     		mov	r2, r3
+ 2282 0090 0849     		ldr	r1, .L158+12
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 62
+
+
+ 2283 0092 0220     		movs	r0, #2
+ 2284 0094 FFF7FEFF 		bl	uart_printf
+ 2285              	.LVL171:
+ 770:Core/Src/uart_printf.c ****         return false;
+ 2286              		.loc 1 770 9 view .LVU631
+ 770:Core/Src/uart_printf.c ****         return false;
+ 2287              		.loc 1 770 16 is_stmt 0 view .LVU632
+ 2288 0098 0025     		movs	r5, #0
+ 2289              	.LVL172:
+ 770:Core/Src/uart_printf.c ****         return false;
+ 2290              		.loc 1 770 16 view .LVU633
+ 2291 009a F4E7     		b	.L154
+ 2292              	.LVL173:
+ 2293              	.L155:
+ 783:Core/Src/uart_printf.c ****     can_service_entry(&rx_data[2]);
+ 2294              		.loc 1 783 5 is_stmt 1 view .LVU634
+ 2295 009c 0DF11200 		add	r0, sp, #18
+ 2296 00a0 FFF7FEFF 		bl	can_service_entry
+ 2297              	.LVL174:
+ 786:Core/Src/uart_printf.c ****     return return_value;
+ 2298              		.loc 1 786 5 view .LVU635
+ 786:Core/Src/uart_printf.c ****     return return_value;
+ 2299              		.loc 1 786 12 is_stmt 0 view .LVU636
+ 2300 00a4 EFE7     		b	.L154
+ 2301              	.L159:
+ 2302 00a6 00BF     		.align	2
+ 2303              	.L158:
+ 2304 00a8 08040000 		.word	log_fifo_handle2+1032
+ 2305 00ac 00000000 		.word	.LC3
+ 2306 00b0 30000000 		.word	.LC5
+ 2307 00b4 04000000 		.word	.LC4
+ 2308              		.cfi_endproc
+ 2309              	.LFE23:
+ 2311              		.global	USART2_BASS
+ 2312              		.section	.data.USART2_BASS,"aw"
+ 2313              		.align	2
+ 2316              	USART2_BASS:
+ 2317 0000 00440040 		.word	1073759232
+ 2318              		.global	USART1_BASS
+ 2319              		.section	.data.USART1_BASS,"aw"
+ 2320              		.align	2
+ 2323              	USART1_BASS:
+ 2324 0000 00380140 		.word	1073821696
+ 2325              		.global	APBPrescTable
+ 2326              		.section	.data.APBPrescTable,"aw"
+ 2327              		.align	2
+ 2330              	APBPrescTable:
+ 2331 0000 00000000 		.ascii	"\000\000\000\000\001\002\003\004"
+ 2331      01020304 
+ 2332              		.section	.bss.log_fifo_handle2,"aw",%nobits
+ 2333              		.align	2
+ 2336              	log_fifo_handle2:
+ 2337 0000 00000000 		.space	2064
+ 2337      00000000 
+ 2337      00000000 
+ 2337      00000000 
+ 2337      00000000 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 63
+
+
+ 2338              		.section	.bss.log_fifo_handle,"aw",%nobits
+ 2339              		.align	2
+ 2342              	log_fifo_handle:
+ 2343 0000 00000000 		.space	2064
+ 2343      00000000 
+ 2343      00000000 
+ 2343      00000000 
+ 2343      00000000 
+ 2344              		.text
+ 2345              	.Letext0:
+ 2346              		.file 2 "Core/Inc/uart_printf.h"
+ 2347              		.file 3 "C:/Users/YLAI2/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 2348              		.file 4 "Core/Inc/rcc.h"
+ 2349              		.file 5 "Core/Inc/uds.h"
+ 2350              		.file 6 "C:/Users/YLAI2/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 2351              		.file 7 "Core/Inc/crc.h"
+ 2352              		.file 8 "<built-in>"
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 64
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 uart_printf.c
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:19     .text.uart_printf_init:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:24     .text.uart_printf_init:00000000 uart_printf_init
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:82     .text.uart_printf_init:00000044 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2336   .bss.log_fifo_handle2:00000000 log_fifo_handle2
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:87     .text.uart_hardware_init:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:92     .text.uart_hardware_init:00000000 uart_hardware_init
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:244    .text.uart_hardware_init:000000cc $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2323   .data.USART1_BASS:00000000 USART1_BASS
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2330   .data.APBPrescTable:00000000 APBPrescTable
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:256    .text.HEX_TO_STR:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:261    .text.HEX_TO_STR:00000000 HEX_TO_STR
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:335    .text.uart_fifo_put:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:340    .text.uart_fifo_put:00000000 uart_fifo_put
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:527    .text.uart_fifo_get:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:532    .text.uart_fifo_get:00000000 uart_fifo_get
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:695    .rodata.uart_printf.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:699    .text.uart_printf:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:705    .text.uart_printf:00000000 uart_printf
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:874    .text.uart_printf:000000a8 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2342   .bss.log_fifo_handle:00000000 log_fifo_handle
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:882    .text.uart_get:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:888    .text.uart_get:00000000 uart_get
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:924    .text.uart_get:00000018 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:929    .text.uart_out_IT:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:935    .text.uart_out_IT:00000000 uart_out_IT
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:993    .text.uart_out_IT:00000044 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1000   .text.uart2_out_IT:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1006   .text.uart2_out_IT:00000000 uart2_out_IT
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1064   .text.uart2_out_IT:00000044 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2316   .data.USART2_BASS:00000000 USART2_BASS
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1071   .text.uart_in:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1077   .text.uart_in:00000000 uart_in
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1105   .text.uart_in:00000014 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1110   .text.uart2_in:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1116   .text.uart2_in:00000000 uart2_in
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1144   .text.uart2_in:00000014 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1149   .text.uart_in_IT:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1155   .text.uart_in_IT:00000000 uart_in_IT
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1185   .text.uart_in_IT:0000001c $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1190   .text.uart2_in_IT:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1196   .text.uart2_in_IT:00000000 uart2_in_IT
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1226   .text.uart2_in_IT:0000001c $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1231   .text.uart_out:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1237   .text.uart_out:00000000 uart_out
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1263   .text.uart_out:00000010 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1268   .text.uart2_out:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1274   .text.uart2_out:00000000 uart2_out
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1300   .text.uart2_out:00000010 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1305   .text.STR_TO_HEX:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1311   .text.STR_TO_HEX:00000000 STR_TO_HEX
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1438   .text.set_log_level:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1444   .text.set_log_level:00000000 set_log_level
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1469   .text.set_log_level:00000014 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1474   .text.set_frame_count:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1480   .text.set_frame_count:00000000 set_frame_count
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s 			page 65
+
+
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1497   .text.set_frame_count:00000008 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1502   .text.get_frame_count:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1508   .text.get_frame_count:00000000 get_frame_count
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1523   .text.get_frame_count:00000008 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1528   .text.cancel_log_level:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1534   .text.cancel_log_level:00000000 cancel_log_level
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1562   .text.cancel_log_level:00000014 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1567   .text.uart2_hardware_init:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1573   .text.uart2_hardware_init:00000000 uart2_hardware_init
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1725   .text.uart2_hardware_init:000000cc $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1737   .text.uart2_init:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1743   .text.uart2_init:00000000 uart2_init
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1770   .text.uart2_init:00000018 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1775   .text.convert_uint32_t_to_uint8_t:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1781   .text.convert_uint32_t_to_uint8_t:00000000 convert_uint32_t_to_uint8_t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1813   .text.convert_uint8_t_to_uint32_t:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1819   .text.convert_uint8_t_to_uint32_t:00000000 convert_uint8_t_to_uint32_t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1862   .rodata.uart2_communicate_tx.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1869   .text.uart2_communicate_tx:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:1875   .text.uart2_communicate_tx:00000000 uart2_communicate_tx
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2125   .text.uart2_communicate_tx:00000140 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2134   .rodata.uart2_communicate_rx.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2144   .text.uart2_communicate_rx:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2150   .text.uart2_communicate_rx:00000000 uart2_communicate_rx
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2304   .text.uart2_communicate_rx:000000a8 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2313   .data.USART2_BASS:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2320   .data.USART1_BASS:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2327   .data.APBPrescTable:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2333   .bss.log_fifo_handle2:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\cccxMjPc.s:2339   .bss.log_fifo_handle:00000000 $d
+
+UNDEFINED SYMBOLS
+usart1PrioritySetAndEnable
+MyRCC_BASS
+SystemCoreClock
+memcpy
+strlen
+usart2PrioritySetAndEnable
+crc_reset
+crc_calculate
+can_service_entry

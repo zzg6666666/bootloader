@@ -1,0 +1,224 @@
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"crc.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/crc.c"
+  18              		.section	.text.crc_init,"ax",%progbits
+  19              		.align	1
+  20              		.global	crc_init
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	crc_init:
+  26              	.LFB0:
+   1:Core/Src/crc.c **** #include "crc.h"
+   2:Core/Src/crc.c **** const uint32_t CRC_BASE1 = 0x40023000UL;
+   3:Core/Src/crc.c **** // 时钟
+   4:Core/Src/crc.c **** uint32_t *RCC_AHBENR = (uint32_t *)(0x40021000UL + 0x14);
+   5:Core/Src/crc.c **** // crc
+   6:Core/Src/crc.c **** uint32_t *CRC_DR = (uint32_t *)(CRC_BASE1 + 0x00UL);
+   7:Core/Src/crc.c **** uint32_t *CRC_CR = (uint32_t *)(CRC_BASE1 + 0x08UL);
+   8:Core/Src/crc.c **** // 启用crc 时钟
+   9:Core/Src/crc.c **** void crc_init()
+  10:Core/Src/crc.c **** {
+  27              		.loc 1 10 1 view -0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              		@ link register save eliminated.
+  11:Core/Src/crc.c ****     // 设置RCC_AHBENR bit6
+  12:Core/Src/crc.c ****     *RCC_AHBENR |= 1UL << 6;
+  32              		.loc 1 12 5 view .LVU1
+  33 0000 034B     		ldr	r3, .L2
+  34 0002 1A68     		ldr	r2, [r3]
+  35 0004 1368     		ldr	r3, [r2]
+  36              		.loc 1 12 17 is_stmt 0 view .LVU2
+  37 0006 43F04003 		orr	r3, r3, #64
+  38 000a 1360     		str	r3, [r2]
+  13:Core/Src/crc.c **** }
+  39              		.loc 1 13 1 view .LVU3
+  40 000c 7047     		bx	lr
+  41              	.L3:
+  42 000e 00BF     		.align	2
+  43              	.L2:
+  44 0010 00000000 		.word	RCC_AHBENR
+  45              		.cfi_endproc
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s 			page 2
+
+
+  46              	.LFE0:
+  48              		.section	.text.crc_calculate,"ax",%progbits
+  49              		.align	1
+  50              		.global	crc_calculate
+  51              		.syntax unified
+  52              		.thumb
+  53              		.thumb_func
+  55              	crc_calculate:
+  56              	.LVL0:
+  57              	.LFB1:
+  14:Core/Src/crc.c **** 
+  15:Core/Src/crc.c **** // 进行CRC运算
+  16:Core/Src/crc.c **** uint32_t crc_calculate(uint32_t *data, uint32_t dataLength)
+  17:Core/Src/crc.c **** {
+  58              		.loc 1 17 1 is_stmt 1 view -0
+  59              		.cfi_startproc
+  60              		@ args = 0, pretend = 0, frame = 0
+  61              		@ frame_needed = 0, uses_anonymous_args = 0
+  62              		@ link register save eliminated.
+  18:Core/Src/crc.c ****     uint32_t crc_result = 0;
+  63              		.loc 1 18 5 view .LVU5
+  19:Core/Src/crc.c ****     for (uint32_t i = 0; i < dataLength; i++)
+  64              		.loc 1 19 5 view .LVU6
+  65              	.LBB2:
+  66              		.loc 1 19 10 view .LVU7
+  67              		.loc 1 19 19 is_stmt 0 view .LVU8
+  68 0000 0023     		movs	r3, #0
+  69              		.loc 1 19 5 view .LVU9
+  70 0002 06E0     		b	.L5
+  71              	.LVL1:
+  72              	.L6:
+  20:Core/Src/crc.c ****     {
+  21:Core/Src/crc.c ****         *CRC_DR = data[i];
+  73              		.loc 1 21 9 is_stmt 1 view .LVU10
+  74 0004 064A     		ldr	r2, .L7
+  75 0006 1268     		ldr	r2, [r2]
+  76              		.loc 1 21 17 is_stmt 0 view .LVU11
+  77 0008 50F823C0 		ldr	ip, [r0, r3, lsl #2]
+  78 000c C2F800C0 		str	ip, [r2]
+  19:Core/Src/crc.c ****     for (uint32_t i = 0; i < dataLength; i++)
+  79              		.loc 1 19 43 is_stmt 1 discriminator 3 view .LVU12
+  80 0010 0133     		adds	r3, r3, #1
+  81              	.LVL2:
+  82              	.L5:
+  19:Core/Src/crc.c ****     for (uint32_t i = 0; i < dataLength; i++)
+  83              		.loc 1 19 28 discriminator 1 view .LVU13
+  84 0012 8B42     		cmp	r3, r1
+  85 0014 F6D3     		bcc	.L6
+  86              	.LBE2:
+  22:Core/Src/crc.c ****     }
+  23:Core/Src/crc.c **** 
+  24:Core/Src/crc.c ****     // 读取crc
+  25:Core/Src/crc.c ****     crc_result = *CRC_DR;
+  87              		.loc 1 25 5 view .LVU14
+  88              		.loc 1 25 18 is_stmt 0 view .LVU15
+  89 0016 024B     		ldr	r3, .L7
+  90              	.LVL3:
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s 			page 3
+
+
+  91              		.loc 1 25 18 view .LVU16
+  92 0018 1B68     		ldr	r3, [r3]
+  93              	.LVL4:
+  26:Core/Src/crc.c ****     return crc_result;
+  94              		.loc 1 26 5 is_stmt 1 view .LVU17
+  27:Core/Src/crc.c **** }
+  95              		.loc 1 27 1 is_stmt 0 view .LVU18
+  96 001a 1868     		ldr	r0, [r3]
+  97              	.LVL5:
+  98              		.loc 1 27 1 view .LVU19
+  99 001c 7047     		bx	lr
+ 100              	.L8:
+ 101 001e 00BF     		.align	2
+ 102              	.L7:
+ 103 0020 00000000 		.word	CRC_DR
+ 104              		.cfi_endproc
+ 105              	.LFE1:
+ 107              		.section	.text.crc_reset,"ax",%progbits
+ 108              		.align	1
+ 109              		.global	crc_reset
+ 110              		.syntax unified
+ 111              		.thumb
+ 112              		.thumb_func
+ 114              	crc_reset:
+ 115              	.LFB2:
+  28:Core/Src/crc.c **** // 重置crc DR 寄存器
+  29:Core/Src/crc.c **** void crc_reset()
+  30:Core/Src/crc.c **** {
+ 116              		.loc 1 30 1 is_stmt 1 view -0
+ 117              		.cfi_startproc
+ 118              		@ args = 0, pretend = 0, frame = 0
+ 119              		@ frame_needed = 0, uses_anonymous_args = 0
+ 120              		@ link register save eliminated.
+  31:Core/Src/crc.c ****     // 重置 crc
+  32:Core/Src/crc.c ****     *CRC_CR |= 1UL;
+ 121              		.loc 1 32 5 view .LVU21
+ 122 0000 034B     		ldr	r3, .L10
+ 123 0002 1A68     		ldr	r2, [r3]
+ 124 0004 1368     		ldr	r3, [r2]
+ 125              		.loc 1 32 13 is_stmt 0 view .LVU22
+ 126 0006 43F00103 		orr	r3, r3, #1
+ 127 000a 1360     		str	r3, [r2]
+  33:Core/Src/crc.c **** }...
+ 128              		.loc 1 33 1 view .LVU23
+ 129 000c 7047     		bx	lr
+ 130              	.L11:
+ 131 000e 00BF     		.align	2
+ 132              	.L10:
+ 133 0010 00000000 		.word	CRC_CR
+ 134              		.cfi_endproc
+ 135              	.LFE2:
+ 137              		.global	CRC_CR
+ 138              		.section	.data.CRC_CR,"aw"
+ 139              		.align	2
+ 142              	CRC_CR:
+ 143 0000 08300240 		.word	1073885192
+ 144              		.global	CRC_DR
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s 			page 4
+
+
+ 145              		.section	.data.CRC_DR,"aw"
+ 146              		.align	2
+ 149              	CRC_DR:
+ 150 0000 00300240 		.word	1073885184
+ 151              		.global	RCC_AHBENR
+ 152              		.section	.data.RCC_AHBENR,"aw"
+ 153              		.align	2
+ 156              	RCC_AHBENR:
+ 157 0000 14100240 		.word	1073877012
+ 158              		.global	CRC_BASE1
+ 159              		.section	.rodata.CRC_BASE1,"a"
+ 160              		.align	2
+ 163              	CRC_BASE1:
+ 164 0000 00300240 		.word	1073885184
+ 165              		.text
+ 166              	.Letext0:
+ 167              		.file 2 "Core/Inc/typedef_conf.h"
+ARM GAS  /var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s 			page 5
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 crc.c
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:19     .text.crc_init:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:25     .text.crc_init:00000000 crc_init
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:44     .text.crc_init:00000010 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:156    .data.RCC_AHBENR:00000000 RCC_AHBENR
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:49     .text.crc_calculate:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:55     .text.crc_calculate:00000000 crc_calculate
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:103    .text.crc_calculate:00000020 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:149    .data.CRC_DR:00000000 CRC_DR
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:108    .text.crc_reset:00000000 $t
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:114    .text.crc_reset:00000000 crc_reset
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:133    .text.crc_reset:00000010 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:142    .data.CRC_CR:00000000 CRC_CR
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:139    .data.CRC_CR:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:146    .data.CRC_DR:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:153    .data.RCC_AHBENR:00000000 $d
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:163    .rodata.CRC_BASE1:00000000 CRC_BASE1
+/var/folders/jf/8zqhzs4d5s72djj4b2yfrf9h0000gn/T//ccutn1QV.s:160    .rodata.CRC_BASE1:00000000 $d
+
+NO UNDEFINED SYMBOLS

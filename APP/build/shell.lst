@@ -1,0 +1,1690 @@
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 1
+
+
+   1              		.cpu cortex-m3
+   2              		.arch armv7-m
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.file	"shell.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.file 1 "Core/Src/shell.c"
+  18              		.section	.rodata.shell_handle_history.str1.4,"aMS",%progbits,1
+  19              		.align	2
+  20              	.LC0:
+  21 0000 7368656C 		.ascii	"shell >\000"
+  21      6C203E00 
+  22              		.section	.text.shell_handle_history,"ax",%progbits
+  23              		.align	1
+  24              		.syntax unified
+  25              		.thumb
+  26              		.thumb_func
+  28              	shell_handle_history:
+  29              	.LVL0:
+  30              	.LFB6:
+   1:Core/Src/shell.c **** #include "shell.h"
+   2:Core/Src/shell.c **** #include "uart_printf.h"
+   3:Core/Src/shell.c **** #include "stdlib.h"
+   4:Core/Src/shell.c **** #include "string.h"
+   5:Core/Src/shell.c **** #include "command.h"
+   6:Core/Src/shell.c **** static void shell_put_history(shell_control_block *shell);
+   7:Core/Src/shell.c **** static void shell_handle_history(shell_control_block *shell);
+   8:Core/Src/shell.c **** shell_control_block shell;
+   9:Core/Src/shell.c **** void shell_init()
+  10:Core/Src/shell.c **** {
+  11:Core/Src/shell.c **** 
+  12:Core/Src/shell.c ****     shell.line_curpos = 0;
+  13:Core/Src/shell.c ****     shell.line_position = 0;
+  14:Core/Src/shell.c ****     shell.line_position = 0;
+  15:Core/Src/shell.c ****     shell.current_history = 0;
+  16:Core/Src/shell.c ****     shell.history_count = 0;
+  17:Core/Src/shell.c ****     shell.state = WAIT_NORMAL;
+  18:Core/Src/shell.c ****     memset(shell.line, 0, sizeof(shell.line));
+  19:Core/Src/shell.c ****     memset(shell.history_cmd, 0, sizeof(uint8_t) * SHELL_CMD_SIZE * SHELL_HISTORY_LENS);
+  20:Core/Src/shell.c ****     uart_printf(system_log, "shell start\r\n", NULL, 0);
+  21:Core/Src/shell.c **** 
+  22:Core/Src/shell.c ****     uart_printf(system_log, shell_prompt, NULL, 0);
+  23:Core/Src/shell.c **** }
+  24:Core/Src/shell.c **** 
+  25:Core/Src/shell.c **** void shell_enter(uint8_t data)
+  26:Core/Src/shell.c **** {
+  27:Core/Src/shell.c ****     uint8_t outData[2] = {'\0', '\0'};
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 2
+
+
+  28:Core/Src/shell.c ****     // uint8_t data = 0;
+  29:Core/Src/shell.c **** 
+  30:Core/Src/shell.c ****     // uart2_communicate_rx();
+  31:Core/Src/shell.c ****     // uart_get(&data);
+  32:Core/Src/shell.c **** 
+  33:Core/Src/shell.c ****     /* handle control key
+  34:Core/Src/shell.c ****      * up key  : 0x1b 0x5b 0x41
+  35:Core/Src/shell.c ****      * down key: 0x1b 0x5b 0x42
+  36:Core/Src/shell.c ****      * right key:0x1b 0x5b 0x43
+  37:Core/Src/shell.c ****      * left key: 0x1b 0x5b 0x44
+  38:Core/Src/shell.c ****      */
+  39:Core/Src/shell.c **** 
+  40:Core/Src/shell.c ****     if (data == 0x1b)
+  41:Core/Src/shell.c ****     {
+  42:Core/Src/shell.c ****         shell.state = WAIT_SPEC_KEY;
+  43:Core/Src/shell.c ****         return;
+  44:Core/Src/shell.c ****     }
+  45:Core/Src/shell.c ****     else if (shell.state == WAIT_SPEC_KEY)
+  46:Core/Src/shell.c ****     {
+  47:Core/Src/shell.c ****         if (data == 0x5b)
+  48:Core/Src/shell.c ****         {
+  49:Core/Src/shell.c ****             shell.state = WAIT_FUNC_KEY;
+  50:Core/Src/shell.c ****             return;
+  51:Core/Src/shell.c ****         }
+  52:Core/Src/shell.c ****         shell.state = WAIT_NORMAL;
+  53:Core/Src/shell.c ****     }
+  54:Core/Src/shell.c ****     else if (shell.state == WAIT_FUNC_KEY)
+  55:Core/Src/shell.c ****     {
+  56:Core/Src/shell.c ****         shell.state = WAIT_NORMAL;
+  57:Core/Src/shell.c **** 
+  58:Core/Src/shell.c ****         if (data == 0x41) // up
+  59:Core/Src/shell.c ****         {
+  60:Core/Src/shell.c ****             if (shell.current_history > 0)
+  61:Core/Src/shell.c ****             {
+  62:Core/Src/shell.c ****                 shell.current_history--;
+  63:Core/Src/shell.c ****             }
+  64:Core/Src/shell.c ****             else // 没有历史
+  65:Core/Src/shell.c ****             {
+  66:Core/Src/shell.c ****                 shell.current_history = 0;
+  67:Core/Src/shell.c ****                 return;
+  68:Core/Src/shell.c ****             }
+  69:Core/Src/shell.c **** 
+  70:Core/Src/shell.c ****             // 复制到line中
+  71:Core/Src/shell.c ****             memcpy(shell.line, shell.history_cmd[shell.current_history], SHELL_CMD_SIZE);
+  72:Core/Src/shell.c ****             // 更新shell line 参数
+  73:Core/Src/shell.c **** 
+  74:Core/Src/shell.c ****             shell.line_curpos = shell.line_position = strlen(shell.history_cmd[shell.current_histor
+  75:Core/Src/shell.c ****             shell_handle_history(&shell);
+  76:Core/Src/shell.c **** 
+  77:Core/Src/shell.c ****             return;
+  78:Core/Src/shell.c ****         }
+  79:Core/Src/shell.c ****         else if (data == 0x42) // down
+  80:Core/Src/shell.c ****         {
+  81:Core/Src/shell.c ****             // 更新current
+  82:Core/Src/shell.c ****             if (shell.current_history < shell.history_count - 1)
+  83:Core/Src/shell.c ****             {
+  84:Core/Src/shell.c ****                 shell.current_history++;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 3
+
+
+  85:Core/Src/shell.c ****             }
+  86:Core/Src/shell.c ****             else
+  87:Core/Src/shell.c ****             {
+  88:Core/Src/shell.c ****                 return;
+  89:Core/Src/shell.c ****             }
+  90:Core/Src/shell.c **** 
+  91:Core/Src/shell.c ****             // 复制到line
+  92:Core/Src/shell.c ****             memcpy(shell.line, shell.history_cmd[shell.current_history], SHELL_CMD_SIZE);
+  93:Core/Src/shell.c ****             shell.line_curpos = shell.line_position = strlen(shell.line);
+  94:Core/Src/shell.c ****             // 输出新的
+  95:Core/Src/shell.c ****             shell_handle_history(&shell);
+  96:Core/Src/shell.c ****             return;
+  97:Core/Src/shell.c ****         }
+  98:Core/Src/shell.c ****         else if (data == 0x43) // right
+  99:Core/Src/shell.c ****         {
+ 100:Core/Src/shell.c ****             // uart_printf("right key :", &data, 1);
+ 101:Core/Src/shell.c ****             if (shell.line_curpos < shell.line_position)
+ 102:Core/Src/shell.c ****             {
+ 103:Core/Src/shell.c ****                 uint8_t temp = (uint8_t)shell.line[shell.line_curpos];
+ 104:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 105:Core/Src/shell.c ****                 shell.line_curpos++;
+ 106:Core/Src/shell.c ****             }
+ 107:Core/Src/shell.c ****         }
+ 108:Core/Src/shell.c ****         else if (data == 0x44) // left
+ 109:Core/Src/shell.c ****         {
+ 110:Core/Src/shell.c ****             if (shell.line_curpos > 0)
+ 111:Core/Src/shell.c ****             {
+ 112:Core/Src/shell.c ****                 uint8_t out_data[2] = {'\b', '\0'};
+ 113:Core/Src/shell.c ****                 // data = '\b';
+ 114:Core/Src/shell.c **** 
+ 115:Core/Src/shell.c ****                 uart_printf(system_log, &out_data, NULL, 0);
+ 116:Core/Src/shell.c ****                 shell.line_curpos--;
+ 117:Core/Src/shell.c ****             }
+ 118:Core/Src/shell.c ****         }
+ 119:Core/Src/shell.c ****         return;
+ 120:Core/Src/shell.c ****     }
+ 121:Core/Src/shell.c **** 
+ 122:Core/Src/shell.c ****     // 换行符号 "/r"(13) "/n"(10)
+ 123:Core/Src/shell.c ****     if (data == '\r' || data == '\n')
+ 124:Core/Src/shell.c ****     {
+ 125:Core/Src/shell.c **** 
+ 126:Core/Src/shell.c ****         uart_printf(system_log, "\r\n", NULL, 0);
+ 127:Core/Src/shell.c **** 
+ 128:Core/Src/shell.c ****         // 放入命令到历史命令
+ 129:Core/Src/shell.c ****         shell_put_history(&shell);
+ 130:Core/Src/shell.c **** 
+ 131:Core/Src/shell.c ****         // 执行命令 会更改主动替换命令中的空格为'/0',shell_put_history是根据'/
+ 132:Core/Src/shell.c ****         exec_command(shell.line, shell.line_position);
+ 133:Core/Src/shell.c ****         // 执行命令完成
+ 134:Core/Src/shell.c ****         uart_printf(system_log, shell_prompt, NULL, 0);
+ 135:Core/Src/shell.c **** 
+ 136:Core/Src/shell.c ****         shell.line_curpos = 0;
+ 137:Core/Src/shell.c ****         shell.line_position = 0;
+ 138:Core/Src/shell.c ****         // 重置当前line为'\0'
+ 139:Core/Src/shell.c ****         memset(&shell.line[0], '\0', sizeof(shell.line));
+ 140:Core/Src/shell.c ****         return;
+ 141:Core/Src/shell.c ****     }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 4
+
+
+ 142:Core/Src/shell.c **** 
+ 143:Core/Src/shell.c ****     // 删除符号 delete(0x7f)和 backspace(0x08)
+ 144:Core/Src/shell.c ****     if (data == 0x7f || data == 0x08)
+ 145:Core/Src/shell.c ****     {
+ 146:Core/Src/shell.c **** 
+ 147:Core/Src/shell.c ****         if (shell.line_curpos > 0)
+ 148:Core/Src/shell.c ****         {
+ 149:Core/Src/shell.c ****             shell.line_curpos--;
+ 150:Core/Src/shell.c ****             shell.line_position--;
+ 151:Core/Src/shell.c ****             // 删除末尾
+ 152:Core/Src/shell.c ****             if (shell.line_curpos == shell.line_position)
+ 153:Core/Src/shell.c ****             {
+ 154:Core/Src/shell.c ****                 uart_printf(system_log, "\b \b", NULL, 0);
+ 155:Core/Src/shell.c ****                 shell.line[shell.line_position] = 0;
+ 156:Core/Src/shell.c ****             }
+ 157:Core/Src/shell.c ****             else // 删除中间
+ 158:Core/Src/shell.c ****             {
+ 159:Core/Src/shell.c ****                 // 将需要删除的后一位以后的数据，复制到需要删除的那一位�
+ 160:Core/Src/shell.c ****                 memcpy(&shell.line[shell.line_curpos],
+ 161:Core/Src/shell.c ****                        &shell.line[shell.line_curpos + 1],
+ 162:Core/Src/shell.c ****                        (shell.line_position - shell.line_curpos));
+ 163:Core/Src/shell.c ****                 // 删除了一位，最后一位设置为0
+ 164:Core/Src/shell.c ****                 shell.line[shell.line_position] = 0;
+ 165:Core/Src/shell.c **** 
+ 166:Core/Src/shell.c ****                 // 退格覆盖需要删除那一位
+ 167:Core/Src/shell.c ****                 uint8_t temp = '\b';
+ 168:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 169:Core/Src/shell.c ****                 // 输出新的字符串
+ 170:Core/Src/shell.c ****                 uart_printf(system_log, &shell.line[shell.line_curpos], NULL, 0);
+ 171:Core/Src/shell.c ****                 // 覆盖末尾的那一个字符
+ 172:Core/Src/shell.c ****                 temp = ' ';
+ 173:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 174:Core/Src/shell.c ****                 // 退格12
+ 175:Core/Src/shell.c ****                 temp = '\b';
+ 176:Core/Src/shell.c ****                 for (int i = shell.line_curpos; i <= shell.line_position; i++)
+ 177:Core/Src/shell.c ****                 {
+ 178:Core/Src/shell.c ****                     uart_printf(system_log, &temp, NULL, 0);
+ 179:Core/Src/shell.c ****                 }
+ 180:Core/Src/shell.c ****             }
+ 181:Core/Src/shell.c **** 
+ 182:Core/Src/shell.c ****             return;
+ 183:Core/Src/shell.c ****         }
+ 184:Core/Src/shell.c ****         else
+ 185:Core/Src/shell.c ****         {
+ 186:Core/Src/shell.c ****             return;
+ 187:Core/Src/shell.c ****         }
+ 188:Core/Src/shell.c ****     }
+ 189:Core/Src/shell.c **** 
+ 190:Core/Src/shell.c ****     // 普通key：
+ 191:Core/Src/shell.c ****     if (shell.line_curpos < shell.line_position)
+ 192:Core/Src/shell.c ****     {
+ 193:Core/Src/shell.c ****         char temp[SHELL_CMD_SIZE];
+ 194:Core/Src/shell.c ****         // 更新buff
+ 195:Core/Src/shell.c ****         memcpy(temp, shell.line, shell.line_position);
+ 196:Core/Src/shell.c ****         memcpy(&shell.line[shell.line_curpos + 1], &temp[shell.line_curpos], shell.line_position - 
+ 197:Core/Src/shell.c ****         shell.line[shell.line_curpos] = data;
+ 198:Core/Src/shell.c **** 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 5
+
+
+ 199:Core/Src/shell.c ****         // 打印从line_curpos到line_position的字符
+ 200:Core/Src/shell.c ****         uart_printf(system_log, &shell.line[shell.line_curpos], NULL, 0);
+ 201:Core/Src/shell.c ****         // 左移符号
+ 202:Core/Src/shell.c ****         uint8_t temp_data[shell.line_position - shell.line_curpos + 1];
+ 203:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 204:Core/Src/shell.c ****         {
+ 205:Core/Src/shell.c ****             temp_data[i] = '\b';
+ 206:Core/Src/shell.c ****         }
+ 207:Core/Src/shell.c ****         memset(&temp_data, '\b', shell.line_position - shell.line_curpos);
+ 208:Core/Src/shell.c ****         temp_data[shell.line_position - shell.line_curpos] = '\0';
+ 209:Core/Src/shell.c ****         uart_printf(system_log, &temp_data, NULL, 0);
+ 210:Core/Src/shell.c ****     }
+ 211:Core/Src/shell.c ****     else // line_curpos = line_position
+ 212:Core/Src/shell.c ****     {
+ 213:Core/Src/shell.c ****         shell.line[shell.line_curpos] = data;
+ 214:Core/Src/shell.c ****         outData[0] = data;
+ 215:Core/Src/shell.c ****         uart_printf(system_log, &outData, NULL, 0);
+ 216:Core/Src/shell.c ****     }
+ 217:Core/Src/shell.c **** 
+ 218:Core/Src/shell.c ****     // 更新index
+ 219:Core/Src/shell.c ****     shell.line_position++;
+ 220:Core/Src/shell.c ****     shell.line_curpos++;
+ 221:Core/Src/shell.c ****     if (shell.line_position >= SHELL_CMD_SIZE) // 输入的buff满了，从0开始记录
+ 222:Core/Src/shell.c ****     {
+ 223:Core/Src/shell.c ****         shell.line_curpos = 0;
+ 224:Core/Src/shell.c ****         shell.line_position = 0; // 在line_curpos 小于 line_position 的情况下 有bug
+ 225:Core/Src/shell.c ****         memset(&shell, '\0', SHELL_CMD_SIZE);
+ 226:Core/Src/shell.c ****     }
+ 227:Core/Src/shell.c **** }
+ 228:Core/Src/shell.c **** 
+ 229:Core/Src/shell.c **** // 在换号符号行处理调用
+ 230:Core/Src/shell.c **** static void shell_put_history(shell_control_block *shell)
+ 231:Core/Src/shell.c **** {
+ 232:Core/Src/shell.c **** 
+ 233:Core/Src/shell.c ****     // 确保当前的cmd不为空
+ 234:Core/Src/shell.c ****     if (shell->line_position != 0)
+ 235:Core/Src/shell.c ****     {
+ 236:Core/Src/shell.c **** 
+ 237:Core/Src/shell.c ****         // shell未满
+ 238:Core/Src/shell.c ****         if (shell->history_count < SHELL_HISTORY_LENS)
+ 239:Core/Src/shell.c ****         {
+ 240:Core/Src/shell.c ****             // 和上一条不一样或者这是第一条
+ 241:Core/Src/shell.c ****             if (shell->history_count == 0 || memcmp(shell->line, shell->history_cmd[shell->history_
+ 242:Core/Src/shell.c ****             {
+ 243:Core/Src/shell.c ****                 // 当前历史
+ 244:Core/Src/shell.c ****                 // 当前使用的清0
+ 245:Core/Src/shell.c ****                 memset(shell->history_cmd[shell->history_count], 0, SHELL_CMD_SIZE);
+ 246:Core/Src/shell.c ****                 memcpy(shell->history_cmd[shell->history_count], shell->line, shell->line_position)
+ 247:Core/Src/shell.c ****                 // 记录的命令行数
+ 248:Core/Src/shell.c ****                 shell->history_count++;
+ 249:Core/Src/shell.c ****             }
+ 250:Core/Src/shell.c ****         }
+ 251:Core/Src/shell.c ****         else // shell已满
+ 252:Core/Src/shell.c ****         {
+ 253:Core/Src/shell.c ****             // 检查和上一行是否一致
+ 254:Core/Src/shell.c ****             if (memcmp(shell->line, &shell->history_cmd[SHELL_HISTORY_LENS - 1], SHELL_CMD_SIZE))
+ 255:Core/Src/shell.c ****             {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 6
+
+
+ 256:Core/Src/shell.c **** 
+ 257:Core/Src/shell.c ****                 // 更新cmd
+ 258:Core/Src/shell.c ****                 for (int i = 0; i < SHELL_HISTORY_LENS - 1; i++)
+ 259:Core/Src/shell.c ****                 {
+ 260:Core/Src/shell.c ****                     memcpy(&shell->history_cmd[i], &shell->history_cmd[i + 1], SHELL_CMD_SIZE);
+ 261:Core/Src/shell.c ****                 }
+ 262:Core/Src/shell.c **** 
+ 263:Core/Src/shell.c ****                 // 最后一行更新数据
+ 264:Core/Src/shell.c ****                 memset(shell->history_cmd[SHELL_HISTORY_LENS - 1], 0, SHELL_CMD_SIZE);
+ 265:Core/Src/shell.c ****                 memcpy(&shell->history_cmd[SHELL_HISTORY_LENS - 1], shell->line, SHELL_CMD_SIZE);
+ 266:Core/Src/shell.c ****             }
+ 267:Core/Src/shell.c ****         }
+ 268:Core/Src/shell.c ****     }
+ 269:Core/Src/shell.c ****     // 更新current ，换行后可以继续查看cmd历史
+ 270:Core/Src/shell.c ****     shell->current_history = shell->history_count;
+ 271:Core/Src/shell.c **** }
+ 272:Core/Src/shell.c **** 
+ 273:Core/Src/shell.c **** // 在up down 中调用，用于更新当前输出的内容
+ 274:Core/Src/shell.c **** static void shell_handle_history(shell_control_block *shell)
+ 275:Core/Src/shell.c **** {
+  31              		.loc 1 275 1 view -0
+  32              		.cfi_startproc
+  33              		@ args = 0, pretend = 0, frame = 88
+  34              		@ frame_needed = 0, uses_anonymous_args = 0
+  35              		.loc 1 275 1 is_stmt 0 view .LVU1
+  36 0000 70B5     		push	{r4, r5, r6, lr}
+  37              		.cfi_def_cfa_offset 16
+  38              		.cfi_offset 4, -16
+  39              		.cfi_offset 5, -12
+  40              		.cfi_offset 6, -8
+  41              		.cfi_offset 14, -4
+  42 0002 96B0     		sub	sp, sp, #88
+  43              		.cfi_def_cfa_offset 104
+  44 0004 0546     		mov	r5, r0
+ 276:Core/Src/shell.c ****     uint8_t tempData[SHELL_CMD_SIZE + 1];
+  45              		.loc 1 276 5 is_stmt 1 view .LVU2
+ 277:Core/Src/shell.c ****     tempData[0] = '\r';
+  46              		.loc 1 277 5 view .LVU3
+  47              		.loc 1 277 17 is_stmt 0 view .LVU4
+  48 0006 0D26     		movs	r6, #13
+  49 0008 8DF80460 		strb	r6, [sp, #4]
+ 278:Core/Src/shell.c ****     tempData[1] = '\0';
+  50              		.loc 1 278 5 is_stmt 1 view .LVU5
+  51              		.loc 1 278 17 is_stmt 0 view .LVU6
+  52 000c 0024     		movs	r4, #0
+  53 000e 8DF80540 		strb	r4, [sp, #5]
+ 279:Core/Src/shell.c ****     // 回到行首
+ 280:Core/Src/shell.c ****     uart_printf(system_log, tempData, NULL, 0);
+  54              		.loc 1 280 5 is_stmt 1 view .LVU7
+  55 0012 2346     		mov	r3, r4
+  56 0014 2246     		mov	r2, r4
+  57 0016 01A9     		add	r1, sp, #4
+  58 0018 0820     		movs	r0, #8
+  59              	.LVL1:
+  60              		.loc 1 280 5 is_stmt 0 view .LVU8
+  61 001a FFF7FEFF 		bl	uart_printf
+  62              	.LVL2:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 7
+
+
+ 281:Core/Src/shell.c ****     memset(tempData, ' ', SHELL_CMD_SIZE);
+  63              		.loc 1 281 5 is_stmt 1 view .LVU9
+  64 001e 5022     		movs	r2, #80
+  65 0020 2021     		movs	r1, #32
+  66 0022 01A8     		add	r0, sp, #4
+  67 0024 FFF7FEFF 		bl	memset
+  68              	.LVL3:
+ 282:Core/Src/shell.c ****     // 清行
+ 283:Core/Src/shell.c ****     uart_printf(system_log, tempData, NULL, 0);
+  69              		.loc 1 283 5 view .LVU10
+  70 0028 2346     		mov	r3, r4
+  71 002a 2246     		mov	r2, r4
+  72 002c 01A9     		add	r1, sp, #4
+  73 002e 0820     		movs	r0, #8
+  74 0030 FFF7FEFF 		bl	uart_printf
+  75              	.LVL4:
+ 284:Core/Src/shell.c ****     // 回到行首
+ 285:Core/Src/shell.c ****     tempData[0] = '\r';
+  76              		.loc 1 285 5 view .LVU11
+  77              		.loc 1 285 17 is_stmt 0 view .LVU12
+  78 0034 8DF80460 		strb	r6, [sp, #4]
+ 286:Core/Src/shell.c ****     tempData[1] = '\0';
+  79              		.loc 1 286 5 is_stmt 1 view .LVU13
+  80              		.loc 1 286 17 is_stmt 0 view .LVU14
+  81 0038 8DF80540 		strb	r4, [sp, #5]
+ 287:Core/Src/shell.c ****     uart_printf(system_log, tempData, NULL, 0);
+  82              		.loc 1 287 5 is_stmt 1 view .LVU15
+  83 003c 2346     		mov	r3, r4
+  84 003e 2246     		mov	r2, r4
+  85 0040 01A9     		add	r1, sp, #4
+  86 0042 0820     		movs	r0, #8
+  87 0044 FFF7FEFF 		bl	uart_printf
+  88              	.LVL5:
+ 288:Core/Src/shell.c ****     uart_printf(system_log, &shell_prompt, NULL, 0);
+  89              		.loc 1 288 5 view .LVU16
+  90 0048 2346     		mov	r3, r4
+  91 004a 2246     		mov	r2, r4
+  92 004c 0549     		ldr	r1, .L3
+  93 004e 0820     		movs	r0, #8
+  94 0050 FFF7FEFF 		bl	uart_printf
+  95              	.LVL6:
+ 289:Core/Src/shell.c ****     uart_printf(system_log, &shell->line, NULL, 0);
+  96              		.loc 1 289 5 view .LVU17
+  97 0054 2346     		mov	r3, r4
+  98 0056 2246     		mov	r2, r4
+  99 0058 2946     		mov	r1, r5
+ 100 005a 0820     		movs	r0, #8
+ 101 005c FFF7FEFF 		bl	uart_printf
+ 102              	.LVL7:
+ 290:Core/Src/shell.c **** }
+ 103              		.loc 1 290 1 is_stmt 0 view .LVU18
+ 104 0060 16B0     		add	sp, sp, #88
+ 105              		.cfi_def_cfa_offset 16
+ 106              		@ sp needed
+ 107 0062 70BD     		pop	{r4, r5, r6, pc}
+ 108              	.LVL8:
+ 109              	.L4:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 8
+
+
+ 110              		.loc 1 290 1 view .LVU19
+ 111              		.align	2
+ 112              	.L3:
+ 113 0064 00000000 		.word	.LC0
+ 114              		.cfi_endproc
+ 115              	.LFE6:
+ 117              		.section	.text.shell_put_history,"ax",%progbits
+ 118              		.align	1
+ 119              		.syntax unified
+ 120              		.thumb
+ 121              		.thumb_func
+ 123              	shell_put_history:
+ 124              	.LVL9:
+ 125              	.LFB5:
+ 231:Core/Src/shell.c **** 
+ 126              		.loc 1 231 1 is_stmt 1 view -0
+ 127              		.cfi_startproc
+ 128              		@ args = 0, pretend = 0, frame = 0
+ 129              		@ frame_needed = 0, uses_anonymous_args = 0
+ 231:Core/Src/shell.c **** 
+ 130              		.loc 1 231 1 is_stmt 0 view .LVU21
+ 131 0000 70B5     		push	{r4, r5, r6, lr}
+ 132              		.cfi_def_cfa_offset 16
+ 133              		.cfi_offset 4, -16
+ 134              		.cfi_offset 5, -12
+ 135              		.cfi_offset 6, -8
+ 136              		.cfi_offset 14, -4
+ 137 0002 0446     		mov	r4, r0
+ 234:Core/Src/shell.c ****     {
+ 138              		.loc 1 234 5 is_stmt 1 view .LVU22
+ 234:Core/Src/shell.c ****     {
+ 139              		.loc 1 234 14 is_stmt 0 view .LVU23
+ 140 0004 90F85130 		ldrb	r3, [r0, #81]	@ zero_extendqisi2
+ 234:Core/Src/shell.c ****     {
+ 141              		.loc 1 234 8 view .LVU24
+ 142 0008 4BB3     		cbz	r3, .L6
+ 238:Core/Src/shell.c ****         {
+ 143              		.loc 1 238 9 is_stmt 1 view .LVU25
+ 238:Core/Src/shell.c ****         {
+ 144              		.loc 1 238 18 is_stmt 0 view .LVU26
+ 145 000a 90F85550 		ldrb	r5, [r0, #85]	@ zero_extendqisi2
+ 238:Core/Src/shell.c ****         {
+ 146              		.loc 1 238 12 view .LVU27
+ 147 000e 042D     		cmp	r5, #4
+ 148 0010 2AD8     		bhi	.L7
+ 241:Core/Src/shell.c ****             {
+ 149              		.loc 1 241 13 is_stmt 1 view .LVU28
+ 241:Core/Src/shell.c ****             {
+ 150              		.loc 1 241 16 is_stmt 0 view .LVU29
+ 151 0012 45B1     		cbz	r5, .L8
+ 241:Core/Src/shell.c ****             {
+ 152              		.loc 1 241 84 discriminator 1 view .LVU30
+ 153 0014 05EB8501 		add	r1, r5, r5, lsl #2
+ 154 0018 00EB0111 		add	r1, r0, r1, lsl #4
+ 241:Core/Src/shell.c ****             {
+ 155              		.loc 1 241 46 discriminator 1 view .LVU31
+ 156 001c 5022     		movs	r2, #80
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 9
+
+
+ 157 001e 0631     		adds	r1, r1, #6
+ 158 0020 FFF7FEFF 		bl	memcmp
+ 159              	.LVL10:
+ 241:Core/Src/shell.c ****             {
+ 160              		.loc 1 241 43 discriminator 1 view .LVU32
+ 161 0024 D8B1     		cbz	r0, .L6
+ 162              	.L8:
+ 245:Core/Src/shell.c ****                 memcpy(shell->history_cmd[shell->history_count], shell->line, shell->line_position)
+ 163              		.loc 1 245 17 is_stmt 1 view .LVU33
+ 245:Core/Src/shell.c ****                 memcpy(shell->history_cmd[shell->history_count], shell->line, shell->line_position)
+ 164              		.loc 1 245 42 is_stmt 0 view .LVU34
+ 165 0026 0135     		adds	r5, r5, #1
+ 166 0028 05EB8505 		add	r5, r5, r5, lsl #2
+ 167 002c 04EB0510 		add	r0, r4, r5, lsl #4
+ 245:Core/Src/shell.c ****                 memcpy(shell->history_cmd[shell->history_count], shell->line, shell->line_position)
+ 168              		.loc 1 245 17 view .LVU35
+ 169 0030 5022     		movs	r2, #80
+ 170 0032 0021     		movs	r1, #0
+ 171 0034 0630     		adds	r0, r0, #6
+ 172 0036 FFF7FEFF 		bl	memset
+ 173              	.LVL11:
+ 246:Core/Src/shell.c ****                 // 记录的命令行数
+ 174              		.loc 1 246 17 is_stmt 1 view .LVU36
+ 246:Core/Src/shell.c ****                 // 记录的命令行数
+ 175              		.loc 1 246 48 is_stmt 0 view .LVU37
+ 176 003a 94F85500 		ldrb	r0, [r4, #85]	@ zero_extendqisi2
+ 246:Core/Src/shell.c ****                 // 记录的命令行数
+ 177              		.loc 1 246 42 view .LVU38
+ 178 003e 0130     		adds	r0, r0, #1
+ 179 0040 00EB8000 		add	r0, r0, r0, lsl #2
+ 180 0044 04EB0010 		add	r0, r4, r0, lsl #4
+ 246:Core/Src/shell.c ****                 // 记录的命令行数
+ 181              		.loc 1 246 17 view .LVU39
+ 182 0048 94F85120 		ldrb	r2, [r4, #81]	@ zero_extendqisi2
+ 183 004c 2146     		mov	r1, r4
+ 184 004e 0630     		adds	r0, r0, #6
+ 185 0050 FFF7FEFF 		bl	memcpy
+ 186              	.LVL12:
+ 248:Core/Src/shell.c ****             }
+ 187              		.loc 1 248 17 is_stmt 1 view .LVU40
+ 248:Core/Src/shell.c ****             }
+ 188              		.loc 1 248 22 is_stmt 0 view .LVU41
+ 189 0054 94F85530 		ldrb	r3, [r4, #85]	@ zero_extendqisi2
+ 248:Core/Src/shell.c ****             }
+ 190              		.loc 1 248 37 view .LVU42
+ 191 0058 0133     		adds	r3, r3, #1
+ 192 005a 84F85530 		strb	r3, [r4, #85]
+ 193              	.L6:
+ 270:Core/Src/shell.c **** }
+ 194              		.loc 1 270 5 is_stmt 1 view .LVU43
+ 270:Core/Src/shell.c **** }
+ 195              		.loc 1 270 35 is_stmt 0 view .LVU44
+ 196 005e 94F85530 		ldrb	r3, [r4, #85]	@ zero_extendqisi2
+ 270:Core/Src/shell.c **** }
+ 197              		.loc 1 270 28 view .LVU45
+ 198 0062 84F85430 		strb	r3, [r4, #84]
+ 271:Core/Src/shell.c **** 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 10
+
+
+ 199              		.loc 1 271 1 view .LVU46
+ 200 0066 70BD     		pop	{r4, r5, r6, pc}
+ 201              	.LVL13:
+ 202              	.L7:
+ 254:Core/Src/shell.c ****             {
+ 203              		.loc 1 254 13 is_stmt 1 view .LVU47
+ 254:Core/Src/shell.c ****             {
+ 204              		.loc 1 254 37 is_stmt 0 view .LVU48
+ 205 0068 00F5CB75 		add	r5, r0, #406
+ 254:Core/Src/shell.c ****             {
+ 206              		.loc 1 254 17 view .LVU49
+ 207 006c 5022     		movs	r2, #80
+ 208 006e 2946     		mov	r1, r5
+ 209 0070 FFF7FEFF 		bl	memcmp
+ 210              	.LVL14:
+ 254:Core/Src/shell.c ****             {
+ 211              		.loc 1 254 16 discriminator 1 view .LVU50
+ 212 0074 0028     		cmp	r0, #0
+ 213 0076 F2D0     		beq	.L6
+ 214              	.LBB2:
+ 258:Core/Src/shell.c ****                 {
+ 215              		.loc 1 258 26 view .LVU51
+ 216 0078 0026     		movs	r6, #0
+ 217              	.L9:
+ 218              	.LVL15:
+ 258:Core/Src/shell.c ****                 {
+ 219              		.loc 1 258 35 is_stmt 1 discriminator 1 view .LVU52
+ 220 007a 032E     		cmp	r6, #3
+ 221 007c 10DC     		bgt	.L13
+ 260:Core/Src/shell.c ****                 }
+ 222              		.loc 1 260 21 view .LVU53
+ 260:Core/Src/shell.c ****                 }
+ 223              		.loc 1 260 28 is_stmt 0 view .LVU54
+ 224 007e 711C     		adds	r1, r6, #1
+ 225 0080 01EB8100 		add	r0, r1, r1, lsl #2
+ 226 0084 04EB0010 		add	r0, r4, r0, lsl #4
+ 260:Core/Src/shell.c ****                 }
+ 227              		.loc 1 260 74 view .LVU55
+ 228 0088 0E46     		mov	r6, r1
+ 229              	.LVL16:
+ 260:Core/Src/shell.c ****                 }
+ 230              		.loc 1 260 52 view .LVU56
+ 231 008a 0131     		adds	r1, r1, #1
+ 232              	.LVL17:
+ 260:Core/Src/shell.c ****                 }
+ 233              		.loc 1 260 52 view .LVU57
+ 234 008c 01EB8101 		add	r1, r1, r1, lsl #2
+ 235 0090 04EB0111 		add	r1, r4, r1, lsl #4
+ 260:Core/Src/shell.c ****                 }
+ 236              		.loc 1 260 21 view .LVU58
+ 237 0094 5022     		movs	r2, #80
+ 238 0096 0631     		adds	r1, r1, #6
+ 239 0098 0630     		adds	r0, r0, #6
+ 240 009a FFF7FEFF 		bl	memcpy
+ 241              	.LVL18:
+ 258:Core/Src/shell.c ****                 {
+ 242              		.loc 1 258 62 is_stmt 1 discriminator 3 view .LVU59
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 11
+
+
+ 258:Core/Src/shell.c ****                 {
+ 243              		.loc 1 258 62 is_stmt 0 discriminator 3 view .LVU60
+ 244 009e ECE7     		b	.L9
+ 245              	.L13:
+ 258:Core/Src/shell.c ****                 {
+ 246              		.loc 1 258 62 discriminator 3 view .LVU61
+ 247              	.LBE2:
+ 264:Core/Src/shell.c ****                 memcpy(&shell->history_cmd[SHELL_HISTORY_LENS - 1], shell->line, SHELL_CMD_SIZE);
+ 248              		.loc 1 264 17 is_stmt 1 view .LVU62
+ 249 00a0 5026     		movs	r6, #80
+ 250              	.LVL19:
+ 264:Core/Src/shell.c ****                 memcpy(&shell->history_cmd[SHELL_HISTORY_LENS - 1], shell->line, SHELL_CMD_SIZE);
+ 251              		.loc 1 264 17 is_stmt 0 view .LVU63
+ 252 00a2 3246     		mov	r2, r6
+ 253 00a4 0021     		movs	r1, #0
+ 254 00a6 2846     		mov	r0, r5
+ 255 00a8 FFF7FEFF 		bl	memset
+ 256              	.LVL20:
+ 265:Core/Src/shell.c ****             }
+ 257              		.loc 1 265 17 is_stmt 1 view .LVU64
+ 258 00ac 3246     		mov	r2, r6
+ 259 00ae 2146     		mov	r1, r4
+ 260 00b0 2846     		mov	r0, r5
+ 261 00b2 FFF7FEFF 		bl	memcpy
+ 262              	.LVL21:
+ 263 00b6 D2E7     		b	.L6
+ 264              		.cfi_endproc
+ 265              	.LFE5:
+ 267              		.section	.rodata.shell_init.str1.4,"aMS",%progbits,1
+ 268              		.align	2
+ 269              	.LC1:
+ 270 0000 7368656C 		.ascii	"shell start\015\012\000"
+ 270      6C207374 
+ 270      6172740D 
+ 270      0A00
+ 271              		.section	.text.shell_init,"ax",%progbits
+ 272              		.align	1
+ 273              		.global	shell_init
+ 274              		.syntax unified
+ 275              		.thumb
+ 276              		.thumb_func
+ 278              	shell_init:
+ 279              	.LFB3:
+  10:Core/Src/shell.c **** 
+ 280              		.loc 1 10 1 view -0
+ 281              		.cfi_startproc
+ 282              		@ args = 0, pretend = 0, frame = 0
+ 283              		@ frame_needed = 0, uses_anonymous_args = 0
+ 284 0000 38B5     		push	{r3, r4, r5, lr}
+ 285              		.cfi_def_cfa_offset 16
+ 286              		.cfi_offset 3, -16
+ 287              		.cfi_offset 4, -12
+ 288              		.cfi_offset 5, -8
+ 289              		.cfi_offset 14, -4
+  12:Core/Src/shell.c ****     shell.line_position = 0;
+ 290              		.loc 1 12 5 view .LVU66
+  12:Core/Src/shell.c ****     shell.line_position = 0;
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 12
+
+
+ 291              		.loc 1 12 23 is_stmt 0 view .LVU67
+ 292 0002 124D     		ldr	r5, .L16
+ 293 0004 0024     		movs	r4, #0
+ 294 0006 85F85240 		strb	r4, [r5, #82]
+  13:Core/Src/shell.c ****     shell.line_position = 0;
+ 295              		.loc 1 13 5 is_stmt 1 view .LVU68
+  13:Core/Src/shell.c ****     shell.line_position = 0;
+ 296              		.loc 1 13 25 is_stmt 0 view .LVU69
+ 297 000a 85F85140 		strb	r4, [r5, #81]
+  14:Core/Src/shell.c ****     shell.current_history = 0;
+ 298              		.loc 1 14 5 is_stmt 1 view .LVU70
+  15:Core/Src/shell.c ****     shell.history_count = 0;
+ 299              		.loc 1 15 5 view .LVU71
+  15:Core/Src/shell.c ****     shell.history_count = 0;
+ 300              		.loc 1 15 27 is_stmt 0 view .LVU72
+ 301 000e 85F85440 		strb	r4, [r5, #84]
+  16:Core/Src/shell.c ****     shell.state = WAIT_NORMAL;
+ 302              		.loc 1 16 5 is_stmt 1 view .LVU73
+  16:Core/Src/shell.c ****     shell.state = WAIT_NORMAL;
+ 303              		.loc 1 16 25 is_stmt 0 view .LVU74
+ 304 0012 85F85540 		strb	r4, [r5, #85]
+  17:Core/Src/shell.c ****     memset(shell.line, 0, sizeof(shell.line));
+ 305              		.loc 1 17 5 is_stmt 1 view .LVU75
+  17:Core/Src/shell.c ****     memset(shell.line, 0, sizeof(shell.line));
+ 306              		.loc 1 17 17 is_stmt 0 view .LVU76
+ 307 0016 85F85340 		strb	r4, [r5, #83]
+  18:Core/Src/shell.c ****     memset(shell.history_cmd, 0, sizeof(uint8_t) * SHELL_CMD_SIZE * SHELL_HISTORY_LENS);
+ 308              		.loc 1 18 5 is_stmt 1 view .LVU77
+ 309 001a 5122     		movs	r2, #81
+ 310 001c 2146     		mov	r1, r4
+ 311 001e 2846     		mov	r0, r5
+ 312 0020 FFF7FEFF 		bl	memset
+ 313              	.LVL22:
+  19:Core/Src/shell.c ****     uart_printf(system_log, "shell start\r\n", NULL, 0);
+ 314              		.loc 1 19 5 view .LVU78
+ 315 0024 4FF4C872 		mov	r2, #400
+ 316 0028 2146     		mov	r1, r4
+ 317 002a 05F15600 		add	r0, r5, #86
+ 318 002e FFF7FEFF 		bl	memset
+ 319              	.LVL23:
+  20:Core/Src/shell.c **** 
+ 320              		.loc 1 20 5 view .LVU79
+ 321 0032 2346     		mov	r3, r4
+ 322 0034 2246     		mov	r2, r4
+ 323 0036 0649     		ldr	r1, .L16+4
+ 324 0038 0820     		movs	r0, #8
+ 325 003a FFF7FEFF 		bl	uart_printf
+ 326              	.LVL24:
+  22:Core/Src/shell.c **** }
+ 327              		.loc 1 22 5 view .LVU80
+ 328 003e 2346     		mov	r3, r4
+ 329 0040 2246     		mov	r2, r4
+ 330 0042 0449     		ldr	r1, .L16+8
+ 331 0044 0820     		movs	r0, #8
+ 332 0046 FFF7FEFF 		bl	uart_printf
+ 333              	.LVL25:
+  23:Core/Src/shell.c **** 
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 13
+
+
+ 334              		.loc 1 23 1 is_stmt 0 view .LVU81
+ 335 004a 38BD     		pop	{r3, r4, r5, pc}
+ 336              	.L17:
+ 337              		.align	2
+ 338              	.L16:
+ 339 004c 00000000 		.word	shell
+ 340 0050 00000000 		.word	.LC1
+ 341 0054 00000000 		.word	.LC0
+ 342              		.cfi_endproc
+ 343              	.LFE3:
+ 345              		.section	.rodata.shell_enter.str1.4,"aMS",%progbits,1
+ 346              		.align	2
+ 347              	.LC2:
+ 348 0000 0D0A00   		.ascii	"\015\012\000"
+ 349 0003 00       		.align	2
+ 350              	.LC3:
+ 351 0004 08200800 		.ascii	"\010 \010\000"
+ 352              		.section	.text.shell_enter,"ax",%progbits
+ 353              		.align	1
+ 354              		.global	shell_enter
+ 355              		.syntax unified
+ 356              		.thumb
+ 357              		.thumb_func
+ 359              	shell_enter:
+ 360              	.LVL26:
+ 361              	.LFB4:
+  26:Core/Src/shell.c ****     uint8_t outData[2] = {'\0', '\0'};
+ 362              		.loc 1 26 1 is_stmt 1 view -0
+ 363              		.cfi_startproc
+ 364              		@ args = 0, pretend = 0, frame = 88
+ 365              		@ frame_needed = 1, uses_anonymous_args = 0
+  26:Core/Src/shell.c ****     uint8_t outData[2] = {'\0', '\0'};
+ 366              		.loc 1 26 1 is_stmt 0 view .LVU83
+ 367 0000 2DE9F043 		push	{r4, r5, r6, r7, r8, r9, lr}
+ 368              		.cfi_def_cfa_offset 28
+ 369              		.cfi_offset 4, -28
+ 370              		.cfi_offset 5, -24
+ 371              		.cfi_offset 6, -20
+ 372              		.cfi_offset 7, -16
+ 373              		.cfi_offset 8, -12
+ 374              		.cfi_offset 9, -8
+ 375              		.cfi_offset 14, -4
+ 376 0004 97B0     		sub	sp, sp, #92
+ 377              		.cfi_def_cfa_offset 120
+ 378 0006 00AF     		add	r7, sp, #0
+ 379              		.cfi_def_cfa_register 7
+  27:Core/Src/shell.c ****     // uint8_t data = 0;
+ 380              		.loc 1 27 5 is_stmt 1 view .LVU84
+  27:Core/Src/shell.c ****     // uint8_t data = 0;
+ 381              		.loc 1 27 13 is_stmt 0 view .LVU85
+ 382 0008 0023     		movs	r3, #0
+ 383 000a A7F85430 		strh	r3, [r7, #84]	@ movhi
+  40:Core/Src/shell.c ****     {
+ 384              		.loc 1 40 5 is_stmt 1 view .LVU86
+  40:Core/Src/shell.c ****     {
+ 385              		.loc 1 40 8 is_stmt 0 view .LVU87
+ 386 000e 1B28     		cmp	r0, #27
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 14
+
+
+ 387 0010 40D0     		beq	.L47
+ 388 0012 0446     		mov	r4, r0
+  45:Core/Src/shell.c ****     {
+ 389              		.loc 1 45 10 is_stmt 1 view .LVU88
+  45:Core/Src/shell.c ****     {
+ 390              		.loc 1 45 19 is_stmt 0 view .LVU89
+ 391 0014 C24B     		ldr	r3, .L53
+ 392 0016 93F85330 		ldrb	r3, [r3, #83]	@ zero_extendqisi2
+  45:Core/Src/shell.c ****     {
+ 393              		.loc 1 45 13 view .LVU90
+ 394 001a 012B     		cmp	r3, #1
+ 395 001c 42D0     		beq	.L48
+  54:Core/Src/shell.c ****     {
+ 396              		.loc 1 54 10 is_stmt 1 view .LVU91
+  54:Core/Src/shell.c ****     {
+ 397              		.loc 1 54 13 is_stmt 0 view .LVU92
+ 398 001e 022B     		cmp	r3, #2
+ 399 0020 4CD0     		beq	.L49
+ 400              	.L23:
+ 123:Core/Src/shell.c ****     {
+ 401              		.loc 1 123 5 is_stmt 1 view .LVU93
+ 123:Core/Src/shell.c ****     {
+ 402              		.loc 1 123 8 is_stmt 0 view .LVU94
+ 403 0022 0D2C     		cmp	r4, #13
+ 404 0024 00F0C780 		beq	.L31
+ 123:Core/Src/shell.c ****     {
+ 405              		.loc 1 123 22 discriminator 1 view .LVU95
+ 406 0028 0A2C     		cmp	r4, #10
+ 407 002a 00F0C480 		beq	.L31
+ 144:Core/Src/shell.c ****     {
+ 408              		.loc 1 144 5 is_stmt 1 view .LVU96
+ 144:Core/Src/shell.c ****     {
+ 409              		.loc 1 144 8 is_stmt 0 view .LVU97
+ 410 002e 7F2C     		cmp	r4, #127
+ 411 0030 00F0E080 		beq	.L33
+ 144:Core/Src/shell.c ****     {
+ 412              		.loc 1 144 22 discriminator 1 view .LVU98
+ 413 0034 082C     		cmp	r4, #8
+ 414 0036 00F0DD80 		beq	.L33
+ 191:Core/Src/shell.c ****     {
+ 415              		.loc 1 191 5 is_stmt 1 view .LVU99
+ 191:Core/Src/shell.c ****     {
+ 416              		.loc 1 191 14 is_stmt 0 view .LVU100
+ 417 003a B94B     		ldr	r3, .L53
+ 418 003c 93F85260 		ldrb	r6, [r3, #82]	@ zero_extendqisi2
+ 191:Core/Src/shell.c ****     {
+ 419              		.loc 1 191 34 view .LVU101
+ 420 0040 93F85190 		ldrb	r9, [r3, #81]	@ zero_extendqisi2
+ 191:Core/Src/shell.c ****     {
+ 421              		.loc 1 191 8 view .LVU102
+ 422 0044 4E45     		cmp	r6, r9
+ 423 0046 80F05E81 		bcs	.L39
+ 424              	.LBB3:
+ 192:Core/Src/shell.c ****         char temp[SHELL_CMD_SIZE];
+ 425              		.loc 1 192 5 view .LVU103
+ 426 004a 6D46     		mov	r5, sp
+ 193:Core/Src/shell.c ****         // 更新buff
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 15
+
+
+ 427              		.loc 1 193 9 is_stmt 1 view .LVU104
+ 195:Core/Src/shell.c ****         memcpy(&shell.line[shell.line_curpos + 1], &temp[shell.line_curpos], shell.line_position - 
+ 428              		.loc 1 195 9 view .LVU105
+ 429 004c 9846     		mov	r8, r3
+ 430 004e 4A46     		mov	r2, r9
+ 431 0050 1946     		mov	r1, r3
+ 432 0052 381D     		adds	r0, r7, #4
+ 433              	.LVL27:
+ 195:Core/Src/shell.c ****         memcpy(&shell.line[shell.line_curpos + 1], &temp[shell.line_curpos], shell.line_position - 
+ 434              		.loc 1 195 9 is_stmt 0 view .LVU106
+ 435 0054 FFF7FEFF 		bl	memcpy
+ 436              	.LVL28:
+ 196:Core/Src/shell.c ****         shell.line[shell.line_curpos] = data;
+ 437              		.loc 1 196 9 is_stmt 1 view .LVU107
+ 196:Core/Src/shell.c ****         shell.line[shell.line_curpos] = data;
+ 438              		.loc 1 196 46 is_stmt 0 view .LVU108
+ 439 0058 701C     		adds	r0, r6, #1
+ 196:Core/Src/shell.c ****         shell.line[shell.line_curpos] = data;
+ 440              		.loc 1 196 9 view .LVU109
+ 441 005a A9EB0602 		sub	r2, r9, r6
+ 442 005e 3B1D     		adds	r3, r7, #4
+ 443 0060 9919     		adds	r1, r3, r6
+ 444 0062 4044     		add	r0, r0, r8
+ 445 0064 FFF7FEFF 		bl	memcpy
+ 446              	.LVL29:
+ 197:Core/Src/shell.c **** 
+ 447              		.loc 1 197 9 is_stmt 1 view .LVU110
+ 197:Core/Src/shell.c **** 
+ 448              		.loc 1 197 25 is_stmt 0 view .LVU111
+ 449 0068 98F85210 		ldrb	r1, [r8, #82]	@ zero_extendqisi2
+ 197:Core/Src/shell.c **** 
+ 450              		.loc 1 197 39 view .LVU112
+ 451 006c 08F80140 		strb	r4, [r8, r1]
+ 200:Core/Src/shell.c ****         // 左移符号
+ 452              		.loc 1 200 9 is_stmt 1 view .LVU113
+ 453 0070 0023     		movs	r3, #0
+ 454 0072 1A46     		mov	r2, r3
+ 455 0074 4144     		add	r1, r1, r8
+ 456 0076 0820     		movs	r0, #8
+ 457 0078 FFF7FEFF 		bl	uart_printf
+ 458              	.LVL30:
+ 202:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 459              		.loc 1 202 9 view .LVU114
+ 202:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 460              		.loc 1 202 32 is_stmt 0 view .LVU115
+ 461 007c 98F85120 		ldrb	r2, [r8, #81]	@ zero_extendqisi2
+ 202:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 462              		.loc 1 202 54 view .LVU116
+ 463 0080 98F85230 		ldrb	r3, [r8, #82]	@ zero_extendqisi2
+ 202:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 464              		.loc 1 202 47 view .LVU117
+ 465 0084 D21A     		subs	r2, r2, r3
+ 466              	.LVL31:
+ 202:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 467              		.loc 1 202 17 view .LVU118
+ 468 0086 0832     		adds	r2, r2, #8
+ 469              	.LVL32:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 16
+
+
+ 202:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 470              		.loc 1 202 17 view .LVU119
+ 471 0088 22F00702 		bic	r2, r2, #7
+ 472              	.LVL33:
+ 202:Core/Src/shell.c ****         for (int i = shell.line_curpos; i < shell.line_position; i++)
+ 473              		.loc 1 202 17 view .LVU120
+ 474 008c ADEB020D 		sub	sp, sp, r2
+ 475 0090 6C46     		mov	r4, sp
+ 476              	.LVL34:
+ 203:Core/Src/shell.c ****         {
+ 477              		.loc 1 203 9 is_stmt 1 view .LVU121
+ 478              	.LBB4:
+ 203:Core/Src/shell.c ****         {
+ 479              		.loc 1 203 14 view .LVU122
+ 203:Core/Src/shell.c ****         {
+ 480              		.loc 1 203 9 is_stmt 0 view .LVU123
+ 481 0092 05E1     		b	.L40
+ 482              	.LVL35:
+ 483              	.L47:
+ 203:Core/Src/shell.c ****         {
+ 484              		.loc 1 203 9 view .LVU124
+ 485              	.LBE4:
+ 486              	.LBE3:
+  42:Core/Src/shell.c ****         return;
+ 487              		.loc 1 42 9 is_stmt 1 view .LVU125
+  42:Core/Src/shell.c ****         return;
+ 488              		.loc 1 42 21 is_stmt 0 view .LVU126
+ 489 0094 A24B     		ldr	r3, .L53
+ 490 0096 0122     		movs	r2, #1
+ 491 0098 83F85320 		strb	r2, [r3, #83]
+  43:Core/Src/shell.c ****     }
+ 492              		.loc 1 43 9 is_stmt 1 view .LVU127
+ 493              	.LVL36:
+ 494              	.L18:
+ 227:Core/Src/shell.c **** 
+ 495              		.loc 1 227 1 is_stmt 0 view .LVU128
+ 496 009c 5C37     		adds	r7, r7, #92
+ 497              		.cfi_remember_state
+ 498              		.cfi_def_cfa_offset 28
+ 499 009e BD46     		mov	sp, r7
+ 500              		.cfi_def_cfa_register 13
+ 501              		@ sp needed
+ 502 00a0 BDE8F083 		pop	{r4, r5, r6, r7, r8, r9, pc}
+ 503              	.LVL37:
+ 504              	.L48:
+ 505              		.cfi_restore_state
+  47:Core/Src/shell.c ****         {
+ 506              		.loc 1 47 9 is_stmt 1 view .LVU129
+  47:Core/Src/shell.c ****         {
+ 507              		.loc 1 47 12 is_stmt 0 view .LVU130
+ 508 00a4 5B28     		cmp	r0, #91
+ 509 00a6 04D0     		beq	.L50
+  52:Core/Src/shell.c ****     }
+ 510              		.loc 1 52 9 is_stmt 1 view .LVU131
+  52:Core/Src/shell.c ****     }
+ 511              		.loc 1 52 21 is_stmt 0 view .LVU132
+ 512 00a8 9D4B     		ldr	r3, .L53
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 17
+
+
+ 513 00aa 0022     		movs	r2, #0
+ 514 00ac 83F85320 		strb	r2, [r3, #83]
+ 515 00b0 B7E7     		b	.L23
+ 516              	.L50:
+  49:Core/Src/shell.c ****             return;
+ 517              		.loc 1 49 13 is_stmt 1 view .LVU133
+  49:Core/Src/shell.c ****             return;
+ 518              		.loc 1 49 25 is_stmt 0 view .LVU134
+ 519 00b2 9B4B     		ldr	r3, .L53
+ 520 00b4 0222     		movs	r2, #2
+ 521 00b6 83F85320 		strb	r2, [r3, #83]
+  50:Core/Src/shell.c ****         }
+ 522              		.loc 1 50 13 is_stmt 1 view .LVU135
+ 523 00ba EFE7     		b	.L18
+ 524              	.L49:
+  56:Core/Src/shell.c **** 
+ 525              		.loc 1 56 9 view .LVU136
+  56:Core/Src/shell.c **** 
+ 526              		.loc 1 56 21 is_stmt 0 view .LVU137
+ 527 00bc 984B     		ldr	r3, .L53
+ 528 00be 0022     		movs	r2, #0
+ 529 00c0 83F85320 		strb	r2, [r3, #83]
+  58:Core/Src/shell.c ****         {
+ 530              		.loc 1 58 9 is_stmt 1 view .LVU138
+ 531 00c4 A0F14104 		sub	r4, r0, #65
+ 532 00c8 032C     		cmp	r4, #3
+ 533 00ca E7D8     		bhi	.L18
+ 534 00cc DFE804F0 		tbb	[pc, r4]
+ 535              	.L26:
+ 536 00d0 02       		.byte	(.L29-.L26)/2
+ 537 00d1 27       		.byte	(.L28-.L26)/2
+ 538 00d2 4A       		.byte	(.L27-.L26)/2
+ 539 00d3 60       		.byte	(.L25-.L26)/2
+ 540              		.p2align 1
+ 541              	.L29:
+  60:Core/Src/shell.c ****             {
+ 542              		.loc 1 60 13 view .LVU139
+  60:Core/Src/shell.c ****             {
+ 543              		.loc 1 60 22 is_stmt 0 view .LVU140
+ 544 00d4 924B     		ldr	r3, .L53
+ 545 00d6 93F85430 		ldrb	r3, [r3, #84]	@ zero_extendqisi2
+  60:Core/Src/shell.c ****             {
+ 546              		.loc 1 60 16 view .LVU141
+ 547 00da 23B9     		cbnz	r3, .L51
+  66:Core/Src/shell.c ****                 return;
+ 548              		.loc 1 66 17 is_stmt 1 view .LVU142
+  66:Core/Src/shell.c ****                 return;
+ 549              		.loc 1 66 39 is_stmt 0 view .LVU143
+ 550 00dc 904B     		ldr	r3, .L53
+ 551 00de 0022     		movs	r2, #0
+ 552 00e0 83F85420 		strb	r2, [r3, #84]
+  67:Core/Src/shell.c ****             }
+ 553              		.loc 1 67 17 is_stmt 1 view .LVU144
+ 554 00e4 DAE7     		b	.L18
+ 555              	.L51:
+  62:Core/Src/shell.c ****             }
+ 556              		.loc 1 62 17 view .LVU145
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 18
+
+
+  62:Core/Src/shell.c ****             }
+ 557              		.loc 1 62 38 is_stmt 0 view .LVU146
+ 558 00e6 013B     		subs	r3, r3, #1
+ 559 00e8 DBB2     		uxtb	r3, r3
+ 560 00ea 8D4D     		ldr	r5, .L53
+ 561 00ec 85F85430 		strb	r3, [r5, #84]
+  71:Core/Src/shell.c ****             // 更新shell line 参数
+ 562              		.loc 1 71 13 is_stmt 1 view .LVU147
+  71:Core/Src/shell.c ****             // 更新shell line 参数
+ 563              		.loc 1 71 49 is_stmt 0 view .LVU148
+ 564 00f0 0133     		adds	r3, r3, #1
+ 565 00f2 03EB8303 		add	r3, r3, r3, lsl #2
+ 566 00f6 05EB0314 		add	r4, r5, r3, lsl #4
+ 567 00fa 0634     		adds	r4, r4, #6
+  71:Core/Src/shell.c ****             // 更新shell line 参数
+ 568              		.loc 1 71 13 view .LVU149
+ 569 00fc 5022     		movs	r2, #80
+ 570 00fe 2146     		mov	r1, r4
+ 571 0100 2846     		mov	r0, r5
+ 572              	.LVL38:
+  71:Core/Src/shell.c ****             // 更新shell line 参数
+ 573              		.loc 1 71 13 view .LVU150
+ 574 0102 FFF7FEFF 		bl	memcpy
+ 575              	.LVL39:
+  74:Core/Src/shell.c ****             shell_handle_history(&shell);
+ 576              		.loc 1 74 13 is_stmt 1 view .LVU151
+  74:Core/Src/shell.c ****             shell_handle_history(&shell);
+ 577              		.loc 1 74 55 is_stmt 0 view .LVU152
+ 578 0106 2046     		mov	r0, r4
+ 579 0108 FFF7FEFF 		bl	strlen
+ 580              	.LVL40:
+  74:Core/Src/shell.c ****             shell_handle_history(&shell);
+ 581              		.loc 1 74 53 discriminator 1 view .LVU153
+ 582 010c C3B2     		uxtb	r3, r0
+ 583 010e 85F85130 		strb	r3, [r5, #81]
+  74:Core/Src/shell.c ****             shell_handle_history(&shell);
+ 584              		.loc 1 74 31 discriminator 1 view .LVU154
+ 585 0112 85F85230 		strb	r3, [r5, #82]
+  75:Core/Src/shell.c **** 
+ 586              		.loc 1 75 13 is_stmt 1 view .LVU155
+ 587 0116 2846     		mov	r0, r5
+ 588 0118 FFF7FEFF 		bl	shell_handle_history
+ 589              	.LVL41:
+  77:Core/Src/shell.c ****         }
+ 590              		.loc 1 77 13 view .LVU156
+ 591 011c BEE7     		b	.L18
+ 592              	.LVL42:
+ 593              	.L28:
+  82:Core/Src/shell.c ****             {
+ 594              		.loc 1 82 13 view .LVU157
+  82:Core/Src/shell.c ****             {
+ 595              		.loc 1 82 22 is_stmt 0 view .LVU158
+ 596 011e 804A     		ldr	r2, .L53
+ 597 0120 92F85430 		ldrb	r3, [r2, #84]	@ zero_extendqisi2
+  82:Core/Src/shell.c ****             {
+ 598              		.loc 1 82 46 view .LVU159
+ 599 0124 92F85520 		ldrb	r2, [r2, #85]	@ zero_extendqisi2
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 19
+
+
+  82:Core/Src/shell.c ****             {
+ 600              		.loc 1 82 61 view .LVU160
+ 601 0128 013A     		subs	r2, r2, #1
+  82:Core/Src/shell.c ****             {
+ 602              		.loc 1 82 16 view .LVU161
+ 603 012a 9342     		cmp	r3, r2
+ 604 012c B6DA     		bge	.L18
+  84:Core/Src/shell.c ****             }
+ 605              		.loc 1 84 17 is_stmt 1 view .LVU162
+  84:Core/Src/shell.c ****             }
+ 606              		.loc 1 84 38 is_stmt 0 view .LVU163
+ 607 012e 0133     		adds	r3, r3, #1
+ 608 0130 DBB2     		uxtb	r3, r3
+ 609 0132 7B4C     		ldr	r4, .L53
+ 610 0134 84F85430 		strb	r3, [r4, #84]
+  92:Core/Src/shell.c ****             shell.line_curpos = shell.line_position = strlen(shell.line);
+ 611              		.loc 1 92 13 is_stmt 1 view .LVU164
+  92:Core/Src/shell.c ****             shell.line_curpos = shell.line_position = strlen(shell.line);
+ 612              		.loc 1 92 49 is_stmt 0 view .LVU165
+ 613 0138 0133     		adds	r3, r3, #1
+ 614 013a 03EB8303 		add	r3, r3, r3, lsl #2
+ 615 013e 04EB0311 		add	r1, r4, r3, lsl #4
+  92:Core/Src/shell.c ****             shell.line_curpos = shell.line_position = strlen(shell.line);
+ 616              		.loc 1 92 13 view .LVU166
+ 617 0142 5022     		movs	r2, #80
+ 618 0144 0631     		adds	r1, r1, #6
+ 619 0146 2046     		mov	r0, r4
+ 620              	.LVL43:
+  92:Core/Src/shell.c ****             shell.line_curpos = shell.line_position = strlen(shell.line);
+ 621              		.loc 1 92 13 view .LVU167
+ 622 0148 FFF7FEFF 		bl	memcpy
+ 623              	.LVL44:
+  93:Core/Src/shell.c ****             // 输出新的
+ 624              		.loc 1 93 13 is_stmt 1 view .LVU168
+  93:Core/Src/shell.c ****             // 输出新的
+ 625              		.loc 1 93 55 is_stmt 0 view .LVU169
+ 626 014c 2046     		mov	r0, r4
+ 627 014e FFF7FEFF 		bl	strlen
+ 628              	.LVL45:
+  93:Core/Src/shell.c ****             // 输出新的
+ 629              		.loc 1 93 53 discriminator 1 view .LVU170
+ 630 0152 C3B2     		uxtb	r3, r0
+ 631 0154 84F85130 		strb	r3, [r4, #81]
+  93:Core/Src/shell.c ****             // 输出新的
+ 632              		.loc 1 93 31 discriminator 1 view .LVU171
+ 633 0158 84F85230 		strb	r3, [r4, #82]
+  95:Core/Src/shell.c ****             return;
+ 634              		.loc 1 95 13 is_stmt 1 view .LVU172
+ 635 015c 2046     		mov	r0, r4
+ 636 015e FFF7FEFF 		bl	shell_handle_history
+ 637              	.LVL46:
+  96:Core/Src/shell.c ****         }
+ 638              		.loc 1 96 13 view .LVU173
+ 639 0162 9BE7     		b	.L18
+ 640              	.LVL47:
+ 641              	.L27:
+ 101:Core/Src/shell.c ****             {
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 20
+
+
+ 642              		.loc 1 101 13 view .LVU174
+ 101:Core/Src/shell.c ****             {
+ 643              		.loc 1 101 22 is_stmt 0 view .LVU175
+ 644 0164 6E4B     		ldr	r3, .L53
+ 645 0166 93F85220 		ldrb	r2, [r3, #82]	@ zero_extendqisi2
+ 101:Core/Src/shell.c ****             {
+ 646              		.loc 1 101 42 view .LVU176
+ 647 016a 93F85130 		ldrb	r3, [r3, #81]	@ zero_extendqisi2
+ 101:Core/Src/shell.c ****             {
+ 648              		.loc 1 101 16 view .LVU177
+ 649 016e 9A42     		cmp	r2, r3
+ 650 0170 94D2     		bcs	.L18
+ 651              	.LBB6:
+ 103:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 652              		.loc 1 103 17 is_stmt 1 view .LVU178
+ 103:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 653              		.loc 1 103 51 is_stmt 0 view .LVU179
+ 654 0172 6B4C     		ldr	r4, .L53
+ 655 0174 A35C     		ldrb	r3, [r4, r2]	@ zero_extendqisi2
+ 103:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 656              		.loc 1 103 25 view .LVU180
+ 657 0176 3B71     		strb	r3, [r7, #4]
+ 104:Core/Src/shell.c ****                 shell.line_curpos++;
+ 658              		.loc 1 104 17 is_stmt 1 view .LVU181
+ 659 0178 0023     		movs	r3, #0
+ 660 017a 1A46     		mov	r2, r3
+ 661 017c 391D     		adds	r1, r7, #4
+ 662 017e 0820     		movs	r0, #8
+ 663              	.LVL48:
+ 104:Core/Src/shell.c ****                 shell.line_curpos++;
+ 664              		.loc 1 104 17 is_stmt 0 view .LVU182
+ 665 0180 FFF7FEFF 		bl	uart_printf
+ 666              	.LVL49:
+ 105:Core/Src/shell.c ****             }
+ 667              		.loc 1 105 17 is_stmt 1 view .LVU183
+ 105:Core/Src/shell.c ****             }
+ 668              		.loc 1 105 22 is_stmt 0 view .LVU184
+ 669 0184 94F85230 		ldrb	r3, [r4, #82]	@ zero_extendqisi2
+ 105:Core/Src/shell.c ****             }
+ 670              		.loc 1 105 34 view .LVU185
+ 671 0188 0133     		adds	r3, r3, #1
+ 672 018a 84F85230 		strb	r3, [r4, #82]
+ 673 018e 85E7     		b	.L18
+ 674              	.LVL50:
+ 675              	.L25:
+ 105:Core/Src/shell.c ****             }
+ 676              		.loc 1 105 34 view .LVU186
+ 677              	.LBE6:
+ 110:Core/Src/shell.c ****             {
+ 678              		.loc 1 110 13 is_stmt 1 view .LVU187
+ 110:Core/Src/shell.c ****             {
+ 679              		.loc 1 110 22 is_stmt 0 view .LVU188
+ 680 0190 634B     		ldr	r3, .L53
+ 681 0192 93F85230 		ldrb	r3, [r3, #82]	@ zero_extendqisi2
+ 110:Core/Src/shell.c ****             {
+ 682              		.loc 1 110 16 view .LVU189
+ 683 0196 002B     		cmp	r3, #0
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 21
+
+
+ 684 0198 80D0     		beq	.L18
+ 685              	.LBB7:
+ 112:Core/Src/shell.c ****                 // data = '\b';
+ 686              		.loc 1 112 17 is_stmt 1 view .LVU190
+ 112:Core/Src/shell.c ****                 // data = '\b';
+ 687              		.loc 1 112 25 is_stmt 0 view .LVU191
+ 688 019a 0820     		movs	r0, #8
+ 689              	.LVL51:
+ 112:Core/Src/shell.c ****                 // data = '\b';
+ 690              		.loc 1 112 25 view .LVU192
+ 691 019c B880     		strh	r0, [r7, #4]	@ movhi
+ 115:Core/Src/shell.c ****                 shell.line_curpos--;
+ 692              		.loc 1 115 17 is_stmt 1 view .LVU193
+ 693 019e 0023     		movs	r3, #0
+ 694 01a0 1A46     		mov	r2, r3
+ 695 01a2 391D     		adds	r1, r7, #4
+ 696 01a4 FFF7FEFF 		bl	uart_printf
+ 697              	.LVL52:
+ 116:Core/Src/shell.c ****             }
+ 698              		.loc 1 116 17 view .LVU194
+ 116:Core/Src/shell.c ****             }
+ 699              		.loc 1 116 22 is_stmt 0 view .LVU195
+ 700 01a8 5D4A     		ldr	r2, .L53
+ 701 01aa 92F85230 		ldrb	r3, [r2, #82]	@ zero_extendqisi2
+ 116:Core/Src/shell.c ****             }
+ 702              		.loc 1 116 34 view .LVU196
+ 703 01ae 013B     		subs	r3, r3, #1
+ 704 01b0 82F85230 		strb	r3, [r2, #82]
+ 705              	.LBE7:
+ 119:Core/Src/shell.c ****     }
+ 706              		.loc 1 119 9 is_stmt 1 view .LVU197
+ 707 01b4 72E7     		b	.L18
+ 708              	.LVL53:
+ 709              	.L31:
+ 126:Core/Src/shell.c **** 
+ 710              		.loc 1 126 9 view .LVU198
+ 711 01b6 0023     		movs	r3, #0
+ 712 01b8 1A46     		mov	r2, r3
+ 713 01ba 5A49     		ldr	r1, .L53+4
+ 714 01bc 0820     		movs	r0, #8
+ 715              	.LVL54:
+ 126:Core/Src/shell.c **** 
+ 716              		.loc 1 126 9 is_stmt 0 view .LVU199
+ 717 01be FFF7FEFF 		bl	uart_printf
+ 718              	.LVL55:
+ 129:Core/Src/shell.c **** 
+ 719              		.loc 1 129 9 is_stmt 1 view .LVU200
+ 720 01c2 574C     		ldr	r4, .L53
+ 721              	.LVL56:
+ 129:Core/Src/shell.c **** 
+ 722              		.loc 1 129 9 is_stmt 0 view .LVU201
+ 723 01c4 2046     		mov	r0, r4
+ 724 01c6 FFF7FEFF 		bl	shell_put_history
+ 725              	.LVL57:
+ 132:Core/Src/shell.c ****         // 执行命令完成
+ 726              		.loc 1 132 9 is_stmt 1 view .LVU202
+ 727 01ca 94F85110 		ldrb	r1, [r4, #81]	@ zero_extendqisi2
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 22
+
+
+ 728 01ce 2046     		mov	r0, r4
+ 729 01d0 FFF7FEFF 		bl	exec_command
+ 730              	.LVL58:
+ 134:Core/Src/shell.c **** 
+ 731              		.loc 1 134 9 view .LVU203
+ 732 01d4 0023     		movs	r3, #0
+ 733 01d6 1A46     		mov	r2, r3
+ 734 01d8 5349     		ldr	r1, .L53+8
+ 735 01da 0820     		movs	r0, #8
+ 736 01dc FFF7FEFF 		bl	uart_printf
+ 737              	.LVL59:
+ 136:Core/Src/shell.c ****         shell.line_position = 0;
+ 738              		.loc 1 136 9 view .LVU204
+ 136:Core/Src/shell.c ****         shell.line_position = 0;
+ 739              		.loc 1 136 27 is_stmt 0 view .LVU205
+ 740 01e0 0021     		movs	r1, #0
+ 741 01e2 84F85210 		strb	r1, [r4, #82]
+ 137:Core/Src/shell.c ****         // 重置当前line为'\0'
+ 742              		.loc 1 137 9 is_stmt 1 view .LVU206
+ 137:Core/Src/shell.c ****         // 重置当前line为'\0'
+ 743              		.loc 1 137 29 is_stmt 0 view .LVU207
+ 744 01e6 84F85110 		strb	r1, [r4, #81]
+ 139:Core/Src/shell.c ****         return;
+ 745              		.loc 1 139 9 is_stmt 1 view .LVU208
+ 746 01ea 5122     		movs	r2, #81
+ 747 01ec 2046     		mov	r0, r4
+ 748 01ee FFF7FEFF 		bl	memset
+ 749              	.LVL60:
+ 140:Core/Src/shell.c ****     }
+ 750              		.loc 1 140 9 view .LVU209
+ 751 01f2 53E7     		b	.L18
+ 752              	.LVL61:
+ 753              	.L33:
+ 147:Core/Src/shell.c ****         {
+ 754              		.loc 1 147 9 view .LVU210
+ 147:Core/Src/shell.c ****         {
+ 755              		.loc 1 147 18 is_stmt 0 view .LVU211
+ 756 01f4 4A4B     		ldr	r3, .L53
+ 757 01f6 93F85230 		ldrb	r3, [r3, #82]	@ zero_extendqisi2
+ 147:Core/Src/shell.c ****         {
+ 758              		.loc 1 147 12 view .LVU212
+ 759 01fa 002B     		cmp	r3, #0
+ 760 01fc 3FF44EAF 		beq	.L18
+ 149:Core/Src/shell.c ****             shell.line_position--;
+ 761              		.loc 1 149 13 is_stmt 1 view .LVU213
+ 149:Core/Src/shell.c ****             shell.line_position--;
+ 762              		.loc 1 149 30 is_stmt 0 view .LVU214
+ 763 0200 581E     		subs	r0, r3, #1
+ 764              	.LVL62:
+ 149:Core/Src/shell.c ****             shell.line_position--;
+ 765              		.loc 1 149 30 view .LVU215
+ 766 0202 C0B2     		uxtb	r0, r0
+ 767 0204 4649     		ldr	r1, .L53
+ 768 0206 81F85200 		strb	r0, [r1, #82]
+ 150:Core/Src/shell.c ****             // 删除末尾
+ 769              		.loc 1 150 13 is_stmt 1 view .LVU216
+ 150:Core/Src/shell.c ****             // 删除末尾
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 23
+
+
+ 770              		.loc 1 150 18 is_stmt 0 view .LVU217
+ 771 020a 91F85140 		ldrb	r4, [r1, #81]	@ zero_extendqisi2
+ 772              	.LVL63:
+ 150:Core/Src/shell.c ****             // 删除末尾
+ 773              		.loc 1 150 32 view .LVU218
+ 774 020e 621E     		subs	r2, r4, #1
+ 775 0210 D2B2     		uxtb	r2, r2
+ 776 0212 81F85120 		strb	r2, [r1, #81]
+ 152:Core/Src/shell.c ****             {
+ 777              		.loc 1 152 13 is_stmt 1 view .LVU219
+ 152:Core/Src/shell.c ****             {
+ 778              		.loc 1 152 16 is_stmt 0 view .LVU220
+ 779 0216 A342     		cmp	r3, r4
+ 780 0218 26D0     		beq	.L52
+ 781              	.LBB8:
+ 160:Core/Src/shell.c ****                        &shell.line[shell.line_curpos + 1],
+ 782              		.loc 1 160 17 is_stmt 1 view .LVU221
+ 160:Core/Src/shell.c ****                        &shell.line[shell.line_curpos + 1],
+ 783              		.loc 1 160 24 is_stmt 0 view .LVU222
+ 784 021a 414C     		ldr	r4, .L53
+ 161:Core/Src/shell.c ****                        (shell.line_position - shell.line_curpos));
+ 785              		.loc 1 161 54 view .LVU223
+ 786 021c 411C     		adds	r1, r0, #1
+ 160:Core/Src/shell.c ****                        &shell.line[shell.line_curpos + 1],
+ 787              		.loc 1 160 17 view .LVU224
+ 788 021e 121A     		subs	r2, r2, r0
+ 789 0220 2144     		add	r1, r1, r4
+ 790 0222 2044     		add	r0, r0, r4
+ 791 0224 FFF7FEFF 		bl	memcpy
+ 792              	.LVL64:
+ 164:Core/Src/shell.c **** 
+ 793              		.loc 1 164 17 is_stmt 1 view .LVU225
+ 164:Core/Src/shell.c **** 
+ 794              		.loc 1 164 33 is_stmt 0 view .LVU226
+ 795 0228 94F85130 		ldrb	r3, [r4, #81]	@ zero_extendqisi2
+ 164:Core/Src/shell.c **** 
+ 796              		.loc 1 164 49 view .LVU227
+ 797 022c 0025     		movs	r5, #0
+ 798 022e E554     		strb	r5, [r4, r3]
+ 167:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 799              		.loc 1 167 17 is_stmt 1 view .LVU228
+ 167:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 800              		.loc 1 167 25 is_stmt 0 view .LVU229
+ 801 0230 0826     		movs	r6, #8
+ 802 0232 3E71     		strb	r6, [r7, #4]
+ 168:Core/Src/shell.c ****                 // 输出新的字符串
+ 803              		.loc 1 168 17 is_stmt 1 view .LVU230
+ 804 0234 2B46     		mov	r3, r5
+ 805 0236 2A46     		mov	r2, r5
+ 806 0238 391D     		adds	r1, r7, #4
+ 807 023a 3046     		mov	r0, r6
+ 808 023c FFF7FEFF 		bl	uart_printf
+ 809              	.LVL65:
+ 170:Core/Src/shell.c ****                 // 覆盖末尾的那一个字符
+ 810              		.loc 1 170 17 view .LVU231
+ 170:Core/Src/shell.c ****                 // 覆盖末尾的那一个字符
+ 811              		.loc 1 170 58 is_stmt 0 view .LVU232
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 24
+
+
+ 812 0240 94F85210 		ldrb	r1, [r4, #82]	@ zero_extendqisi2
+ 170:Core/Src/shell.c ****                 // 覆盖末尾的那一个字符
+ 813              		.loc 1 170 17 view .LVU233
+ 814 0244 2B46     		mov	r3, r5
+ 815 0246 2A46     		mov	r2, r5
+ 816 0248 2144     		add	r1, r1, r4
+ 817 024a 3046     		mov	r0, r6
+ 818 024c FFF7FEFF 		bl	uart_printf
+ 819              	.LVL66:
+ 172:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 820              		.loc 1 172 17 is_stmt 1 view .LVU234
+ 172:Core/Src/shell.c ****                 uart_printf(system_log, &temp, NULL, 0);
+ 821              		.loc 1 172 22 is_stmt 0 view .LVU235
+ 822 0250 2023     		movs	r3, #32
+ 823 0252 3B71     		strb	r3, [r7, #4]
+ 173:Core/Src/shell.c ****                 // 退格12
+ 824              		.loc 1 173 17 is_stmt 1 view .LVU236
+ 825 0254 2B46     		mov	r3, r5
+ 826 0256 2A46     		mov	r2, r5
+ 827 0258 391D     		adds	r1, r7, #4
+ 828 025a 3046     		mov	r0, r6
+ 829 025c FFF7FEFF 		bl	uart_printf
+ 830              	.LVL67:
+ 175:Core/Src/shell.c ****                 for (int i = shell.line_curpos; i <= shell.line_position; i++)
+ 831              		.loc 1 175 17 view .LVU237
+ 175:Core/Src/shell.c ****                 for (int i = shell.line_curpos; i <= shell.line_position; i++)
+ 832              		.loc 1 175 22 is_stmt 0 view .LVU238
+ 833 0260 3E71     		strb	r6, [r7, #4]
+ 176:Core/Src/shell.c ****                 {
+ 834              		.loc 1 176 17 is_stmt 1 view .LVU239
+ 835              	.LBB9:
+ 176:Core/Src/shell.c ****                 {
+ 836              		.loc 1 176 22 view .LVU240
+ 176:Core/Src/shell.c ****                 {
+ 837              		.loc 1 176 35 is_stmt 0 view .LVU241
+ 838 0262 94F85240 		ldrb	r4, [r4, #82]	@ zero_extendqisi2
+ 839              	.LVL68:
+ 176:Core/Src/shell.c ****                 {
+ 840              		.loc 1 176 17 view .LVU242
+ 841 0266 12E0     		b	.L37
+ 842              	.LVL69:
+ 843              	.L52:
+ 176:Core/Src/shell.c ****                 {
+ 844              		.loc 1 176 17 view .LVU243
+ 845              	.LBE9:
+ 846              	.LBE8:
+ 154:Core/Src/shell.c ****                 shell.line[shell.line_position] = 0;
+ 847              		.loc 1 154 17 is_stmt 1 view .LVU244
+ 848 0268 0023     		movs	r3, #0
+ 849 026a 1A46     		mov	r2, r3
+ 850 026c 2F49     		ldr	r1, .L53+12
+ 851 026e 0820     		movs	r0, #8
+ 852 0270 FFF7FEFF 		bl	uart_printf
+ 853              	.LVL70:
+ 155:Core/Src/shell.c ****             }
+ 854              		.loc 1 155 17 view .LVU245
+ 155:Core/Src/shell.c ****             }
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 25
+
+
+ 855              		.loc 1 155 33 is_stmt 0 view .LVU246
+ 856 0274 2A4B     		ldr	r3, .L53
+ 857 0276 93F85120 		ldrb	r2, [r3, #81]	@ zero_extendqisi2
+ 155:Core/Src/shell.c ****             }
+ 858              		.loc 1 155 49 view .LVU247
+ 859 027a 0021     		movs	r1, #0
+ 860 027c 9954     		strb	r1, [r3, r2]
+ 861 027e 0DE7     		b	.L18
+ 862              	.LVL71:
+ 863              	.L38:
+ 864              	.LBB11:
+ 865              	.LBB10:
+ 178:Core/Src/shell.c ****                 }
+ 866              		.loc 1 178 21 is_stmt 1 view .LVU248
+ 867 0280 0023     		movs	r3, #0
+ 868 0282 1A46     		mov	r2, r3
+ 869 0284 391D     		adds	r1, r7, #4
+ 870 0286 0820     		movs	r0, #8
+ 871 0288 FFF7FEFF 		bl	uart_printf
+ 872              	.LVL72:
+ 176:Core/Src/shell.c ****                 {
+ 873              		.loc 1 176 76 discriminator 3 view .LVU249
+ 874 028c 0134     		adds	r4, r4, #1
+ 875              	.LVL73:
+ 876              	.L37:
+ 176:Core/Src/shell.c ****                 {
+ 877              		.loc 1 176 51 discriminator 1 view .LVU250
+ 176:Core/Src/shell.c ****                 {
+ 878              		.loc 1 176 59 is_stmt 0 discriminator 1 view .LVU251
+ 879 028e 244B     		ldr	r3, .L53
+ 880 0290 93F85130 		ldrb	r3, [r3, #81]	@ zero_extendqisi2
+ 176:Core/Src/shell.c ****                 {
+ 881              		.loc 1 176 51 discriminator 1 view .LVU252
+ 882 0294 A342     		cmp	r3, r4
+ 883 0296 F3DA     		bge	.L38
+ 176:Core/Src/shell.c ****                 {
+ 884              		.loc 1 176 51 discriminator 1 view .LVU253
+ 885 0298 00E7     		b	.L18
+ 886              	.LVL74:
+ 887              	.L41:
+ 176:Core/Src/shell.c ****                 {
+ 888              		.loc 1 176 51 discriminator 1 view .LVU254
+ 889              	.LBE10:
+ 890              	.LBE11:
+ 891              	.LBB12:
+ 892              	.LBB5:
+ 205:Core/Src/shell.c ****         }
+ 893              		.loc 1 205 13 is_stmt 1 view .LVU255
+ 205:Core/Src/shell.c ****         }
+ 894              		.loc 1 205 26 is_stmt 0 view .LVU256
+ 895 029a 0822     		movs	r2, #8
+ 896 029c E254     		strb	r2, [r4, r3]
+ 203:Core/Src/shell.c ****         {
+ 897              		.loc 1 203 67 is_stmt 1 discriminator 3 view .LVU257
+ 898 029e 0133     		adds	r3, r3, #1
+ 899              	.LVL75:
+ 900              	.L40:
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 26
+
+
+ 203:Core/Src/shell.c ****         {
+ 901              		.loc 1 203 43 discriminator 1 view .LVU258
+ 203:Core/Src/shell.c ****         {
+ 902              		.loc 1 203 50 is_stmt 0 discriminator 1 view .LVU259
+ 903 02a0 1F4A     		ldr	r2, .L53
+ 904 02a2 92F85120 		ldrb	r2, [r2, #81]	@ zero_extendqisi2
+ 203:Core/Src/shell.c ****         {
+ 905              		.loc 1 203 43 discriminator 1 view .LVU260
+ 906 02a6 9A42     		cmp	r2, r3
+ 907 02a8 F7DC     		bgt	.L41
+ 203:Core/Src/shell.c ****         {
+ 908              		.loc 1 203 43 discriminator 1 view .LVU261
+ 909              	.LBE5:
+ 207:Core/Src/shell.c ****         temp_data[shell.line_position - shell.line_curpos] = '\0';
+ 910              		.loc 1 207 9 is_stmt 1 view .LVU262
+ 207:Core/Src/shell.c ****         temp_data[shell.line_position - shell.line_curpos] = '\0';
+ 911              		.loc 1 207 61 is_stmt 0 view .LVU263
+ 912 02aa 1D4E     		ldr	r6, .L53
+ 913 02ac 96F85230 		ldrb	r3, [r6, #82]	@ zero_extendqisi2
+ 914              	.LVL76:
+ 207:Core/Src/shell.c ****         temp_data[shell.line_position - shell.line_curpos] = '\0';
+ 915              		.loc 1 207 9 view .LVU264
+ 916 02b0 D21A     		subs	r2, r2, r3
+ 917 02b2 0821     		movs	r1, #8
+ 918 02b4 2046     		mov	r0, r4
+ 919 02b6 FFF7FEFF 		bl	memset
+ 920              	.LVL77:
+ 208:Core/Src/shell.c ****         uart_printf(system_log, &temp_data, NULL, 0);
+ 921              		.loc 1 208 9 is_stmt 1 view .LVU265
+ 208:Core/Src/shell.c ****         uart_printf(system_log, &temp_data, NULL, 0);
+ 922              		.loc 1 208 24 is_stmt 0 view .LVU266
+ 923 02ba 96F85130 		ldrb	r3, [r6, #81]	@ zero_extendqisi2
+ 208:Core/Src/shell.c ****         uart_printf(system_log, &temp_data, NULL, 0);
+ 924              		.loc 1 208 46 view .LVU267
+ 925 02be 96F85220 		ldrb	r2, [r6, #82]	@ zero_extendqisi2
+ 208:Core/Src/shell.c ****         uart_printf(system_log, &temp_data, NULL, 0);
+ 926              		.loc 1 208 39 view .LVU268
+ 927 02c2 9B1A     		subs	r3, r3, r2
+ 208:Core/Src/shell.c ****         uart_printf(system_log, &temp_data, NULL, 0);
+ 928              		.loc 1 208 60 view .LVU269
+ 929 02c4 0022     		movs	r2, #0
+ 930 02c6 E254     		strb	r2, [r4, r3]
+ 209:Core/Src/shell.c ****     }
+ 931              		.loc 1 209 9 is_stmt 1 view .LVU270
+ 932 02c8 1346     		mov	r3, r2
+ 933 02ca 2146     		mov	r1, r4
+ 934 02cc 0820     		movs	r0, #8
+ 935 02ce FFF7FEFF 		bl	uart_printf
+ 936              	.LVL78:
+ 937 02d2 AD46     		mov	sp, r5
+ 938              	.LVL79:
+ 939              	.L42:
+ 209:Core/Src/shell.c ****     }
+ 940              		.loc 1 209 9 is_stmt 0 view .LVU271
+ 941              	.LBE12:
+ 219:Core/Src/shell.c ****     shell.line_curpos++;
+ 942              		.loc 1 219 5 is_stmt 1 view .LVU272
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 27
+
+
+ 219:Core/Src/shell.c ****     shell.line_curpos++;
+ 943              		.loc 1 219 10 is_stmt 0 view .LVU273
+ 944 02d4 124A     		ldr	r2, .L53
+ 945 02d6 92F85130 		ldrb	r3, [r2, #81]	@ zero_extendqisi2
+ 219:Core/Src/shell.c ****     shell.line_curpos++;
+ 946              		.loc 1 219 24 view .LVU274
+ 947 02da 0133     		adds	r3, r3, #1
+ 948 02dc DBB2     		uxtb	r3, r3
+ 949 02de 82F85130 		strb	r3, [r2, #81]
+ 220:Core/Src/shell.c ****     if (shell.line_position >= SHELL_CMD_SIZE) // 输入的buff满了，从0开始记录
+ 950              		.loc 1 220 5 is_stmt 1 view .LVU275
+ 220:Core/Src/shell.c ****     if (shell.line_position >= SHELL_CMD_SIZE) // 输入的buff满了，从0开始记录
+ 951              		.loc 1 220 10 is_stmt 0 view .LVU276
+ 952 02e2 92F85210 		ldrb	r1, [r2, #82]	@ zero_extendqisi2
+ 220:Core/Src/shell.c ****     if (shell.line_position >= SHELL_CMD_SIZE) // 输入的buff满了，从0开始记录
+ 953              		.loc 1 220 22 view .LVU277
+ 954 02e6 0131     		adds	r1, r1, #1
+ 955 02e8 82F85210 		strb	r1, [r2, #82]
+ 221:Core/Src/shell.c ****     {
+ 956              		.loc 1 221 5 is_stmt 1 view .LVU278
+ 221:Core/Src/shell.c ****     {
+ 957              		.loc 1 221 8 is_stmt 0 view .LVU279
+ 958 02ec 4F2B     		cmp	r3, #79
+ 959 02ee 7FF6D5AE 		bls	.L18
+ 223:Core/Src/shell.c ****         shell.line_position = 0; // 在line_curpos 小于 line_position 的情况下 有bug
+ 960              		.loc 1 223 9 is_stmt 1 view .LVU280
+ 223:Core/Src/shell.c ****         shell.line_position = 0; // 在line_curpos 小于 line_position 的情况下 有bug
+ 961              		.loc 1 223 27 is_stmt 0 view .LVU281
+ 962 02f2 1046     		mov	r0, r2
+ 963 02f4 0021     		movs	r1, #0
+ 964 02f6 82F85210 		strb	r1, [r2, #82]
+ 224:Core/Src/shell.c ****         memset(&shell, '\0', SHELL_CMD_SIZE);
+ 965              		.loc 1 224 9 is_stmt 1 view .LVU282
+ 224:Core/Src/shell.c ****         memset(&shell, '\0', SHELL_CMD_SIZE);
+ 966              		.loc 1 224 29 is_stmt 0 view .LVU283
+ 967 02fa 82F85110 		strb	r1, [r2, #81]
+ 225:Core/Src/shell.c ****     }
+ 968              		.loc 1 225 9 is_stmt 1 view .LVU284
+ 969 02fe 5022     		movs	r2, #80
+ 970 0300 FFF7FEFF 		bl	memset
+ 971              	.LVL80:
+ 972 0304 CAE6     		b	.L18
+ 973              	.LVL81:
+ 974              	.L39:
+ 213:Core/Src/shell.c ****         outData[0] = data;
+ 975              		.loc 1 213 9 view .LVU285
+ 213:Core/Src/shell.c ****         outData[0] = data;
+ 976              		.loc 1 213 39 is_stmt 0 view .LVU286
+ 977 0306 064B     		ldr	r3, .L53
+ 978 0308 9C55     		strb	r4, [r3, r6]
+ 214:Core/Src/shell.c ****         uart_printf(system_log, &outData, NULL, 0);
+ 979              		.loc 1 214 9 is_stmt 1 view .LVU287
+ 214:Core/Src/shell.c ****         uart_printf(system_log, &outData, NULL, 0);
+ 980              		.loc 1 214 20 is_stmt 0 view .LVU288
+ 981 030a 87F85440 		strb	r4, [r7, #84]
+ 215:Core/Src/shell.c ****     }
+ 982              		.loc 1 215 9 is_stmt 1 view .LVU289
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 28
+
+
+ 983 030e 0023     		movs	r3, #0
+ 984 0310 1A46     		mov	r2, r3
+ 985 0312 07F15401 		add	r1, r7, #84
+ 986 0316 0820     		movs	r0, #8
+ 987              	.LVL82:
+ 215:Core/Src/shell.c ****     }
+ 988              		.loc 1 215 9 is_stmt 0 view .LVU290
+ 989 0318 FFF7FEFF 		bl	uart_printf
+ 990              	.LVL83:
+ 991 031c DAE7     		b	.L42
+ 992              	.L54:
+ 993 031e 00BF     		.align	2
+ 994              	.L53:
+ 995 0320 00000000 		.word	shell
+ 996 0324 00000000 		.word	.LC2
+ 997 0328 00000000 		.word	.LC0
+ 998 032c 04000000 		.word	.LC3
+ 999              		.cfi_endproc
+ 1000              	.LFE4:
+ 1002              		.global	shell
+ 1003              		.section	.bss.shell,"aw",%nobits
+ 1004              		.align	2
+ 1007              	shell:
+ 1008 0000 00000000 		.space	486
+ 1008      00000000 
+ 1008      00000000 
+ 1008      00000000 
+ 1008      00000000 
+ 1009              		.text
+ 1010              	.Letext0:
+ 1011              		.file 2 "Core/Inc/shell.h"
+ 1012              		.file 3 "C:/Users/YLAI2/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 1013              		.file 4 "C:/Users/YLAI2/AppData/Roaming/Code/User/globalStorage/bmd.stm32-for-vscode/@xpack-dev-to
+ 1014              		.file 5 "Core/Inc/uart_printf.h"
+ 1015              		.file 6 "<built-in>"
+ 1016              		.file 7 "Core/Inc/command.h"
+ARM GAS  C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s 			page 29
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 shell.c
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:19     .rodata.shell_handle_history.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:23     .text.shell_handle_history:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:28     .text.shell_handle_history:00000000 shell_handle_history
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:113    .text.shell_handle_history:00000064 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:118    .text.shell_put_history:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:123    .text.shell_put_history:00000000 shell_put_history
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:268    .rodata.shell_init.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:272    .text.shell_init:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:278    .text.shell_init:00000000 shell_init
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:339    .text.shell_init:0000004c $d
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:1007   .bss.shell:00000000 shell
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:346    .rodata.shell_enter.str1.4:00000000 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:353    .text.shell_enter:00000000 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:359    .text.shell_enter:00000000 shell_enter
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:536    .text.shell_enter:000000d0 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:540    .text.shell_enter:000000d4 $t
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:995    .text.shell_enter:00000320 $d
+C:\Users\YLAI2\AppData\Local\Temp\ccGetPD2.s:1004   .bss.shell:00000000 $d
+
+UNDEFINED SYMBOLS
+uart_printf
+memset
+memcmp
+memcpy
+strlen
+exec_command
