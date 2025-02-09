@@ -60,6 +60,7 @@
   "C_Cpp_Runner.useLinkTimeOptimization": false,
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
   "files.associations": {
+    "*.ld": "c",
     "uart_printf.h": "c",
     "stdio.h": "c",
     "compare": "c",
@@ -69,6 +70,14 @@
     "cmath": "c",
     "limits": "c",
     "new": "c",
-    "*.ld": "c"
+    "shell.h": "c",
+    "command.h": "c",
+    "uds.h": "c",
+    "typedef_conf.h": "c",
+    "string.h": "c",
+    "typeinfo": "c",
+    "crc.h": "c",
+    "rcc.h": "c",
+    "interrupt.h": "c"
   }
 }

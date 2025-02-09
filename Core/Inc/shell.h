@@ -31,6 +31,7 @@ enum SHELL_STATE
     WAIT_FUNC_KEY
 };
 
-void shell(void);
+void shell_enter(uint8_t data);
+void shell_init();
 
 #endif
